@@ -1,0 +1,20 @@
+---
+import { asset, url } from '../lib/assets.js';
+const { home = true } = Astro.props;
+---
+{home && (
+  <a class="chrome chrome-home" href={url('')} aria-label="Home">
+    <img src={asset.home} alt="" />
+  </a>
+)}
+<img class="chrome chrome-sun" src={asset.sun} alt="" aria-hidden="true" />
+
+<style>
+  .chrome { position: fixed; z-index: 50; }
+  .chrome-home { top: 18px; left: 20px; width: clamp(44px, 5vw, 82px); }
+  .chrome-sun  { top: 18px; right: 20px; width: clamp(44px, 5vw, 82px); pointer-events: none; }
+  .chrome img, img.chrome-sun { width: 100%; height: auto; }
+  @media (max-width: 640px) {
+    .chrome-home, .chrome-sun { width: 54px; top: 12px; }
+  }
+</style>
