@@ -1,0 +1,92 @@
+---
+import Base from '../layouts/Base.astro';
+import SiteChrome from '../components/SiteChrome.astro';
+import { asset, url, GAMES_URL } from '../lib/assets.js';
+
+const sections = [
+  { id: 'sec-uiux',    img: asset.uiux,    href: url('uiux'),    label: 'UI & UX' },
+  { id: 'sec-music',   img: asset.music,   href: url('music'),   label: 'Music' },
+  { id: 'sec-games',   img: asset.games,   href: GAMES_URL,      label: 'Games', external: true },
+  { id: 'sec-writing', img: asset.writing, href: url('writing'), label: 'Writing' },
+];
+---
+
+<Base title="Home" path="">
+  <SiteChrome home={false} />
+
+  <main class="stage">
+    <img class="wordmark" src={asset.wordmark} alt="StarrySidekick" />
+
+    <nav class="sections" aria-label="Sections">
+      {sections.map((s) => (
+        <a
+          id={s.id}
+          href={s.href}
+          rel={s.external ? 'noopener' : undefined}
+          target={s.external ? '_blank' : undefined}
+        >
+          <img src={s.img} alt={s.label} />
+        </a>
+      ))}
+    </nav>
+
+    <div class="persona">
+      <a class="mail" href={url('contact')} aria-label="Contact">
+        <img src={asset.mail} alt="Mail" />
+      </a>
+      <img class="figure" src={asset.persona} alt="Hand-drawn portrait of Timothy" />
+      <a class="links" href={url('links')} aria-label="Links">
+        <img src={asset.linksIcon} alt="Links" />
+      </a>
+    </div>
+  </main>
+</Base>
+
+<style>
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(1rem, 3vw, 2.5rem);
+    padding: clamp(5rem, 10vh, 8rem) 5vw 4rem;
+  }
+  .wordmark { width: clamp(210px, 26vw, 340px); height: auto; }
+
+  .sections {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(0.6rem, 2.4vw, 2.2rem);
+    width: 100%;
+    max-width: 1100px;
+  }
+  .sections a {
+    flex: 0 1 clamp(130px, 18vw, 210px);
+    transition: transform .25s ease;
+  }
+  .sections a:hover { transform: scale(1.08); }
+  .sections img { width: 100%; height: auto; }
+
+  /* The figure with mail and links flanking it, as on the original. */
+  .persona {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: clamp(0.5rem, 3vw, 3rem);
+    width: 100%;
+    max-width: 760px;
+  }
+  .persona .figure { width: clamp(150px, 24vw, 300px); height: auto; }
+  .persona .mail, .persona .links {
+    width: clamp(64px, 9vw, 128px);
+    transition: transform .25s ease;
+    margin-bottom: clamp(1rem, 4vw, 3rem);
+  }
+  .persona .mail:hover, .persona .links:hover { transform: scale(1.12); }
+
+  @media (max-width: 640px) {
+    .sections a { flex: 0 1 42%; }
+    .persona { gap: 0.25rem; }
+  }
+</style>
