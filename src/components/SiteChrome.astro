@@ -13,7 +13,10 @@ const { home = true } = Astro.props;
   .chrome { position: fixed; z-index: 50; }
   .chrome-home { top: 18px; left: 20px; width: clamp(44px, 5vw, 82px); }
   .chrome-sun  { top: 18px; right: 20px; width: clamp(44px, 5vw, 82px); pointer-events: none; }
-  .chrome img, img.chrome-sun { width: 100%; height: auto; }
+  /* Only the img INSIDE the home anchor fills its box. Targeting the sun here
+     too (img.chrome-sun) out-specifies its own clamp and blows it up to 100vw. */
+  .chrome img { width: 100%; height: auto; }
+  img.chrome-sun { height: auto; }
   @media (max-width: 640px) {
     .chrome-home, .chrome-sun { width: 54px; top: 12px; }
   }
