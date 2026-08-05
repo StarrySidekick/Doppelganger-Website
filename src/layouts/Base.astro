@@ -1,0 +1,58 @@
+---
+const {
+  title,
+  description = "Timothy Vlangas — writer, game designer, musician and UI/UX designer. Poems, essays, short stories, games and music, all in one place.",
+  path = '',
+} = Astro.props;
+const full = `${title} — StarrySidekick.com`;
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{full}</title>
+  <meta name="description" content={description} />
+
+  <!-- SEO surface Squarespace generated for free; now explicit and editable. -->
+  <meta property="og:site_name" content="StarrySidekick.com" />
+  <meta property="og:title" content={full} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={`https://timothyvlangas.com${path}`} />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content={full} />
+
+  <!-- FONTS: EB Garamond stands in for Adobe Garamond Pro, which cannot be
+       self-hosted and stops working when the Squarespace subscription ends.
+       Swap --font-body in one place if a Creative Cloud plan is kept instead. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <slot />
+</body>
+</html>
+
+<style is:global>
+  :root {
+    --font-display: 'Amatic SC', cursive;
+    --font-body: 'EB Garamond', Garamond, Georgia, serif;
+    --ink: #ffffff;
+    --bg: #000000;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; }
+</style>
