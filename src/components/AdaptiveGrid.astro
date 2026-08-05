@@ -1,0 +1,9 @@
+---
+import { compileCSS } from '../lib/adaptive-grid.js';
+const { layout } = Astro.props;
+const css = compileCSS(layout);
+---
+<div class="ag-root">
+  <div class="ag-grid"><slot /></div>
+</div>
+<style is:inline set:html={css}></style>
