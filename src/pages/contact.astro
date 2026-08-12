@@ -23,7 +23,7 @@ const ready = !ACCESS_KEY.startsWith('REPLACE');
 
     <form action="https://api.web3forms.com/submit" method="POST">
       <input type="hidden" name="access_key" value={ACCESS_KEY} />
-      <input type="hidden" name="subject" value="New message from starrysidekick.com" />
+      <input type="hidden" name="from_name" value="starrysidekick.com" />
       <!-- honeypot: bots fill it, humans never see it -->
       <input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off" />
 
@@ -32,7 +32,10 @@ const ready = !ACCESS_KEY.startsWith('REPLACE');
         <label>Last name <input type="text" name="last_name" required /></label>
       </div>
       <label>Email <input type="email" name="email" required /></label>
-      <label>Subject <input type="text" name="subject_line" required /></label>
+      <!-- Named `subject` so what the sender types becomes the email's subject.
+           It used to post as subject_line while a hidden field fixed the real
+           subject, so every message arrived with the same generic title. -->
+      <label>Subject <input type="text" name="subject" required /></label>
       <label>Message <textarea name="message" rows="7" required></textarea></label>
 
       <button type="submit" disabled={!ready}>
