@@ -3,20 +3,11 @@ import Base from '../layouts/Base.astro';
 import AdaptiveGrid from '../components/AdaptiveGrid.astro';
 import FlipCard from '../components/FlipCard.astro';
 import { asset, url, sized, srcset } from '../lib/assets.js';
+import { getLayout } from '../lib/layouts.js';
 
-// The layout, authored once. Narrow behaviour is derived from `flow`.
-const layout = {
-  columns: 24, rowHeight: 26, gap: 8, reflowBelow: 700,
-  elements: [
-    { id: 'nav-home', col: [1, 3],  row: [1, 3],  flow: 'pin'   },
-    { id: 'nav-sun',  col: [22, 3], row: [1, 3],  flow: 'pin'   },
-    { id: 'card',     col: [10, 6], row: [5, 8],  flow: 'full'  },
-    { id: 'email',    col: [2, 8],  row: [9, 2],  flow: 'stack' },
-    { id: 'phone',    col: [3, 7],  row: [12, 2], flow: 'stack' },
-    { id: 'socials',  col: [8, 10], row: [15, 3], flow: 'full'  },
-    { id: 'qr',       col: [11, 4], row: [19, 5], flow: 'keep'  },
-  ],
-};
+// The layout, authored once, and now data rather than a literal — see
+// src/data/layouts/links.json. Narrow behaviour is derived from `flow`.
+const layout = getLayout('links');
 ---
 
 <Base title="Links" path="/links">

@@ -7,7 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolve, compileCSS, scopeFor } from './adaptive-grid.js';
+import { readFileSync } from 'node:fs';
+import { resolve, compileCSS, scopeFor, validateLayout } from './adaptive-grid.js';
 
 /** The /links layout, which exercises every flow. */
 const layout = {
@@ -125,6 +126,41 @@ test('scopeFor is stable for a layout and distinct between layouts', () => {
   assert.equal(scopeFor(layout), scopeFor(structuredClone(layout)));
   assert.notEqual(scopeFor(layout), scopeFor({ ...layout, columns: 12 }));
   assert.match(scopeFor(layout), /^ag-[a-z0-9]+$/);
+});
+
+test('the shipped layout data is valid and matches this fixture', () => {
+  // The fixture above is the /links layout. If the JSON drifts from it, these
+  // assertions stop describing the real page — so pin them together.
+  const onDisk = JSON.parse(
+    readFileSync(new URL('../data/layouts/links.json', import.meta.url), 'utf8')
+  );
+  assert.deepEqual(validateLayout(onDisk, 'links'), []);
+  assert.deepEqual(onDisk, layout);
+});
+
+test('validateLayout accepts a good layout and reports nothing', () => {
+  assert.deepEqual(validateLayout(layout), []);
+});
+
+test('validateLayout catches the ways editor-written data can break', () => {
+  const el = (over = {}) => ({ id: 'a', col: [1, 2], row: [1, 2], flow: 'stack', ...over });
+  const base = { columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700, elements: [el()] };
+  const one = (over) => validateLayout({ ...base, ...over }).join(' | ');
+
+  assert.match(one({ columns: 0 }), /columns must be a positive number/);
+  assert.match(one({ columns: 2 }), /columns must be at least 3/);
+  assert.match(one({ rowHeight: -1 }), /rowHeight must be a positive number/);
+  assert.match(one({ elements: 'nope' }), /elements must be an array/);
+  assert.match(one({ elements: [el({ flow: 'wiggle' })] }), /flow must be one of/);
+  assert.match(one({ elements: [el({ id: '' })] }), /id must be a non-empty string/);
+  assert.match(one({ elements: [el({ id: '2col' })] }), /not a valid css\/html id/);
+  assert.match(one({ elements: [el(), el()] }), /is duplicated/);
+  assert.match(one({ elements: [el({ col: [1] })] }), /must be \[start, span\] integers/);
+  assert.match(one({ elements: [el({ col: [0, 2] })] }), /grid lines start at 1/);
+  assert.match(one({ elements: [el({ row: [1, 0] })] }), /span must be at least 1/);
+  assert.match(one({ elements: [el({ col: [11, 4] })] }), /overflows the 12-column grid/);
+
+  assert.deepEqual(validateLayout(null), ['layout: is not an object']);
 });
 
 test('a layout with no pinned elements starts at the first row', () => {

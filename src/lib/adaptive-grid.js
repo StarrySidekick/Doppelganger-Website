@@ -70,6 +70,72 @@ export function resolve(layout, width) {
   return out;
 }
 
+/** The only legal values for an element's reflow rule. */
+export const FLOWS = ['pin', 'keep', 'full', 'stack'];
+
+/**
+ * Check a layout is well formed. Returns a list of problems, empty if fine.
+ *
+ * Layouts used to be literals written by hand in a component. They are data
+ * now, and an editor will eventually write them, so a malformed layout is a
+ * real thing that can happen rather than a typo caught in review. Every caller
+ * — build, tests, and any future editor — should run this before trusting one.
+ */
+export function validateLayout(layout, name = 'layout') {
+  const problems = [];
+  const bad = (msg) => problems.push(`${name}: ${msg}`);
+
+  if (!layout || typeof layout !== 'object') {
+    bad('is not an object');
+    return problems;
+  }
+
+  for (const key of ['columns', 'rowHeight', 'gap', 'reflowBelow']) {
+    const v = layout[key];
+    if (!Number.isFinite(v) || v <= 0) bad(`${key} must be a positive number, got ${JSON.stringify(v)}`);
+  }
+  // `stack` insets by one column each side and `pin` divides by three, so a
+  // grid narrower than this cannot produce a valid placement.
+  if (Number.isFinite(layout.columns) && layout.columns < 3) {
+    bad(`columns must be at least 3, got ${layout.columns}`);
+  }
+
+  if (!Array.isArray(layout.elements)) {
+    bad('elements must be an array');
+    return problems;
+  }
+
+  const seen = new Set();
+  for (const [i, e] of layout.elements.entries()) {
+    const at = `elements[${i}]`;
+    if (!e || typeof e !== 'object') { bad(`${at} is not an object`); continue; }
+
+    if (typeof e.id !== 'string' || !e.id) bad(`${at}.id must be a non-empty string`);
+    // The id becomes a CSS selector and an HTML id, so it has to be usable as
+    // both without escaping.
+    else if (!/^[A-Za-z][\w-]*$/.test(e.id)) bad(`${at}.id ${JSON.stringify(e.id)} is not a valid css/html id`);
+    else if (seen.has(e.id)) bad(`${at}.id ${JSON.stringify(e.id)} is duplicated`);
+    else seen.add(e.id);
+
+    if (!FLOWS.includes(e.flow)) bad(`${at}.flow must be one of ${FLOWS.join(', ')}, got ${JSON.stringify(e.flow)}`);
+
+    for (const axis of ['col', 'row']) {
+      const v = e[axis];
+      if (!Array.isArray(v) || v.length !== 2 || !v.every(Number.isInteger)) {
+        bad(`${at}.${axis} must be [start, span] integers, got ${JSON.stringify(v)}`);
+        continue;
+      }
+      const [start, span] = v;
+      if (start < 1) bad(`${at}.${axis} starts at ${start}; grid lines start at 1`);
+      if (span < 1) bad(`${at}.${axis} span must be at least 1, got ${span}`);
+      if (axis === 'col' && Number.isFinite(layout.columns) && start + span - 1 > layout.columns) {
+        bad(`${at}.col ${start}+${span} overflows the ${layout.columns}-column grid`);
+      }
+    }
+  }
+  return problems;
+}
+
 /**
  * A stable scope class for a layout.
  *
