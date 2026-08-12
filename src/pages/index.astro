@@ -1,7 +1,11 @@
 ---
 import Base from '../layouts/Base.astro';
 import SiteChrome from '../components/SiteChrome.astro';
-import { asset, url, GAMES_URL } from '../lib/assets.js';
+import { asset, url, srcset, sized, GAMES_URL } from '../lib/assets.js';
+
+// `sizes` mirrors the CSS below so the browser can pick the right file. Without
+// it every visitor got the 2048px original of each button and a 2057x2519,
+// 9 MB persona — 15.3 MB for a page whose largest image renders at 300px.
 
 const sections = [
   { id: 'sec-uiux',    img: asset.uiux,    href: url('uiux'),    label: 'UI & UX' },
@@ -15,7 +19,15 @@ const sections = [
   <SiteChrome home={false} />
 
   <main class="stage">
-    <img class="wordmark" src={asset.wordmark} alt="StarrySidekick" />
+    <h1 class="wordmark">
+      <img
+        src={sized(asset.wordmark, 750)}
+        srcset={srcset(asset.wordmark, [300, 500, 750])}
+        sizes="(max-width: 808px) 210px, (max-width: 1308px) 26vw, 340px"
+        width="1000" height="619"
+        alt="StarrySidekick"
+      />
+    </h1>
 
     <nav class="sections" aria-label="Sections">
       {sections.map((s) => (
@@ -25,18 +37,43 @@ const sections = [
           rel={s.external ? 'noopener' : undefined}
           target={s.external ? '_blank' : undefined}
         >
-          <img src={s.img} alt={s.label} />
+          <img
+            src={sized(s.img, 500)}
+            srcset={srcset(s.img, [300, 500, 750])}
+            sizes="(max-width: 640px) 42vw, (max-width: 1167px) 18vw, 210px"
+            width="2048" height="2048"
+            alt={s.label}
+          />
         </a>
       ))}
     </nav>
 
     <div class="persona">
       <a class="mail" href={url('contact')} aria-label="Contact">
-        <img src={asset.mail} alt="Mail" />
+        <img
+          src={sized(asset.mail, 300)}
+          srcset={srcset(asset.mail, [300, 500])}
+          sizes="(max-width: 711px) 64px, (max-width: 1422px) 9vw, 128px"
+          width="338" height="337"
+          alt="Mail"
+        />
       </a>
-      <img class="figure" src={asset.persona} alt="Hand-drawn portrait of Timothy" />
+      <img
+        class="figure"
+        src={sized(asset.persona, 750)}
+        srcset={srcset(asset.persona, [300, 500, 750])}
+        sizes="(max-width: 625px) 150px, (max-width: 1250px) 24vw, 300px"
+        width="2057" height="2519"
+        alt="Hand-drawn portrait of Timothy"
+      />
       <a class="links" href={url('links')} aria-label="Links">
-        <img src={asset.linksIcon} alt="Links" />
+        <img
+          src={sized(asset.linksIcon, 300)}
+          srcset={srcset(asset.linksIcon, [300, 500])}
+          sizes="(max-width: 711px) 64px, (max-width: 1422px) 9vw, 128px"
+          width="650" height="898"
+          alt="Links"
+        />
       </a>
     </div>
   </main>
@@ -51,7 +88,8 @@ const sections = [
     gap: clamp(1rem, 3vw, 2.5rem);
     padding: clamp(5rem, 10vh, 8rem) 5vw 4rem;
   }
-  .wordmark { width: clamp(210px, 26vw, 340px); height: auto; }
+  /* The wordmark is the page's h1 — the heading is the image. */
+  .wordmark { width: clamp(210px, 26vw, 340px); margin: 0; line-height: 0; }
 
   .sections {
     display: flex;

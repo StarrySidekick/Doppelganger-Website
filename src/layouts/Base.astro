@@ -1,10 +1,19 @@
 ---
+import { PROD_ORIGIN, asset, sized, url } from '../lib/assets.js';
+
 const {
   title,
   description = "Timothy Vlangas — writer, game designer, musician and UI/UX designer. Poems, essays, short stories, games and music, all in one place.",
   path = '',
+  noindex = false,
 } = Astro.props;
 const full = `${title} — StarrySidekick.com`;
+
+// Canonical and og:url point at the real domain, not this staging host, so
+// nothing has to be rewritten at cutover. PROD_ORIGIN lives in assets.js — the
+// domain is written down once, not once per tag.
+const canonical = `${PROD_ORIGIN}${path}`;
+const ogImage = sized(asset.wordmark, 1000);
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -13,15 +22,26 @@ const full = `${title} — StarrySidekick.com`;
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{full}</title>
   <meta name="description" content={description} />
+  {noindex
+    ? <meta name="robots" content="noindex" />
+    : <link rel="canonical" href={canonical} />}
+
+  <!-- Generated from Timothy's own Sun.gif, first frame. The only local asset
+       so far; everything else still comes from the CDN by design. -->
+  <link rel="icon" href={url('favicon.png')} sizes="96x96" type="image/png" />
+  <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
 
   <!-- SEO surface Squarespace generated for free; now explicit and editable. -->
   <meta property="og:site_name" content="StarrySidekick.com" />
   <meta property="og:title" content={full} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content={`https://timothyvlangas.com${path}`} />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={ogImage} />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={full} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={ogImage} />
 
   <!-- FONTS: EB Garamond stands in for Adobe Garamond Pro, which cannot be
        self-hosted and stops working when the Squarespace subscription ends.
@@ -46,6 +66,13 @@ const full = `${title} — StarrySidekick.com`;
     --bg: #000000;
   }
   * { box-sizing: border-box; }
+  /* For headings a page needs structurally but shouldn't show — /links is a
+     visual card, but it still needs an h1 for search and screen readers. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0;
+    clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+  }
   body {
     margin: 0;
     background: var(--bg);
@@ -53,6 +80,10 @@ const full = `${title} — StarrySidekick.com`;
     font-family: var(--font-body);
     min-height: 100vh;
   }
-  img { display: block; max-width: 100%; }
+  /* height:auto is required, not cosmetic. Images now carry width/height
+     attributes to reserve space and stop layout shift; without height:auto,
+     max-width:100% shrinks the width while the attribute pins the height and
+     the image squashes. */
+  img { display: block; max-width: 100%; height: auto; }
   a { color: inherit; }
 </style>

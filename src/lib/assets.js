@@ -29,5 +29,30 @@ export const asset = {
 export const GAMES_URL = 'https://starry-sidekick.itch.io/composers-key';
 export const SOUNDCLOUD = 'https://soundcloud.com/user-682162199';
 
+/** The real domain. Single source of truth — SEO tags read this, not a literal. */
+export const PROD_ORIGIN = 'https://timothyvlangas.com';
+
 /** Prefix an internal path with the deploy base. Required on project Pages. */
 export const url = (p) => (import.meta.env.BASE_URL + '/' + p).replace(/\/{2,}/g, '/');
+
+/**
+ * Asset sizing.
+ *
+ * The originals are enormous — the persona is 2057x2519 (9 MB) and never
+ * renders wider than 300px. Squarespace's IMAGE cdn resizes on demand via
+ * ?format=<width>w and keeps every frame of an animated GIF, so the fix is a
+ * query string rather than a re-encode: no new files, no fidelity call, and
+ * this stays the only file that changes when assets eventually move local.
+ *
+ * static1 serves raw files and IGNORES the parameter, so the helpers below
+ * leave those URLs alone rather than emitting a srcset that is a lie.
+ */
+const RESIZABLE = /^https:\/\/images\.squarespace-cdn\.com\//;
+const WIDTHS = [300, 500, 750, 1000];
+
+/** One URL at a given rendered width. */
+export const sized = (u, w) => (RESIZABLE.test(u) ? `${u}?format=${w}w` : u);
+
+/** A srcset, or undefined when the host can't resize (Astro drops the attr). */
+export const srcset = (u, widths = WIDTHS) =>
+  RESIZABLE.test(u) ? widths.map((w) => `${sized(u, w)} ${w}w`).join(', ') : undefined;
