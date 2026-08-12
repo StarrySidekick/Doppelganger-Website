@@ -23,7 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      # `npm ci` installs strictly from package-lock.json and fails loudly if it
+      # has drifted. `npm install` would silently re-resolve and could change
+      # the build with no commit behind it.
+      - run: npm ci
+      - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
