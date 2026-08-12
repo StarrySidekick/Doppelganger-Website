@@ -1,0 +1,57 @@
+---
+import Base from '../layouts/Base.astro';
+import SiteChrome from '../components/SiteChrome.astro';
+import { url } from '../lib/assets.js';
+
+// Several routes are linked but not built yet (/uiux and the writing
+// collections). Until they exist this page is what visitors actually get, so
+// it points them somewhere useful rather than leaving them stranded.
+const elsewhere = [
+  { href: url(''),        label: 'Home' },
+  { href: url('writing'), label: 'Writing' },
+  { href: url('music'),   label: 'Music' },
+  { href: url('links'),   label: 'Links' },
+  { href: url('contact'), label: 'Contact' },
+];
+---
+
+<Base title="Page not found" path="/404" noindex>
+  <SiteChrome />
+  <main class="stage">
+    <h1>Nothing here yet</h1>
+    <p class="lede">
+      This page either moved or hasn't been built. The site is being rebuilt a
+      page at a time, so some links run ahead of the work.
+    </p>
+    <nav aria-label="Elsewhere on the site">
+      <ul class="elsewhere">
+        {elsewhere.map((l) => (
+          <li><a href={l.href}>{l.label}</a></li>
+        ))}
+      </ul>
+    </nav>
+  </main>
+</Base>
+
+<style>
+  .stage {
+    min-height: 100vh;
+    padding: clamp(6rem, 14vh, 9rem) 6vw 5rem;
+    max-width: 720px; margin-inline: auto;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.6rem, 8vw, 5rem);
+    margin: 0 0 clamp(1rem, 3vw, 1.6rem);
+  }
+  .lede { margin: 0 0 clamp(2rem, 5vw, 3rem); opacity: .7; max-width: 46ch; line-height: 1.5; }
+  .elsewhere { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; }
+  .elsewhere a {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 3vw, 1.9rem);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255,255,255,.28);
+    transition: border-color .2s ease;
+  }
+  .elsewhere a:hover { border-color: rgba(255,255,255,.75); }
+</style>
