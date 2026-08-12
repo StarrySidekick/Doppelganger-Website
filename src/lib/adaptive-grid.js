@@ -71,6 +71,23 @@ export function resolve(layout, width) {
 }
 
 /**
+ * A stable scope class for a layout.
+ *
+ * Derived from the layout itself rather than a random string, so a given
+ * layout compiles to byte-identical CSS on every build — the dist output stays
+ * diffable, and editor and site agree on the class name too.
+ */
+export function scopeFor(layout) {
+  const json = JSON.stringify(layout);
+  let h = 2166136261;
+  for (let i = 0; i < json.length; i++) {
+    h ^= json.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return 'ag-' + (h >>> 0).toString(36);
+}
+
+/**
  * Compile a layout to real CSS Grid.
  *
  * Container queries, not media queries — the layout then works correctly inside
@@ -79,29 +96,42 @@ export function resolve(layout, width) {
  */
 export function compileCSS(layout, scope) {
   const { columns, rowHeight, gap, reflowBelow } = layout;
-  const s = scope ? `.${scope} ` : '';
+  const s = `.${scope}`;
   const lines = [];
 
+  // Element rules are keyed by id, and ids are a GLOBAL namespace — exactly the
+  // hazard the keyframe rule exists for. Without a scope, a second grid on the
+  // page silently overwrites the first's columns and every shared id. Callers
+  // must pass one; AdaptiveGrid.astro generates it per instance.
+  if (!scope) {
+    throw new Error(
+      'compileCSS() requires a scope. Two unscoped grids on one page overwrite ' +
+        "each other's rules — the second wins and the first loses its layout."
+    );
+  }
+
+  // The scope class sits on the .ag-root element itself, so every rule below is
+  // confined to this one grid.
   // minmax(..., auto): rows keep their fluid target height but are allowed to
   // GROW when content needs more room. Without the auto, any element taller
   // than its allotted rows silently overflows and collides with what follows.
-  lines.push(`${s}.ag-root{container-type:inline-size}`);
+  lines.push(`${s}{container-type:inline-size}`);
   lines.push(
-    `${s}.ag-grid{display:grid;grid-template-columns:repeat(${columns},1fr);` +
+    `${s} .ag-grid{display:grid;grid-template-columns:repeat(${columns},1fr);` +
       `grid-auto-rows:minmax(clamp(${Math.round(rowHeight * 0.7)}px,${(rowHeight / 14).toFixed(2)}cqi,${Math.round(rowHeight * 1.5)}px),auto);` +
       `gap:clamp(4px,0.6cqi,${gap}px)}`
   );
 
   for (const e of layout.elements) {
     lines.push(
-      `${s}#${e.id}{grid-column:${e.col[0]}/span ${e.col[1]};grid-row:${e.row[0]}/span ${e.row[1]}}`
+      `${s} #${e.id}{grid-column:${e.col[0]}/span ${e.col[1]};grid-row:${e.row[0]}/span ${e.row[1]}}`
     );
   }
 
   lines.push(`@container (max-width:${reflowBelow - 1}px){`);
   for (const r of resolve(layout, reflowBelow - 1)) {
     lines.push(
-      `${s}#${r.id}{grid-column:${r._col}/span ${r._span};grid-row:${r._row}/span ${r._rowSpan}}`
+      `${s} #${r.id}{grid-column:${r._col}/span ${r._span};grid-row:${r._row}/span ${r._rowSpan}}`
     );
   }
   lines.push(`}`);

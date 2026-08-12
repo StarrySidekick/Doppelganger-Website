@@ -1,9 +1,15 @@
 ---
-import { compileCSS } from '../lib/adaptive-grid.js';
+import { compileCSS, scopeFor } from '../lib/adaptive-grid.js';
+
 const { layout } = Astro.props;
-const css = compileCSS(layout);
+
+// A scope class derived from the layout. The compiled rules are keyed by
+// element id, and ids are global — without this, a second grid on the page
+// overwrites the first's column count and every id it shares.
+const scope = scopeFor(layout);
+const css = compileCSS(layout, scope);
 ---
-<div class="ag-root">
+<div class:list={['ag-root', scope]}>
   <div class="ag-grid"><slot /></div>
 </div>
 <style is:inline set:html={css}></style>
