@@ -1,7 +1,11 @@
 ---
-import { compileCSS, scopeFor } from '../lib/adaptive-grid.js';
+import { compileCSS, scopeFor, normalizeLayout } from '../lib/adaptive-grid.js';
+import LayoutEditor from './LayoutEditor.astro';
 
-const { layout } = Astro.props;
+// `name` is the layout's filename in src/data/layouts. Passing it turns on the
+// in-page editor — but only for a visitor who asks for it with ?edit=1.
+const { layout: raw, name } = Astro.props;
+const layout = normalizeLayout(raw);
 
 // A scope class derived from the layout. The compiled rules are keyed by
 // element id, and ids are global — without this, a second grid on the page
@@ -13,3 +17,4 @@ const css = compileCSS(layout, scope);
   <div class="ag-grid"><slot /></div>
 </div>
 <style is:inline set:html={css}></style>
+{name && <LayoutEditor name={name} layout={layout} scope={scope} />}

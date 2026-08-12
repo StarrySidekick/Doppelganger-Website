@@ -13,15 +13,19 @@
  *
  * Files are discovered, not listed, so adding a layout needs no code change.
  */
-import { validateLayout } from './adaptive-grid.js';
+import { validateLayout, normalizeLayout } from './adaptive-grid.js';
 
 const modules = import.meta.glob('../data/layouts/*.json', { eager: true });
 
-/** @type {Record<string, object>} every layout, keyed by filename without .json */
+/**
+ * @type {Record<string, object>} every layout, keyed by filename without .json
+ * Normalised on load, so a v1 file with a single col/row per element still
+ * works — that box becomes the desk box and narrow stays derived from flow.
+ */
 export const layouts = Object.fromEntries(
   Object.entries(modules).map(([path, mod]) => [
     path.match(/([^/]+)\.json$/)[1],
-    mod.default ?? mod,
+    normalizeLayout(mod.default ?? mod),
   ])
 );
 

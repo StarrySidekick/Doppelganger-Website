@@ -1,0 +1,173 @@
+---
+/**
+ * Mounts the layout editor onto an AdaptiveGrid, but only when the URL carries
+ * ?edit=1. A visitor never downloads the editor and can never pick a tile up.
+ *
+ * Saving, for now, is localStorage plus "Copy JSON" — enough to arrange a page
+ * on the real site and paste the result into src/data/layouts/. Committing back
+ * to the repo so the public view changes is the next step, not this one.
+ */
+const { name, layout, scope } = Astro.props;
+---
+
+{/* The layout travels as data, not as define:vars — a define:vars script is
+    inlined verbatim, so Vite would never rewrite the editor's import path and
+    it would 404 in the browser. */}
+<script
+  type="application/json"
+  class="ag-editor-data"
+  set:html={JSON.stringify({ name, layout, scope })}
+/>
+
+<script>
+  // Bundled, but tiny: the editor itself is behind a dynamic import, so Vite
+  // splits it into its own chunk and a visitor never downloads it.
+  if (new URLSearchParams(location.search).has('edit')) {
+    for (const node of document.querySelectorAll('script.ag-editor-data')) {
+      const { name, layout, scope } = JSON.parse(node.textContent);
+      const root = document.querySelector('.' + scope);
+      if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
+
+      const KEY = `doppelganger.layout.${name}`;
+      // A layout saved in this browser wins over the built-in one, so work
+      // survives a reload. It is only ever this browser until it is committed.
+      let start = layout;
+      try {
+        const saved = localStorage.getItem(KEY);
+        if (saved) {
+          start = JSON.parse(saved);
+          console.info(`[editor] restored your unsaved "${name}" layout from this browser`);
+        }
+      } catch (err) {
+        console.warn('[editor] could not read the saved layout', err);
+      }
+
+      import('../lib/editor.js')
+        .then(({ mountEditor }) => {
+          mountEditor({
+            root, name, layout: start,
+            onChange(next) {
+              try {
+                localStorage.setItem(KEY, JSON.stringify(next));
+              } catch (err) {
+                // Private browsing and a full quota both throw. A failed save
+                // must never take the editor down with it.
+                console.warn('[editor] could not save to this browser', err);
+              }
+            },
+          });
+          document.documentElement.classList.add('ag-editing');
+        })
+        .catch((err) => console.error('[editor] failed to load', err));
+    }
+  }
+</script>
+
+<style is:global>
+  /* Only ever applied when the editor has mounted. */
+  .ag-editing .ag-editable { position: relative; cursor: grab; }
+  .ag-editing .ag-editable::after {
+    content: '';
+    position: absolute; inset: 0;
+    outline: 1px dashed rgba(255,255,255,.22);
+    outline-offset: 2px;
+    pointer-events: none;
+  }
+  .ag-editing .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
+  .ag-editing .ag-lifted { z-index: 40; }
+  .ag-editing .ag-dragging { opacity: .85; cursor: grabbing; pointer-events: none; }
+  .ag-editing .ag-dragging.ag-invalid::after { outline-color: rgba(255,107,107,.9); }
+
+  .ag-grip {
+    position: absolute; width: 14px; height: 14px; z-index: 41;
+    background: rgba(255,255,255,.9);
+    border-radius: 2px;
+    opacity: 0; transition: opacity .12s ease;
+  }
+  .ag-editing .ag-editable:hover .ag-grip { opacity: .9; }
+  .ag-grip-nw { top: -7px; left: -7px; cursor: nwse-resize; }
+  .ag-grip-ne { top: -7px; right: -7px; cursor: nesw-resize; }
+  .ag-grip-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+  .ag-grip-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+
+  .ag-ghost {
+    border: 1px solid rgba(255,255,255,.55);
+    background: rgba(255,255,255,.07);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .ag-ghost.ag-bad {
+    border-color: rgba(255,107,107,.9);
+    background: rgba(255,107,107,.12);
+  }
+
+  /* Centred with auto margins, not left:50%. With left:50% the bar's available
+     width is only the right half of the window, so it wrapped to two lines on a
+     1440px screen with room to spare. */
+  .ag-bar {
+    position: fixed; z-index: 100; left: 0; right: 0; bottom: 18px;
+    width: max-content; margin-inline: auto;
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px;
+    background: rgba(20,20,20,.94);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 8px;
+    font: 12px/1.2 ui-monospace, monospace;
+    color: #fff;
+    backdrop-filter: blur(6px);
+    max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center;
+  }
+  .ag-bar button {
+    font: inherit; color: inherit; cursor: pointer;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,.28);
+    border-radius: 4px; padding: 4px 9px;
+  }
+  .ag-bar button:hover { background: rgba(255,255,255,.12); }
+  .ag-bar button[aria-current] { background: #fff; color: #000; border-color: #fff; }
+  .ag-tabs { display: flex; gap: 4px; }
+  .ag-hint { opacity: .5; }
+  /* The hint is the first thing worth losing when the bar runs out of room. */
+  @media (max-width: 860px) { .ag-hint { display: none; } }
+
+  /* display:flex would out-rank the browser's own [hidden]{display:none}, so
+     hiding the menu by setting .hidden would set the attribute and change
+     nothing on screen. State the hidden case explicitly. */
+  .ag-menu[hidden], .ag-toast[hidden] { display: none; }
+  .ag-menu {
+    position: fixed; z-index: 101; min-width: 210px;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px;
+    background: rgba(20,20,20,.97);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 8px;
+    font: 12px/1.35 ui-monospace, monospace; color: #fff;
+  }
+  .ag-menu-title { font-weight: 700; padding-bottom: 2px; }
+  .ag-menu-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .ag-menu select { font: inherit; background: #111; color: #fff;
+    border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 2px 4px; }
+  .ag-menu-btn {
+    font: inherit; color: inherit; cursor: pointer; text-align: left;
+    background: transparent; border: 1px solid rgba(255,255,255,.24);
+    border-radius: 4px; padding: 5px 8px;
+  }
+  .ag-menu-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+  .ag-menu-btn:disabled { opacity: .4; cursor: default; }
+  .ag-menu-note { opacity: .55; border-top: 1px solid rgba(255,255,255,.14); padding-top: 6px; }
+
+  /* Above, not below: the bar wraps to two lines on a narrow window and a toast
+     anchored to the bottom lands on top of it. */
+  .ag-toast {
+    position: fixed; z-index: 102; left: 0; right: 0; top: 16px;
+    width: max-content; margin-inline: auto;
+    padding: 7px 13px;
+    background: rgba(255,255,255,.95); color: #000;
+    border-radius: 5px;
+    font: 12px/1.2 ui-monospace, monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ag-grip { transition: none; }
+  }
+</style>

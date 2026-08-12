@@ -52,9 +52,13 @@ and the sun rendering at 100vw.
 ## Architecture
 
 ```
-src/lib/adaptive-grid.js   resolve() + compileCSS() — the layout engine
+src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
+src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
+src/lib/editor.js          the in-page editor, loaded only for ?edit=1
+src/data/layouts/*.json    the layouts themselves — data, so they can be edited
 src/lib/assets.js          every remote asset + the url() helper
 src/components/AdaptiveGrid.astro
+src/components/LayoutEditor.astro
 src/components/FlipCard.astro
 src/components/SiteChrome.astro    fixed home icon + sun
 src/layouts/Base.astro     SEO, fonts, global tokens
@@ -65,27 +69,75 @@ src/pages/                 one file per route
 
 A replacement for Squarespace's Fluid Engine, and the reason this project exists.
 
-Fluid Engine stores **two hand-maintained layouts** (desktop and mobile). This
-stores **one**, plus a per-element rule for what to do when space runs out:
+**Two stored layouts per element, and `flow` seeds the second one.** An element
+holds `desk: {col,row}` and optionally `narrow: {col,row}`. This reverses the
+original decision — it used to store one layout and always compute the narrow
+one — because computing it gives no way to hand-tune a phone, which was the
+point of building an editor at all. Same call bureau makes (its decision 9).
 
-| flow | behaviour when narrow |
+`flow` is now the **seed**, not a runtime rule. An element with no `narrow` box
+gets one derived from its flow; the first time the editor moves it at narrow
+width, that box is written down and flow stops applying to it.
+
+| flow | where it seeds the element when narrow |
 |---|---|
 | `pin` | holds its edge, never joins the stack — corner nav |
 | `keep` | centres and scales |
 | `full` | spans the full width |
 | `stack` | drops into a single inset column |
 
-`resolve(layout, width)` derives the narrow layout. `compileCSS()` emits real CSS
-Grid using **container queries and `cqi` units**, not media queries — so a layout
-works inside any container, not just at the viewport.
+So a page is authored once and refined per device only where it needs it, and a
+newly added element still lands somewhere sensible instead of on top of its
+neighbours. `narrowColumns` may be coarser than `columns` (it defaults to the
+same) — dragging with a thumb across 24 columns is miserable.
+
+- `resolveDevice(layout, device)` places every element for one device.
+- `resolve(layout, width)` is the same thing keyed by pixels.
+- `deriveNarrow()` is the seed, used only where no stored box exists.
+- `boxOk()` **refuses** a move that would overlap or leave the columns, rather
+  than shoving a neighbour aside — position is meant to carry meaning.
+- `compileCSS()` emits real CSS Grid using **container queries and `cqi` units**,
+  not media queries, so a layout works inside any container. That is also what
+  lets the editor show a true narrow preview in a pane rather than an iframe.
 
 `grid-auto-rows` uses `minmax(clamp(...), auto)`. The `auto` is load-bearing:
 without it, any element taller than its allotted rows silently overflows and
 collides with whatever follows.
 
-A standalone visual editor prototype exists outside this repo and shares the same
-`resolve()` logic deliberately — editor and site must never disagree about what a
-layout means. **That prototype still has the pre-`minmax` bug.**
+**Rows are therefore not a uniform height** — measured on `/links` they run
+18px, 18px, 31.5px … 40.125px, because `auto` lets each grow to its content.
+Nothing may convert pixels to cells by dividing by an average step. The editor
+walks the real track edges from `getComputedStyle().gridTemplateRows`; the first
+version divided by a step and dropped a tile seven rows down when the pointer
+had crossed thirteen. Guarded by the "no drift" check in the editor test.
+
+A standalone visual editor prototype exists outside this repo and shares this
+engine deliberately — editor and site must never disagree about what a layout
+means. **It still has the pre-`minmax` bug, and it now also predates the scope
+argument and the two-layout model.** Folding it into this repo is overdue.
+
+### Editing a layout in the page
+
+`/links?edit=1` mounts the editor onto the real page. It is behind the query
+parameter, and behind a dynamic import, so a visitor never downloads it and can
+never pick a tile up. Interaction follows bureau:
+
+- **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
+  the only thing keeping an ordinary click from moving something
+- **corner grips** resize; there are no edge handles
+- **right click** opens that element's settings — flow seed, lock, and on narrow
+  a "reset to derived position"
+- **Desk / Narrow** tabs switch which layout you are editing; narrow constrains
+  the container, which is the real thing because the grid is container-queried
+- **⌘Z / Ctrl-Z** undoes, up to 20 moves
+
+Saving is `localStorage` plus **Copy JSON**, which you paste into
+`src/data/layouts/`. It is this browser only until it is committed — writing
+back to the repo so the public view changes is the next step, not built yet.
+
+While editing, clicks on links inside the grid are suppressed. Half the tiles
+on `/links` are anchors, and without that, moving the home icon also navigates
+home and takes the editor and the arrangement with it.
 
 ## Current state
 
