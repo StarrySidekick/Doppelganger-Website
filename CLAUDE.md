@@ -13,12 +13,20 @@ npm install
 npm run dev      # localhost:4321, hot reload
 npm run build    # → dist/
 npm run preview  # serve the built output
+npm test         # layout-engine assertions (node --test, no deps)
 ```
 
 Deploy is automatic: push to `main` → GitHub Actions builds → GitHub Pages.
 Live at https://starrysidekick.github.io/doppelganger/
 
 ## Hard rules
+
+**0. Element ids in a grid are global, exactly like keyframe names.** `compileCSS()`
+now *requires* a scope and throws without one. Two unscoped grids on one page
+used to overwrite each other's column count and every shared id — the second
+won, the first silently lost its layout, and the build stayed green.
+`AdaptiveGrid.astro` derives the scope from the layout via `scopeFor()`.
+**The editor prototype must pass a scope too, or it will throw.**
 
 **1. Never use a generic `@keyframes` name.** This is not style preference. On
 Squarespace, a keyframe named `spin` collided with the platform's own `spin` and
@@ -86,8 +94,12 @@ Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`.
 Not built yet:
 - `/uiux` — 40 images, the largest remaining page
 - Blog collections — `journal`, `poems` (25 real posts), `essays-about-everything`,
-  `short-stories`, `game-design`. Content is exported to Markdown but lives on
-  Timothy's machine, not in this repo yet.
+  `short-stories`, `game-design`, `expressiveaether`. Six, not five; all six
+  slugs verified live on Squarespace. Content is exported to Markdown but lives
+  on Timothy's machine, not in this repo yet.
+
+Until those exist, `/uiux` and the six collection links are live 404s. They land
+on `src/pages/404.astro`, which explains the situation and offers a way back.
 
 ## Decisions already made — don't relitigate
 
@@ -97,8 +109,18 @@ Not built yet:
 - **Assets still load from Squarespace's CDN**, via `src/lib/assets.js`. This is
   deliberate so pages render truthfully today. When they move into `/public`,
   that one file is the only thing that changes.
-- **Missing assets render as visible dashed placeholders** (sun mark, 4 of 5
-  social icons) rather than silently vanishing. Don't remove the slots.
+- **Ask the CDN for the size you actually render.** `images.squarespace-cdn.com`
+  honours `?format=<width>w` and keeps every frame of an animated GIF; use
+  `sized()` / `srcset()` from `assets.js` rather than a bare URL. The originals
+  are huge — the persona is 2057x2519 and 9 MB but never renders wider than
+  300px, which made the homepage 15.3 MB. `static1.squarespace.com` ignores the
+  parameter, so the helpers leave those URLs alone (business cards, sun, holo).
+- **Missing assets render as visible dashed placeholders** (4 of 5 social icons)
+  rather than silently vanishing. Don't remove the slots. The sun is *not*
+  missing — it is a real 26 KB GIF and `/links` now shows it like every other
+  page does.
+- **The favicon is the one local asset**, generated from the first frame of
+  Sun.gif into `/public`. Everything else still comes from the CDN.
 - **Contact form uses Web3Forms** (250/mo free, static-friendly). The access key
   is still a placeholder and the submit button is disabled until it's real.
 - **Hosting stays GitHub Pages for now.** Cloudflare was considered and rejected
