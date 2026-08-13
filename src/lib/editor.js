@@ -27,6 +27,9 @@
 import {
   resolveDevice, boxOk, columnsFor, normalizeLayout, validateLayout, FLOWS,
 } from './adaptive-grid.js';
+import { publishLayout, TARGET, pathFor } from './publish.js';
+
+const TOKEN_KEY = 'doppelganger.ghToken';
 
 const HOLD_MS = 200;
 const NUDGE = 5; // px of movement before a drag counts as a drag
@@ -362,8 +365,37 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
     setDevice,
     getLayout: () => layout,
     undo: undoLast,
+    name,
+    publish: doPublish,
   });
   const toast = chrome.toast;
+
+  /* ---- publishing ---- */
+
+  async function doPublish({ token, message, remember }) {
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      toast('Layout is invalid — fix it before publishing');
+      console.error(problems.join('\n'));
+      return;
+    }
+    chrome.busy(true);
+    try {
+      const { url } = await publishLayout({ token, name, layout, message });
+      if (remember) {
+        try { localStorage.setItem(TOKEN_KEY, token); } catch { /* quota, private mode */ }
+      }
+      // The committed file is now the source of truth, so the local copy is no
+      // longer "unsaved work" — drop it rather than have it shadow the build.
+      try { localStorage.removeItem(`doppelganger.layout.${name}`); } catch { /* ignore */ }
+      chrome.published(url);
+    } catch (err) {
+      // Never log the error object wholesale — the request carried the token.
+      toast(err.message || 'Publish failed');
+    } finally {
+      chrome.busy(false);
+    }
+  }
 
   grid.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
@@ -404,7 +436,7 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
  * Chrome: device tabs, save state, menu, toast
  * ------------------------------------------------------------------ */
 
-function buildChrome({ getDevice, setDevice, getLayout, undo }) {
+function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -437,7 +469,79 @@ function buildChrome({ getDevice, setDevice, getLayout, undo }) {
       <span class="ag-hint">hold to pick up · corners resize · right click for settings</span>
       <button data-bar="undo">Undo</button>
       <button data-bar="copy">Copy JSON</button>
+      <button data-bar="publish" class="ag-publish">Publish…</button>
     `;
+  }
+
+  /** The publish form. Kept in the menu element so there is only one popup. */
+  function openPublish() {
+    let saved = '';
+    try { saved = localStorage.getItem(TOKEN_KEY) || ''; } catch { /* ignore */ }
+    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 150, `
+      <div class="ag-menu-title">Publish ${name}</div>
+      <div class="ag-menu-note">
+        Commits <code>${pathFor(name)}</code> to
+        <b>${TARGET.owner}/${TARGET.repo}</b> on <b>${TARGET.branch}</b>, which
+        rebuilds the public site. Takes about a minute.
+      </div>
+      <label class="ag-menu-field">Commit message
+        <input data-pub="message" type="text" placeholder="Rearrange ${name}" />
+      </label>
+      <label class="ag-menu-field">GitHub token
+        <input data-pub="token" type="password" autocomplete="off"
+               placeholder="${saved ? 'using the saved token' : 'github_pat_…'}" />
+      </label>
+      <label class="ag-menu-check">
+        <input data-pub="remember" type="checkbox"${saved ? ' checked' : ''} />
+        Keep this token in this browser
+      </label>
+      <div class="ag-menu-note">
+        Use a <b>fine-grained</b> token limited to this repository with
+        <b>Contents: read and write</b>, and give it a short expiry. Stored in
+        this browser, so anything on this origin could read it.
+      </div>
+      <div class="ag-menu-actions">
+        <button class="ag-menu-btn" data-pub="go">Publish</button>
+        ${saved ? '<button class="ag-menu-btn" data-pub="forget">Forget token</button>' : ''}
+      </div>
+    `, null);
+
+    menu.querySelector('[data-pub="message"]')?.focus();
+    menu.addEventListener('click', onPublishClick);
+  }
+
+  function onPublishClick(e) {
+    const act = e.target.closest('[data-pub]')?.dataset.pub;
+    if (act === 'forget') {
+      try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+      closeMenu();
+      return toast('Token forgotten');
+    }
+    if (act !== 'go') return;
+    let saved = '';
+    try { saved = localStorage.getItem(TOKEN_KEY) || ''; } catch { /* ignore */ }
+    const token = menu.querySelector('[data-pub="token"]').value.trim() || saved;
+    const message = menu.querySelector('[data-pub="message"]').value.trim();
+    const remember = menu.querySelector('[data-pub="remember"]').checked;
+    if (!token) return toast('A token is needed to publish');
+    closeMenu();
+    publish({ token, message, remember });
+  }
+
+  function busy(on) {
+    const btn = bar.querySelector('.ag-publish');
+    if (btn) { btn.disabled = on; btn.textContent = on ? 'Publishing…' : 'Publish…'; }
+  }
+
+  function published(url) {
+    toast('Published — the site rebuilds in about a minute');
+    if (!url) return;
+    const link = document.createElement('a');
+    link.className = 'ag-commit';
+    link.href = url; link.target = '_blank'; link.rel = 'noopener';
+    link.textContent = 'view commit';
+    bar.appendChild(link);
+    setTimeout(() => link.remove(), 20000);
   }
 
   bar.addEventListener('click', async (e) => {
@@ -445,6 +549,7 @@ function buildChrome({ getDevice, setDevice, getLayout, undo }) {
     if (dev) return setDevice(dev.dataset.dev);
     const act = e.target.closest('[data-bar]')?.dataset.bar;
     if (act === 'undo') return undo();
+    if (act === 'publish') return openPublish();
     if (act === 'copy') {
       const json = JSON.stringify(getLayout(), null, 2);
       try {
@@ -468,7 +573,13 @@ function buildChrome({ getDevice, setDevice, getLayout, undo }) {
     menu.style.top = Math.min(y, window.innerHeight - r.height - 8) + 'px';
     onPick = handler;
   }
-  const closeMenu = () => { menu.hidden = true; onPick = null; };
+  const closeMenu = () => {
+    menu.hidden = true;
+    onPick = null;
+    // The publish form binds its own handler; without this it would stack up
+    // another copy every time the form is opened.
+    menu.removeEventListener('click', onPublishClick);
+  };
 
   menu.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
@@ -488,7 +599,7 @@ function buildChrome({ getDevice, setDevice, getLayout, undo }) {
 
   render();
   return {
-    render, toast, menu: openMenu, closeMenu,
+    render, toast, menu: openMenu, closeMenu, busy, published,
     destroy() { bar.remove(); menu.remove(); toastEl.remove(); },
   };
 }

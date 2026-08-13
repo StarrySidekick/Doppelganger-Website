@@ -1,0 +1,107 @@
+---
+/**
+ * The standalone layout editor.
+ *
+ * This is what the out-of-repo prototype was for: arranging a layout on its own,
+ * without a finished page around it. It shares the same engine and the same
+ * editor as the live pages, so it cannot drift from them — which is the whole
+ * reason the prototype needed folding in.
+ *
+ * Every element renders as a labelled placeholder, so a layout can be built
+ * before the page that uses it exists. /uiux is the case this is for.
+ */
+import Base from '../layouts/Base.astro';
+import AdaptiveGrid from '../components/AdaptiveGrid.astro';
+import { layouts } from '../lib/layouts.js';
+import { url } from '../lib/assets.js';
+
+const names = Object.keys(layouts).sort();
+// Static build: emit the picker for every layout and let the client show the
+// one asked for. There is no server to read a query string for us.
+const current = names[0];
+---
+
+<Base title="Layout editor" path="/editor" noindex>
+  <main class="stage">
+    <h1>Layout editor</h1>
+
+    <nav class="picker" aria-label="Which layout">
+      {names.map((n) => (
+        <a href={`?layout=${n}`} data-layout-link={n} aria-current={n === current ? 'true' : undefined}>{n}</a>
+      ))}
+      <a class="go" href={`?layout=${current}&edit=1`} data-edit-link>Edit this layout</a>
+    </nav>
+
+    <p class="lede">
+      Every element is a placeholder — this is for arranging a layout, not for
+      seeing the real page. Open a real page with <code>?edit=1</code> to
+      arrange it in place. Changes save to this browser; Publish commits them.
+    </p>
+
+    {names.map((name) => (
+      <section class="board" data-board={name} hidden={name !== current}>
+        <AdaptiveGrid layout={layouts[name]} name={name}>
+          {layouts[name].elements.map((e) => (
+            <div id={e.id} class="slot" data-flow={e.flow}>
+              <span class="slot-id">{e.id}</span>
+              <span class="slot-flow">{e.flow}</span>
+            </div>
+          ))}
+        </AdaptiveGrid>
+      </section>
+    ))}
+  </main>
+</Base>
+
+<script>
+  // Show the layout named in the query string, and keep the links pointing at
+  // whichever one is on screen.
+  const want = new URLSearchParams(location.search).get('layout');
+  const editing = new URLSearchParams(location.search).has('edit');
+  const boards = [...document.querySelectorAll('[data-board]')];
+  const shown = boards.find((b) => b.dataset.board === want) ?? boards[0];
+
+  for (const b of boards) b.hidden = b !== shown;
+  for (const a of document.querySelectorAll('[data-layout-link]')) {
+    const on = a.dataset.layoutLink === shown?.dataset.board;
+    if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
+    a.href = `?layout=${a.dataset.layoutLink}${editing ? '&edit=1' : ''}`;
+  }
+  const go = document.querySelector('[data-edit-link]');
+  if (go && shown) {
+    go.href = `?layout=${shown.dataset.board}${editing ? '' : '&edit=1'}`;
+    go.textContent = editing ? 'Stop editing' : 'Edit this layout';
+  }
+</script>
+
+<style>
+  .stage { min-height: 100vh; padding: clamp(3rem, 7vh, 5rem) 5vw 7rem; max-width: 1200px; margin-inline: auto; }
+  h1 { font-family: var(--font-display); font-size: clamp(2.2rem, 6vw, 3.4rem); margin: 0 0 1rem; }
+  .picker { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline; margin-bottom: 1rem; }
+  .picker a {
+    font: 13px/1 ui-monospace, monospace;
+    text-decoration: none; padding: 5px 9px;
+    border: 1px solid rgba(255,255,255,.25); border-radius: 4px;
+  }
+  .picker a[aria-current] { background: #fff; color: #000; border-color: #fff; }
+  .picker .go { margin-left: auto; border-color: rgba(255,255,255,.6); }
+  .lede { opacity: .6; font-size: .92rem; max-width: 62ch; margin: 0 0 2rem; line-height: 1.5; }
+  .lede code { background: rgba(255,255,255,.1); padding: 0 3px; border-radius: 2px; }
+
+  .board { border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 10px; }
+  /* Padding goes on this wrapper, never on .ag-grid — the drag maths measures
+     the grid's own box, so padding there would shift every tile. */
+
+  .slot {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; min-height: 100%;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 4px;
+    font: 11px/1.2 ui-monospace, monospace;
+    overflow: hidden; text-align: center; padding: 2px;
+  }
+  .slot-id { opacity: .85; }
+  .slot-flow { opacity: .4; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+  .slot[data-flow='pin'] { border-style: dashed; }
+</style>

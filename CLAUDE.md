@@ -25,8 +25,8 @@ Live at https://starrysidekick.github.io/doppelganger/
 now *requires* a scope and throws without one. Two unscoped grids on one page
 used to overwrite each other's column count and every shared id — the second
 won, the first silently lost its layout, and the build stayed green.
-`AdaptiveGrid.astro` derives the scope from the layout via `scopeFor()`.
-**The editor prototype must pass a scope too, or it will throw.**
+`AdaptiveGrid.astro` derives the scope from the layout via `scopeFor()`, so
+every caller gets one. Anything new that compiles a layout must pass one too.
 
 **1. Never use a generic `@keyframes` name.** This is not style preference. On
 Squarespace, a keyframe named `spin` collided with the platform's own `spin` and
@@ -55,6 +55,7 @@ and the sun rendering at 100vw.
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
 src/lib/editor.js          the in-page editor, loaded only for ?edit=1
+src/lib/publish.js         commits a layout to GitHub from the browser
 src/data/layouts/*.json    the layouts themselves — data, so they can be edited
 src/lib/assets.js          every remote asset + the url() helper
 src/components/AdaptiveGrid.astro
@@ -63,6 +64,7 @@ src/components/FlipCard.astro
 src/components/SiteChrome.astro    fixed home icon + sun
 src/layouts/Base.astro     SEO, fonts, global tokens
 src/pages/                 one file per route
+src/pages/editor.astro     standalone layout editor (replaces the prototype)
 ```
 
 ### The Adaptive Grid
@@ -111,10 +113,13 @@ walks the real track edges from `getComputedStyle().gridTemplateRows`; the first
 version divided by a step and dropped a tile seven rows down when the pointer
 had crossed thirteen. Guarded by the "no drift" check in the editor test.
 
-A standalone visual editor prototype exists outside this repo and shares this
-engine deliberately — editor and site must never disagree about what a layout
-means. **It still has the pre-`minmax` bug, and it now also predates the scope
-argument and the two-layout model.** Folding it into this repo is overdue.
+**The out-of-repo prototype is retired.** `/editor` does its job now — a board
+of labelled placeholders for arranging a layout with no finished page around it,
+which is how `/uiux` gets built before `/uiux` exists. It runs the same engine
+and the same editor as the live pages, so it cannot drift from them, which is
+the whole reason the prototype had to come in. Delete the old copy rather than
+keeping it in sync; it predates `minmax`, the scope argument and the two-layout
+model.
 
 ### Editing a layout in the page
 
@@ -131,9 +136,22 @@ never pick a tile up. Interaction follows bureau:
   the container, which is the real thing because the grid is container-queried
 - **⌘Z / Ctrl-Z** undoes, up to 20 moves
 
-Saving is `localStorage` plus **Copy JSON**, which you paste into
-`src/data/layouts/`. It is this browser only until it is committed — writing
-back to the repo so the public view changes is the next step, not built yet.
+Saving has three levels. **localStorage** holds work in progress and survives a
+reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
+**Publish** commits it straight to `main` through the GitHub contents API, which
+rebuilds and redeploys — about a minute — and is what makes the public view
+change.
+
+Publishing needs a token, and it is a real credential:
+
+- Use a **fine-grained** token limited to this one repo, **Contents: read and
+  write**, nothing else, short expiry. Not a classic token.
+- "Keep this token in this browser" puts it in `localStorage`. Anything running
+  on the origin could read it. Use **Forget token** when you're done.
+- `publish.js` never logs it, never puts it in a URL or a commit; it goes in the
+  `Authorization` header and nowhere else. There are tests asserting exactly
+  that — keep them passing.
+- Publishing clears the local draft, because the repo is the truth again.
 
 While editing, clicks on links inside the grid are suppressed. Half the tiles
 on `/links` are anchors, and without that, moving the home icon also navigates
@@ -141,7 +159,10 @@ home and takes the editor and the arrangement with it.
 
 ## Current state
 
-Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`.
+Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`,
+`/editor` (the standalone layout editor, noindex). `/contact-1` redirects to
+`/contact` — that is Squarespace's slug for the page, kept working so inbound
+links survive the cutover.
 
 Not built yet:
 - `/uiux` — 40 images, the largest remaining page
@@ -184,6 +205,13 @@ on `src/pages/404.astro`, which explains the situation and offers a way back.
 
 `astro.config.mjs` sets `site` and `base` for project-Pages hosting. **Both come
 out when this moves to the real domain — that is the only change required.**
+`base` is a `const` at the top of that file because the redirects map needs it
+too.
+
+**A redirect target must spell out the base.** Astro applies `base` to the route
+it generates but *not* to the destination, so `'/contact-1': '/contact'` builds
+a page that sends visitors to the domain root and 404s. Same trap as hard rule
+2, in the one place `url()` can't help.
 
 ## Poetry content — read before importing posts
 
