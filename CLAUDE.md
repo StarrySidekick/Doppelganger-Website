@@ -157,6 +157,32 @@ While editing, clicks on links inside the grid are suppressed. Half the tiles
 on `/links` are anchors, and without that, moving the home icon also navigates
 home and takes the editor and the arrangement with it.
 
+## Status: paused — Squarespace is the live site
+
+**As of August 2026 this rebuild is parked.** Timothy is making changes on
+Squarespace (timothyvlangas.com) for the time being. Reason: the layout editor
+covers only `/links`, nothing else on the site is a grid, and content still
+can't be edited — so Fluid Engine, whatever its faults, is still the better tool
+for actually running the site today.
+
+Do not start rebuild work here unless asked. Site changes go to Squarespace —
+use the `squarespace-ops` skill, which encodes the admin flow and a save-button
+hazard that silently discards work.
+
+What's already done, so it isn't rediscovered:
+
+- Saving **is** solved. The editor publishes to `main` through the GitHub
+  contents API and the site rebuilds; 28 assertions cover it. The gap is
+  breadth, not persistence.
+- The remaining work to replace Squarespace is: convert `/`, `/writing`,
+  `/music` to grids; make element *content* editable; build the six blog
+  collections; pull the assets local.
+- **The asset dependency is no longer urgent.** Every image still comes from
+  Squarespace's CDN, and the `?format=` resizing that took the homepage from
+  15.3 MB to 0.7 MB depends on it. While the subscription continues that is
+  fine. It only becomes a deadline if cancelling — pull assets into `/public`
+  and repoint `assets.js` *before* the renewal date, not after.
+
 ## Current state
 
 Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`,
