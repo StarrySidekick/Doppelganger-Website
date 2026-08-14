@@ -13,7 +13,8 @@ npm install
 npm run dev      # localhost:4321, hot reload
 npm run build    # → dist/
 npm run preview  # serve the built output
-npm test         # layout-engine assertions (node --test, no deps)
+npm test         # layout-engine + widget-build assertions (node --test, no deps)
+npm run widgets  # build Squarespace code blocks → widgets/dist/
 ```
 
 Deploy is automatic: push to `main` → GitHub Actions builds → GitHub Pages.
@@ -65,6 +66,8 @@ src/components/SiteChrome.astro    fixed home icon + sun
 src/layouts/Base.astro     SEO, fonts, global tokens
 src/pages/                 one file per route
 src/pages/editor.astro     standalone layout editor (replaces the prototype)
+widgets/<name>/            Squarespace code-block sources — see widgets/README.md
+scripts/build-widgets.mjs  builds each widget into one paste-ready blob
 ```
 
 ### The Adaptive Grid
@@ -168,6 +171,14 @@ for actually running the site today.
 Do not start rebuild work here unless asked. Site changes go to Squarespace —
 use the `squarespace-ops` skill, which encodes the admin flow and a save-button
 hazard that silently discards work.
+
+**Interactive pieces are built in `widgets/` and pasted into Squarespace code
+blocks.** That is the active way of working now: Squarespace does page
+composition and content, this repo builds the self-contained blocks, and each
+one gets previewed in a deliberately hostile page before it goes near the live
+site. See `widgets/README.md`. Requires Core or above — JS in code blocks is a
+premium feature — and Timothy is on a grandfathered Business plan, so it is
+available.
 
 What's already done, so it isn't rediscovered:
 

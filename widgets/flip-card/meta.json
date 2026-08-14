@@ -1,0 +1,20 @@
+{
+  "name": "flip-card",
+  "version": 1,
+  "title": "Flip card",
+  "description": "The business card, spinning on its Y axis, with a drifting holographic sheen. Front, back, holo texture and size are set per instance with data attributes.",
+  "attributes": {
+    "data-front": "image URL for the front face",
+    "data-back": "image URL for the back face",
+    "data-holo": "image URL for the holographic overlay (optional)",
+    "data-size": "max width in px (default 280)",
+    "data-speed": "seconds per full rotation (default 5)"
+  },
+  "defaults": {
+    "data-front": "https://static1.squarespace.com/static/61b0ddefeda7f80c8b2a6085/t/65f4b890ba886409c5d454ee/1710536848659/Business_Card_Front_Blue.png",
+    "data-back": "https://static1.squarespace.com/static/61b0ddefeda7f80c8b2a6085/t/65f4b9c2bb62673336cf473c/1710537154891/Business_Card_Back.png",
+    "data-holo": "https://static1.squarespace.com/static/61b0ddefeda7f80c8b2a6085/t/65f4c128f5898d008359bc18/1710539049134/Holo+Small.jpg",
+    "data-size": "280",
+    "data-label": "Timothy Vlangas business card"
+  }
+}

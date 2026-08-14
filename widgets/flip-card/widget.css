@@ -1,0 +1,83 @@
+/* Everything here is inside a shadow root, so these plain names cannot collide
+   with Squarespace's stylesheet or with another block on the same page. The
+   keyframe name is still prefixed — @keyframes inside a shadow root is scoped,
+   but the habit is cheap and the one time it was not scoped it rotated this
+   very card on the wrong axis for months. */
+
+:host {
+  display: block;
+  /* Inherit the page's type rather than fight it. Custom properties cross the
+     shadow boundary, so the site can theme this deliberately while its ordinary
+     selectors cannot reach in by accident. */
+  font: inherit;
+  color: inherit;
+}
+:host([hidden]) { display: none; }
+
+* { box-sizing: border-box; }
+
+.stage {
+  perspective: 1000px;
+  /* Never wider than the space it is given. A fixed px width overflowed its
+     container and collided with what sat below it at narrow widths. */
+  width: min(100%, var(--sk-size, 280px));
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: skFlipCardSpinY var(--sk-speed, 5s) infinite linear;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.front { z-index: 2; }
+.back { transform: rotateY(180deg); }
+
+.face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The holographic sheen, drifting slowly across both faces. Only drawn when a
+   holo image was supplied. */
+.face::after {
+  content: '';
+  position: absolute;
+  top: -150px;
+  left: -100px;
+  width: 500px;
+  height: 500px;
+  background-image: var(--sk-holo, none);
+  background-size: cover;
+  opacity: .4;
+  animation: skFlipCardHoloDrift 10s infinite linear;
+  pointer-events: none;
+}
+:host(:not([data-holo])) .face::after { display: none; }
+
+@keyframes skFlipCardSpinY {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(360deg); }
+}
+@keyframes skFlipCardHoloDrift {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .face::after { animation: none; }
+}
