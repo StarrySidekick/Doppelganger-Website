@@ -53,7 +53,7 @@ test('publishing an existing file reads its sha and sends it back', async () => 
 
   const [get, put] = f.calls;
   assert.equal(get.method, 'GET');
-  assert.match(get.url, /\/repos\/StarrySidekick\/doppelganger\/contents\/src\/data\/layouts\/links\.json\?ref=main$/);
+  assert.match(get.url, /\/repos\/StarrySidekick\/Doppelganger-Website\/contents\/src\/data\/layouts\/links\.json\?ref=main$/);
 
   assert.equal(put.method, 'PUT');
   const body = JSON.parse(put.body);

@@ -18,7 +18,7 @@ npm run widgets  # build Squarespace code blocks → widgets/dist/
 ```
 
 Deploy is automatic: push to `main` → GitHub Actions builds → GitHub Pages.
-Live at https://starrysidekick.github.io/doppelganger/
+Live at https://starrysidekick.github.io/Doppelganger-Website/
 
 ## Hard rules
 

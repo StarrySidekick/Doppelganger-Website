@@ -22,7 +22,7 @@ const API = 'https://api.github.com';
 /** Where the editor publishes. The deploy workflow watches this branch. */
 export const TARGET = {
   owner: 'StarrySidekick',
-  repo: 'doppelganger',
+  repo: 'Doppelganger-Website',
   branch: 'main',
 };
 

@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 
 // The deploy subpath, in one place. Both `site` and `base` come out when this
 // moves to the real domain — that is the only change needed.
-const base = '/doppelganger';
+const base = '/Doppelganger-Website';
 
 export default defineConfig({
   // Project Pages are served from a subpath.
