@@ -11,6 +11,107 @@ other requirement is a small feature hanging off those two.
 
 ---
 
+## 0. The address — and the one thing here with a date on it
+
+**Decided: `timothyvlangas.com` is the canonical address.** It serves the site.
+`starrysidekick.com` 301-redirects to it. `PROD_ORIGIN` in `assets.js` already
+holds the right value, so nothing in the code changes.
+
+### A redirect is *not* the mechanism you want
+
+You said a redirect would be fine so long as the address bar shows your domain.
+Those two things are in tension, so it's worth being precise:
+
+- A **redirect** from `timothyvlangas.com` to `starrysidekick.github.io` puts
+  *the GitHub address* in the address bar. That's the outcome you're ruling out.
+- **Domain forwarding with masking** keeps your domain visible by wrapping the
+  site in a hidden frame. It's worse: deep links break, the back button breaks,
+  and search engines see one page. Never use it.
+- What you actually want is a **custom domain** — the domain *is* the site's
+  address, served directly, with its own TLS certificate. Standard, free, and
+  the default on any host worth using.
+
+The one legitimate redirect here is the second domain pointing at the first,
+which is exactly what `starrysidekick.com` → `timothyvlangas.com` is.
+
+### What the DNS actually says right now
+
+Looked up 2 September 2026, so this is current rather than assumed:
+
+| | |
+|---|---|
+| Nameservers, both domains | `squarespacedns.com` + NS1 |
+| A records, both domains | Squarespace's anycast IPs (`198.185.159.144/145`, `198.49.23.144/145`) |
+| Registrar, both domains | **Squarespace Domains LLC** |
+| Registered | 2021-12-08 |
+| **Expires** | **2026-12-08** |
+| Status | `clientTransferProhibited` — the normal registrar lock, but it must be released before any transfer |
+
+So the domains aren't merely *pointed at* Squarespace. They are **registered
+by** Squarespace. The vendor you're replacing is also your registrar, and the
+renewal is roughly three months out.
+
+### The clock
+
+This is the only thing in this document with a real date attached, and it is
+**completely independent of the rebuild**. Get the domains out from under
+Squarespace before anything else happens.
+
+- The transfer window is **open now** and gets awkward as December approaches —
+  transferring close to an expiry date is where transfers go wrong.
+- If it auto-renews at Squarespace on **8 December**, Cloudflare then requires a
+  **45-day wait from the original expiration date** before it will accept the
+  transfer. Miss the window and you're locked in until roughly late January,
+  having paid Squarespace for the year.
+- Cloudflare Registrar sells at cost with no markup — about **$10.44/yr** for a
+  `.com`, rising to ~$11.15 when the Verisign increase lands on 1 November 2026.
+  Cheaper than the Squarespace renewal, which is the smallest reason to do it.
+
+**The real reason: while Squarespace holds the registration, cancelling
+Squarespace and keeping your address are the same decision.** Transferring
+separates them. That is worth doing even if this rebuild never happens.
+
+### Ordering matters
+
+Cloudflare Registrar requires the domain to already be on Cloudflare DNS before
+it will take the registration, so the steps only work in this order:
+
+1. **Add both domains to Cloudflare as zones.** Cloudflare scans the existing
+   records; check they came across, especially any email (MX) records.
+2. **Change the nameservers at Squarespace** to the two Cloudflare gives you.
+   DNS still resolves to the same Squarespace IPs — *the live site does not
+   change and visitors see nothing.*
+3. **Unlock the domains at Squarespace** and get the auth/EPP code for each.
+4. **Transfer the registrations to Cloudflare.** Each adds a year to the
+   existing expiry, so nothing is lost.
+
+Steps 1–4 touch the live Squarespace site not at all. They're reversible at
+every stage, and they can be done this month regardless of whether Phase 01 ever
+starts.
+
+### Then the cutover, later
+
+Once the rebuild reaches parity:
+
+5. Point `new.timothyvlangas.com` at the Workers site and build against it — a
+   real domain with real TLS, while the live site carries on untouched.
+6. Flip the apex record when you're satisfied. Add a Cloudflare Redirect Rule
+   sending all of `starrysidekick.com` to `timothyvlangas.com` (free, no code).
+7. Remove `site` and `base` from `astro.config.mjs` — which `CLAUDE.md` already
+   identifies as the only code change the domain move requires.
+8. *Then* cancel Squarespace.
+
+### One note on the host choice
+
+This requirement doesn't by itself force the move off GitHub Pages — Pages does
+support a custom domain with free TLS. But it supports **one** custom domain per
+repository, and you have two, so the second one needs a redirect service
+somewhere else regardless. Cloudflare covers both domains, the redirect, the
+DNS, the TLS and the registration in one place, at $0 beyond the domain cost
+itself.
+
+---
+
 ## 1. The organising idea: everything gets an address
 
 You asked for "a way to get to each element." That is the right instinct and
@@ -112,7 +213,7 @@ reasoning meeting a requirement it hadn't been asked about.
 | R2 — egress | $0, at any volume |
 | Image Transformations | $0 under 5,000 unique/mo |
 | Web3Forms | $0 to 250/mo |
-| Domain | ~$12–20/yr |
+| Domain (Cloudflare Registrar, at cost) | ~$10.44/yr, both domains |
 | **Realistic total** | **$0–5/mo**, against ~$276/yr for Squarespace Business |
 
 Verified September 2026. Sources at the bottom.
@@ -248,7 +349,8 @@ Ordered by what unblocks what. Sizes are relative, not calendar estimates.
 
 | | Phase | Size | Unblocks |
 |---|---|---|---|
-| 0 | Move the ground — Workers, domain, Access on `/admin`, drop `base` | S | everything |
+| — | **Domain transfer off Squarespace** (§0) — has a real deadline, independent of everything else | S | *nothing blocks on it; it blocks on December* |
+| 0 | Move the ground — Workers, Access on `/admin`, drop `base` | S | everything |
 | 1 | **Content model inversion** (§4) — element types, pages as data | **L** | 2, 4, 5, 11 |
 | 2 | Publish server-side; token leaves the browser; edit text in place | M | the whole point |
 | 3 | Media — R2, upload both ways, `assets.js` as resolver, pull assets across | M | 3, 10; kills the CDN dependency |
@@ -297,9 +399,14 @@ Phase 1 is the one that matters. Everything after it is small *because* of it.
 
 ## 10. What I'd do first
 
-Phase 0, standalone, in an afternoon: stand the site up on Workers, put Access in
-front of `/editor`, confirm you get a login screen and the site still looks
-right. It's small, it's reversible, it proves the whole auth story, and it
+**The domain transfer (§0), this month.** It's the only item here with a
+deadline, it's reversible, it touches the live site not at all, and it stops
+"cancel Squarespace" and "keep my address" from being the same decision. Do it
+whether or not you ever build the rest.
+
+**Then Phase 0, standalone, in an afternoon:** stand the site up on Workers, put
+Access in front of `/editor`, confirm you get a login screen and the site still
+looks right. It's small, it's reversible, it proves the whole auth story, and it
 answers the only question in this document I can't answer from a desk — whether
 a real login in front of your own site feels good to use or feels like a wall.
 
