@@ -23,7 +23,12 @@
  * The grid is a coordinate space, not a flow. There is no grid-auto-flow: an
  * empty cell stays empty, and a move that would overlap a sibling is refused
  * rather than shoving it aside — position is meant to carry meaning.
+ *
+ * An element also carries `type` and `content` — see elements.js. This file
+ * stays responsible for WHERE something sits and elements.js for WHAT it is,
+ * which is why the two can be validated and reasoned about separately.
  */
+import { checkElement } from './elements.js';
 
 /** The only legal values for an element's reflow seed. */
 export const FLOWS = ['pin', 'keep', 'full', 'stack'];
@@ -47,6 +52,13 @@ export function normalizeElement(e) {
   const out = { id: e.id, flow: e.flow, desk };
   if (e.narrow) out.narrow = e.narrow;
   if (e.locked) out.locked = true;
+  // v3: content lives on the element. This function used to build `out` from a
+  // fixed set of keys, which meant anything new was silently DROPPED — a text
+  // edit would round-trip through the editor and vanish. Carry them explicitly.
+  // An element with no type is a slot, so every layout written before v3 keeps
+  // rendering from its page's markup exactly as it did.
+  if (e.type) out.type = e.type;
+  if (e.content) out.content = structuredClone(e.content);
   return out;
 }
 
@@ -55,7 +67,7 @@ export function normalizeLayout(layout) {
   if (!layout || typeof layout !== 'object') return layout;
   return {
     ...layout,
-    version: 2,
+    version: 3,
     // Narrow may use a coarser grid than the wide one — dragging a tile with a
     // thumb across 24 columns is miserable. Defaults to the same count so an
     // existing layout is unchanged.
@@ -260,6 +272,10 @@ export function validateLayout(input, name = 'layout') {
 
     if (!FLOWS.includes(e.flow)) bad(`${at}.flow must be one of ${FLOWS.join(', ')}, got ${JSON.stringify(e.flow)}`);
 
+    // Content is data an editor writes, so a malformed or unsafe body is a real
+    // thing that can reach this file. Fail the build rather than ship it.
+    for (const problem of checkElement(e, at)) bad(problem);
+
     if (!e.desk) { bad(`${at} has no desk box`); continue; }
     for (const device of DEVICES) {
       const box = e[device];
@@ -313,7 +329,18 @@ function checkBox(box, at, cols, bad) {
  * diffable, and editor and site agree on the class name too.
  */
 export function scopeFor(layout) {
-  const json = JSON.stringify(layout);
+  // Geometry only. The scope names a LAYOUT, and hashing the whole object would
+  // fold the copy into it: fixing a typo would rename every rule in the
+  // compiled CSS, so an edit that changes no positions would still rewrite the
+  // whole stylesheet and make the built output undiffable.
+  const json = JSON.stringify({
+    columns: layout.columns,
+    narrowColumns: layout.narrowColumns,
+    rowHeight: layout.rowHeight,
+    gap: layout.gap,
+    reflowBelow: layout.reflowBelow,
+    elements: (layout.elements ?? []).map((e) => [e.id, e.desk, e.narrow]),
+  });
   let h = 2166136261;
   for (let i = 0; i < json.length; i++) {
     h ^= json.charCodeAt(i);

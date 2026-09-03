@@ -33,7 +33,7 @@ test('a v1 layout normalises: its single box becomes the desk box', () => {
   const e = byId(layout.elements);
   assert.deepEqual(e.card.desk, { col: [10, 6], row: [5, 8] });
   assert.equal(e.card.narrow, undefined, 'narrow stays derived until edited');
-  assert.equal(layout.version, 2);
+  assert.equal(layout.version, 3);
   assert.equal(layout.narrowColumns, 24, 'defaults to the wide column count');
 });
 
@@ -191,12 +191,40 @@ test('freeSpot finds somewhere legal', () => {
 
 /* ---------------- data + compile ---------------- */
 
-test('the shipped layout data is valid and matches this fixture', () => {
-  const onDisk = JSON.parse(
+test('the shipped layout data is valid and keeps this fixture geometry', () => {
+  const onDisk = normalizeLayout(JSON.parse(
     readFileSync(new URL('../data/layouts/links.json', import.meta.url), 'utf8')
-  );
+  ));
   assert.deepEqual(validateLayout(onDisk, 'links'), []);
-  assert.deepEqual(normalizeLayout(onDisk), layout);
+
+  // Geometry only. The shipped file also carries content now, which this
+  // fixture deliberately does not — the fixture is the geometry contract, and
+  // folding the copy into it would mean every typo fix broke a layout test.
+  const geometry = (l) => l.elements.map((e) => [e.id, e.flow, e.desk, e.narrow]);
+  assert.deepEqual(geometry(onDisk), geometry(layout));
+});
+
+test('the shipped layout carries its own content, not the page markup', () => {
+  const onDisk = normalizeLayout(JSON.parse(
+    readFileSync(new URL('../data/layouts/links.json', import.meta.url), 'utf8')
+  ));
+  const e = byId(onDisk.elements);
+
+  // The point of v3: these two were unreachable markup inside links.astro and
+  // are now editable data. If this regresses, the editor silently goes back to
+  // being able to move the email tile but not change the email.
+  assert.match(e.email.content.html, /TimothyVlangas@gmail\.com/);
+  assert.match(e.phone.content.html, /401-297-8580/);
+  // The whole line is the link, as it was in the markup this replaced. Splitting
+  // the label out of the anchor is what lost the space after "Email:".
+  assert.match(e.email.content.html, /^<a href="mailto:/);
+  assert.equal(e.qr.type, 'image');
+
+  // The flip card stays a slot: it is a component with its own behaviour, and
+  // a content schema would only get in its way. Written out rather than left
+  // off, so it reads as a decision instead of a forgotten field.
+  assert.equal(e.card.type, 'slot');
+  assert.equal(e.socials.type, 'slot');
 });
 
 test('validateLayout catches the ways editor-written data can break', () => {
@@ -273,6 +301,75 @@ test('scopeFor is stable for a layout and distinct between layouts', () => {
   assert.equal(scopeFor(layout), scopeFor(structuredClone(layout)));
   assert.notEqual(scopeFor(layout), scopeFor({ ...layout, columns: 12 }));
   assert.match(scopeFor(layout), /^ag-[a-z0-9]+$/);
+});
+
+test('scopeFor ignores content, so fixing a typo does not rewrite the CSS', () => {
+  const withCopy = normalizeLayout({
+    ...v1,
+    elements: v1.elements.map((e) =>
+      e.id === 'email' ? { ...e, type: 'text', content: { html: 'Emial' } } : e
+    ),
+  });
+  const fixed = normalizeLayout({
+    ...v1,
+    elements: v1.elements.map((e) =>
+      e.id === 'email' ? { ...e, type: 'text', content: { html: 'Email' } } : e
+    ),
+  });
+  assert.equal(scopeFor(withCopy), scopeFor(fixed));
+  // Moving it must still change the scope, or the guarantee is worthless.
+  const moved = normalizeLayout({
+    ...v1,
+    elements: v1.elements.map((e) => (e.id === 'email' ? { ...e, row: [20, 2] } : e)),
+  });
+  assert.notEqual(scopeFor(withCopy), scopeFor(moved));
+});
+
+test('normalizeElement carries type and content through a round trip', () => {
+  // It used to build its output from a fixed set of keys, so anything it did
+  // not know about was silently dropped — which would have meant a text edit
+  // surviving in the browser and vanishing on save.
+  const round = (e) => normalizeLayout({ ...v1, elements: [e] }).elements[0];
+  const typed = round({
+    id: 'a', col: [1, 2], row: [1, 2], flow: 'stack',
+    type: 'text', content: { html: 'hello' },
+  });
+  assert.equal(typed.type, 'text');
+  assert.deepEqual(typed.content, { html: 'hello' });
+
+  // Untyped elements stay untyped: every layout written before v3 keeps
+  // rendering from its page's markup.
+  const plain = round({ id: 'a', col: [1, 2], row: [1, 2], flow: 'stack' });
+  assert.equal(plain.type, undefined);
+  assert.equal(plain.content, undefined);
+
+  // The clone is real, or the editor would mutate the file it loaded from.
+  const source = { id: 'a', col: [1, 2], row: [1, 2], flow: 'stack', type: 'text', content: { html: 'x' } };
+  round(source).content.html = 'changed';
+  assert.equal(source.content.html, 'x');
+});
+
+test('validateLayout rejects unknown types and unsafe content', () => {
+  const el = (over) => ({ id: 'a', desk: { col: [1, 2], row: [1, 2] }, flow: 'stack', ...over });
+  const one = (e) => validateLayout({ columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700, elements: [e] }).join(' | ');
+
+  assert.match(one(el({ type: 'carousel' })), /is not one of/);
+  assert.match(one(el({ type: 'text', content: { html: 42 } })), /content\.html must be a string/);
+  assert.match(one(el({ type: 'image', content: {} })), /content\.src must be a non-empty string/);
+
+  // The guard rail, not a security boundary — but a paste from a rich-text
+  // source can carry a handler by accident, and the build should say so.
+  assert.match(one(el({ type: 'text', content: { html: '<script>x</script>' } })), /<script> tag/);
+  assert.match(one(el({ type: 'text', content: { html: '<b onclick="x">hi</b>' } })), /inline event handler/);
+  assert.match(one(el({ type: 'image', content: { src: 'javascript:x' } })), /javascript: URL/);
+
+  // Content on a slot never renders, so it is a dropped type rather than data.
+  assert.match(one(el({ content: { html: 'orphan' } })), /would never render/);
+
+  assert.deepEqual(validateLayout({
+    columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700,
+    elements: [el({ type: 'text', content: { html: 'Email: <a href="mailto:a@b.c">a@b.c</a>' } })],
+  }), []);
 });
 
 test('a layout with no pinned elements starts at the first row', () => {

@@ -1,15 +1,142 @@
 {
+  "version": 3,
   "columns": 24,
   "rowHeight": 26,
   "gap": 8,
   "reflowBelow": 700,
   "elements": [
-    { "id": "nav-home", "col": [1, 3], "row": [1, 3], "flow": "pin" },
-    { "id": "nav-sun", "col": [22, 3], "row": [1, 3], "flow": "pin" },
-    { "id": "card", "col": [10, 6], "row": [5, 8], "flow": "full" },
-    { "id": "email", "col": [2, 8], "row": [9, 2], "flow": "stack" },
-    { "id": "phone", "col": [3, 7], "row": [12, 2], "flow": "stack" },
-    { "id": "socials", "col": [8, 10], "row": [15, 3], "flow": "full" },
-    { "id": "qr", "col": [11, 4], "row": [19, 5], "flow": "keep" }
+    {
+      "id": "nav-home",
+      "type": "image",
+      "flow": "pin",
+      "desk": {
+        "col": [
+          1,
+          3
+        ],
+        "row": [
+          1,
+          3
+        ]
+      },
+      "content": {
+        "src": "asset:home",
+        "alt": "Home",
+        "href": "/",
+        "width": 480,
+        "height": 480,
+        "sizes": "120px",
+        "widths": [
+          100,
+          300
+        ]
+      }
+    },
+    {
+      "id": "nav-sun",
+      "type": "image",
+      "flow": "pin",
+      "desk": {
+        "col": [
+          22,
+          3
+        ],
+        "row": [
+          1,
+          3
+        ]
+      },
+      "content": {
+        "src": "asset:sun",
+        "alt": "",
+        "width": 128,
+        "height": 128
+      }
+    },
+    {
+      "id": "card",
+      "type": "slot",
+      "flow": "full",
+      "desk": {
+        "col": [
+          10,
+          6
+        ],
+        "row": [
+          5,
+          8
+        ]
+      }
+    },
+    {
+      "id": "email",
+      "type": "text",
+      "flow": "stack",
+      "desk": {
+        "col": [
+          2,
+          8
+        ],
+        "row": [
+          9,
+          2
+        ]
+      },
+      "content": {
+        "html": "<a href=\"mailto:TimothyVlangas@gmail.com\">Email: TimothyVlangas@gmail.com</a>"
+      }
+    },
+    {
+      "id": "phone",
+      "type": "text",
+      "flow": "stack",
+      "desk": {
+        "col": [
+          3,
+          7
+        ],
+        "row": [
+          12,
+          2
+        ]
+      },
+      "content": {
+        "html": "<a href=\"tel:+14012978580\">Phone: 401-297-8580</a>"
+      }
+    },
+    {
+      "id": "socials",
+      "type": "slot",
+      "flow": "full",
+      "desk": {
+        "col": [
+          8,
+          10
+        ],
+        "row": [
+          15,
+          3
+        ]
+      }
+    },
+    {
+      "id": "qr",
+      "type": "image",
+      "flow": "keep",
+      "desk": {
+        "col": [
+          11,
+          4
+        ],
+        "row": [
+          19,
+          5
+        ]
+      },
+      "content": {
+        "src": "asset:qr",
+        "alt": "QR code linking to this page"
+      }
+    }
   ]
 }

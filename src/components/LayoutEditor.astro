@@ -3,11 +3,18 @@
  * Mounts the layout editor onto an AdaptiveGrid, but only when the URL carries
  * ?edit=1. A visitor never downloads the editor and can never pick a tile up.
  *
- * Saving, for now, is localStorage plus "Copy JSON" — enough to arrange a page
- * on the real site and paste the result into src/data/layouts/. Committing back
- * to the repo so the public view changes is the next step, not this one.
+ * Saving has three levels: localStorage while you work, "Copy JSON" to hand the
+ * file over, and Publish to commit it straight to main.
  */
+import { asset } from '../lib/assets.js';
 const { name, layout, scope } = Astro.props;
+
+// The asset map travels as data so the editor can preview an image the moment
+// its source changes. editor.js may not import assets.js — the engine and the
+// editor are deliberately free of anything site-specific — so the site hands
+// the values over instead. Sixteen short strings, on the two pages that mount
+// an editor at all.
+const assets = asset;
 ---
 
 {/* The layout travels as data, not as define:vars — a define:vars script is
@@ -16,7 +23,7 @@ const { name, layout, scope } = Astro.props;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope })}
+  set:html={JSON.stringify({ name, layout, scope, assets })}
 />
 
 <script>
@@ -24,7 +31,7 @@ const { name, layout, scope } = Astro.props;
   // splits it into its own chunk and a visitor never downloads it.
   if (new URLSearchParams(location.search).has('edit')) {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -45,7 +52,7 @@ const { name, layout, scope } = Astro.props;
       import('../lib/editor.js')
         .then(({ mountEditor }) => {
           mountEditor({
-            root, name, layout: start,
+            root, name, layout: start, assets,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -75,6 +82,17 @@ const { name, layout, scope } = Astro.props;
   }
   .ag-editing .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
   .ag-editing .ag-lifted { z-index: 40; }
+
+  /* A tile whose words can be edited says so, and differently from a tile that
+     can only be moved — otherwise the only way to discover it is to guess. */
+  .ag-editing .ag-text { cursor: text; }
+  .ag-editing .ag-text::after { outline-style: dotted; outline-color: rgba(140,200,255,.5); }
+  .ag-editing .ag-writing { cursor: text; }
+  .ag-editing .ag-writing::after {
+    outline: 2px solid rgba(140,200,255,.9);
+    outline-offset: 3px;
+  }
+  .ag-editing .ag-writing:focus { outline: none; }
   .ag-editing .ag-dragging { opacity: .85; cursor: grabbing; pointer-events: none; }
   .ag-editing .ag-dragging.ag-invalid::after { outline-color: rgba(255,107,107,.9); }
 
@@ -157,10 +175,12 @@ const { name, layout, scope } = Astro.props;
   .ag-menu-note { opacity: .55; border-top: 1px solid rgba(255,255,255,.14); padding-top: 6px; }
   .ag-menu-note code { background: rgba(255,255,255,.1); padding: 0 3px; border-radius: 2px; }
   .ag-menu-field { display: flex; flex-direction: column; gap: 3px; }
-  .ag-menu-field input {
+  .ag-menu-field input, .ag-menu-field textarea {
     font: inherit; background: #111; color: #fff;
     border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 4px 6px;
+    resize: vertical;
   }
+  .ag-menu-kind { font-weight: 400; opacity: .55; }
   .ag-menu-check { display: flex; align-items: center; gap: 6px; }
   .ag-menu-actions { display: flex; gap: 6px; }
   .ag-menu-actions .ag-menu-btn { flex: 1; text-align: center; }

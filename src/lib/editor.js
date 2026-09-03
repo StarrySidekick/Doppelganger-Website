@@ -10,7 +10,8 @@
  *   hold 200ms   pick a tile up
  *   drag         move; ghost shows where it lands, red when refused
  *   corner grip  resize, live, like dragging a window edge
- *   right click  settings for that element
+ *   double click edit the words, in place, for a text element
+ *   right click  settings for that element — including its content fields
  *   device tabs  switch between the desk and narrow layouts
  *
  * Two things differ from bureau, both forced by this grid:
@@ -27,9 +28,14 @@
 import {
   resolveDevice, boxOk, columnsFor, normalizeLayout, validateLayout, FLOWS,
 } from './adaptive-grid.js';
+import { specOf, isInline, isTyped, renderElement, unsafeHtml } from './elements.js';
 import { publishLayout, TARGET, pathFor } from './publish.js';
 
 const TOKEN_KEY = 'doppelganger.ghToken';
+
+/** For putting a stored value back into a form field without breaking out of it. */
+const escapeAttr = (v) =>
+  String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 const HOLD_MS = 200;
 const NUDGE = 5; // px of movement before a drag counts as a drag
@@ -85,10 +91,57 @@ function trackAt(edges, px, step) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Cleaning what contenteditable produces
+ * ------------------------------------------------------------------ */
+
+/**
+ * The tags a text element may keep, and the attributes each may carry.
+ *
+ * contenteditable is generous: it will happily leave behind styled spans, font
+ * tags and nested divs from a paste. What lands in the layout file is committed
+ * to the repo and rendered with set:html on every build, so it gets narrowed to
+ * the few things a sentence actually needs.
+ */
+const KEEP = { A: ['href'], EM: [], STRONG: [], B: [], I: [], BR: [] };
+
+/** Strip a contenteditable's output down to KEEP. Browser only — uses the DOM. */
+export function cleanRichText(html) {
+  const box = document.createElement('div');
+  box.innerHTML = html;
+
+  const walk = (node) => {
+    for (const child of [...node.childNodes]) {
+      if (child.nodeType === Node.TEXT_NODE) continue;
+      if (child.nodeType !== Node.ELEMENT_NODE) { child.remove(); continue; }
+      walk(child);                              // depth first, so unwrapping is safe
+      const allow = KEEP[child.tagName];
+      if (!allow) {
+        // A block the browser inserted for a new line becomes the line break it
+        // actually meant; everything else just loses its wrapper and keeps its
+        // words, so no typing is ever thrown away by cleaning.
+        if ((child.tagName === 'DIV' || child.tagName === 'P') && child.previousSibling) {
+          child.parentNode.insertBefore(document.createElement('br'), child);
+        }
+        child.replaceWith(...child.childNodes);
+        continue;
+      }
+      for (const attr of [...child.attributes]) {
+        if (!allow.includes(attr.name)) child.removeAttribute(attr.name);
+      }
+      if (child.tagName === 'A' && unsafeHtml(child.getAttribute('href') || '')) {
+        child.removeAttribute('href');
+      }
+    }
+  };
+  walk(box);
+  return box.innerHTML.replace(/\s+/g, ' ').trim();
+}
+
+/* ------------------------------------------------------------------ *
  * Editor
  * ------------------------------------------------------------------ */
 
-export function mountEditor({ root, layout: initial, name, onChange }) {
+export function mountEditor({ root, layout: initial, name, assets = {}, onChange }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
 
@@ -97,6 +150,27 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
   let undo = [];
   let G = null;          // the gesture in flight
   let holdTimer = null;
+  let editing = null;    // {id, node, before} while text is being edited
+
+  /**
+   * Re-render one typed element into the page.
+   *
+   * Preview only: it resolves an asset key to its bare URL and skips the
+   * srcset, because the sizing helpers live in assets.js and this file is not
+   * allowed to import them. The build does the real thing — so an image looks
+   * right here and is served responsively once published.
+   */
+  const previewCtx = {
+    image: (c) => ({ src: c.src?.startsWith('asset:') ? assets[c.src.slice(6)] ?? c.src : c.src }),
+    link: (href) => href,
+  };
+  function repaintContent(id) {
+    const item = find(id);
+    const node = el(id);
+    if (!item || !node || !isTyped(item)) return;
+    node.innerHTML = renderElement(item, previewCtx);
+    addGrips(node);
+  }
 
   const el = (id) => grid.querySelector(`#${CSS.escape(id)}`);
   const find = (id) => layout.elements.find((e) => e.id === id);
@@ -116,6 +190,7 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
       node.style.gridRow = `${r._row} / span ${r._rowSpan}`;
       node.classList.toggle('ag-derived', device === 'narrow' && r._derived);
       node.classList.add('ag-editable');
+      node.classList.toggle('ag-text', isInline(find(r.id)));
       if (!node.querySelector('.ag-grip')) addGrips(node);
     }
     root.dataset.agDevice = device;
@@ -136,7 +211,7 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
   function setBox(id, box, { record = true } = {}) {
     const e = find(id);
     if (!e) return;
-    if (record) undo.push({ id, device, prev: e[device] ? structuredClone(e[device]) : null });
+    if (record) undo.push({ kind: 'box', id, device, prev: e[device] ? structuredClone(e[device]) : null });
     if (undo.length > 20) undo.shift();
     e[device] = { col: [...box.col], row: [...box.row] };
     commit();
@@ -160,11 +235,85 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
     if (!move) return toast('Nothing to undo');
     const e = find(move.id);
     if (!e) return;
+
+    if (move.kind === 'content') {
+      if (move.prev) e.content = move.prev; else delete e.content;
+      commit();
+      repaintContent(move.id);
+      return toast(`Undid the change to ${move.id}`);
+    }
+
     if (move.prev) e[move.device] = move.prev; else delete e[move.device];
     const was = device;
     device = move.device;
     commit();
     if (was !== device) toast(`Undone on ${device}`);
+  }
+
+  /** Record a content change and apply it. Shares the one undo stack. */
+  function setContent(id, next) {
+    const e = find(id);
+    if (!e) return;
+    undo.push({ kind: 'content', id, prev: e.content ? structuredClone(e.content) : null });
+    if (undo.length > 20) undo.shift();
+    e.content = next;
+    commit();
+    repaintContent(id);
+  }
+
+  /* ---- editing the words, in place ---- */
+
+  function beginEdit(id) {
+    const item = find(id);
+    const node = el(id);
+    if (!item || !node || !isInline(item) || item.locked) return;
+    if (editing) endEdit(true);
+    onCancel();                                  // drop any half-started gesture
+    editing = { id, node, before: item.content?.html ?? '' };
+    node.contentEditable = 'true';
+    node.spellcheck = true;
+    node.classList.add('ag-writing');
+    // Grips inside a contenteditable become editable content themselves and can
+    // be typed over or deleted. Take them out for the duration.
+    node.querySelectorAll('.ag-grip').forEach((g) => g.remove());
+    node.focus();
+    toast('Editing text — Escape to cancel, click away to keep');
+  }
+
+  function endEdit(keep) {
+    if (!editing) return;
+    const { id, node, before } = editing;
+    editing = null;
+    node.contentEditable = 'false';
+    node.classList.remove('ag-writing');
+
+    const next = keep ? cleanRichText(node.innerHTML) : before;
+    if (!keep || next === before) {
+      // Nothing to store, but the DOM may hold the browser's own markup, so put
+      // the stored version back rather than leaving a div soup behind.
+      const item = find(id);
+      node.innerHTML = item ? renderElement(item, previewCtx) : before;
+      addGrips(node);
+      if (!keep) toast('Reverted');
+      return;
+    }
+    setContent(id, { ...(find(id).content ?? {}), html: next });
+  }
+
+  function onDblClick(e) {
+    const node = e.target.closest('.ag-editable');
+    if (!node || !grid.contains(node)) return;
+    if (!isInline(find(node.id))) return;
+    e.preventDefault();
+    beginEdit(node.id);
+  }
+
+  /** Paste as text. A paste from a browser or a doc arrives full of markup. */
+  function onPaste(e) {
+    if (!editing) return;
+    e.preventDefault();
+    const text = e.clipboardData?.getData('text/plain') ?? '';
+    document.execCommand('insertText', false, text);
   }
 
   /* ---- gestures ---- */
@@ -193,6 +342,10 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
     const id = node.id;
     const item = find(id);
     if (!item || item.locked) return;
+
+    // While a tile's words are being edited it is a text field, not a tile.
+    if (editing && node.id === editing.id) return;
+    if (editing) endEdit(true);
 
     const grip = e.target.closest('[data-rz]');
     const t = tracks(grid);
@@ -312,8 +465,19 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
     const item = find(id);
     if (!item) return;
     const hasOwn = device === 'narrow' && !!item.narrow;
+    const spec = specOf(item);
+    // Fields are declared by the type, not listed here, so a new element type
+    // gets its panel for free — see elements.js.
+    const fields = spec.fields.map((f) => `
+      <label class="ag-menu-field">${f.label}
+        ${f.kind === 'area'
+          ? `<textarea data-field="${f.key}" rows="4">${escapeAttr(item.content?.[f.key] ?? '')}</textarea>`
+          : `<input data-field="${f.key}" type="text" value="${escapeAttr(item.content?.[f.key] ?? '')}" />`}
+      </label>`).join('');
     chrome.menu(x, y, `
-      <div class="ag-menu-title">${id}</div>
+      <div class="ag-menu-title">${id} <span class="ag-menu-kind">${spec.label}</span></div>
+      ${fields ? `${fields}<div class="ag-menu-actions"><button class="ag-menu-btn" data-act="fields">Apply</button></div>` : ''}
+      ${spec.inline ? '<div class="ag-menu-note">Double-click it in the page to edit the words.</div>' : ''}
       <label class="ag-menu-row">Reflow seed
         <select data-act="flow">
           ${FLOWS.map((f) => `<option value="${f}"${f === item.flow ? ' selected' : ''}>${f}</option>`).join('')}
@@ -324,10 +488,23 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
         ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
       </button>` : ''}
       <div class="ag-menu-note">${describe(item)}</div>
-    `, (act, value) => {
+    `, (act, value, menuEl) => {
       if (act === 'flow') { item.flow = value; commit(); }
       if (act === 'lock') { item.locked = !item.locked; commit(); }
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
+      if (act === 'fields') {
+        const next = { ...(item.content ?? {}) };
+        for (const f of spec.fields) {
+          const input = menuEl.querySelector(`[data-field="${f.key}"]`);
+          if (!input) continue;
+          const v = input.value.trim();
+          if (v) next[f.key] = v; else delete next[f.key];
+        }
+        const problems = spec.check(next);
+        if (problems.length) return toast(problems[0]);
+        setContent(id, next);
+        toast(`${id} updated`);
+      }
     });
   }
 
@@ -341,8 +518,18 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
   /* ---- keyboard ---- */
 
   function onKey(e) {
-    if (e.key === 'Escape') { chrome.closeMenu(); return; }
+    if (e.key === 'Escape') {
+      if (editing) { endEdit(false); return; }
+      chrome.closeMenu();
+      return;
+    }
     if (e.target.matches('input,textarea,select')) return;
+    // Inside a live text edit every key is a keystroke. Without this, typing
+    // the letter d in an email address would flip the device tab.
+    if (editing) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); endEdit(true); }
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
     if (e.key === 'd' || e.key === 'D') {
       setDevice(device === 'desk' ? 'narrow' : 'desk');
@@ -402,6 +589,13 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onCancel);
   grid.addEventListener('contextmenu', onContext);
+  grid.addEventListener('dblclick', onDblClick);
+  grid.addEventListener('paste', onPaste);
+  // Clicking anywhere outside the tile being written in keeps the change — the
+  // same bargain as a spreadsheet cell, and the reason there is no Save button.
+  document.addEventListener('pointerdown', (e) => {
+    if (editing && !editing.node.contains(e.target)) endEdit(true);
+  });
   window.addEventListener('keydown', onKey);
   /* While arranging you are not browsing. Half these tiles are links, and a
      drag ends with a click the browser sends anyway — without this, moving the
@@ -426,6 +620,8 @@ export function mountEditor({ root, layout: initial, name, onChange }) {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
       grid.removeEventListener('contextmenu', onContext);
+      grid.removeEventListener('dblclick', onDblClick);
+      grid.removeEventListener('paste', onPaste);
       window.removeEventListener('keydown', onKey);
       chrome.destroy();
     },
@@ -466,7 +662,7 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
         <button data-dev="desk"${d === 'desk' ? ' aria-current="true"' : ''}>Desk</button>
         <button data-dev="narrow"${d === 'narrow' ? ' aria-current="true"' : ''}>Narrow</button>
       </div>
-      <span class="ag-hint">hold to pick up · corners resize · right click for settings</span>
+      <span class="ag-hint">hold to pick up · corners resize · double-click text to edit · right click for settings</span>
       <button data-bar="undo">Undo</button>
       <button data-bar="copy">Copy JSON</button>
       <button data-bar="publish" class="ag-publish">Publish…</button>
@@ -584,7 +780,9 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
   menu.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.tagName === 'SELECT') return;
-    onPick?.(btn.dataset.act);
+    // The menu element goes with the action: a fields panel has to read its own
+    // inputs, and it must do so BEFORE closeMenu() empties them.
+    onPick?.(btn.dataset.act, undefined, menu);
     closeMenu();
   });
   menu.addEventListener('change', (e) => {

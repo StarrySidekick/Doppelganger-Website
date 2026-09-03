@@ -431,8 +431,8 @@ deferred until you want it. Sizes are relative, not calendar estimates.
 
 | | Phase | Size | Unblocks |
 |---|---|---|---|
-| 1 | **Content model inversion** (§4) — element types, pages as data | **L** | 2, 3, 5, 6 |
-| 2 | Admin mode polish + edit copy in the browser | M | the daily loop |
+| 1 | ~~**Content model inversion** (§4) — element types, pages as data~~ **done on `/links`** | **L** | 2, 3, 5, 6 |
+| 2 | ~~Edit copy in the browser~~ **done**; convert the remaining pages | M | the daily loop |
 | 3 | Header and footer as editable chrome | S | — |
 | 4 | Images into the repo from the browser + media manifest | M | media, minus audio/video |
 | 5 | Collections — blog + projects, tags, sorting, "new post" | M | — |

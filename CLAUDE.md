@@ -13,7 +13,8 @@ npm install
 npm run dev      # localhost:4321, hot reload
 npm run build    # → dist/
 npm run preview  # serve the built output
-npm test         # layout-engine + widget-build assertions (node --test, no deps)
+npm test         # layout engine, element registry, publish, widget build
+                 # (node --test, no deps)
 npm run widgets  # build Squarespace code blocks → widgets/dist/
 ```
 
@@ -45,15 +46,26 @@ navigation. This has already caused one bug.
 real domain moves across, nothing needs redirecting. `trailingSlash: 'never'` and
 `build.format: 'file'` exist for this reason. Do not "tidy" a route.
 
-**4. Verify visually, not just by build success.** A green build proves nothing
+**4. `src/lib/` may not import `assets.js` or anything under `src/data/`.** The
+engine, the element registry and the editor are a general thing; the site's own
+facts reach them through arguments — `AdaptiveGrid.astro` passes a `ctx` with an
+asset resolver, `LayoutEditor.astro` hands the editor an asset map as data. This
+costs nothing today and is what keeps the option of lifting the whole thing out
+later. Every import that crosses it has to be replaced with an argument instead.
+
+**5. Verify visually, not just by build success.** A green build proves nothing
 about layout. Screenshot at desktop and mobile widths before claiming done. Two
 real bugs shipped past a passing build: the flip card overflowing its grid cell,
-and the sun rendering at 100vw.
+and the sun rendering at 100vw. A third nearly shipped with the v3 content
+model: `#email` was `display:flex`, so "Email: " and its `<a>` became separate
+flex items and the space between them collapsed — `Email:TimothyVlangas@…`.
+Tests, the build and the box geometry all passed. Only the screenshot showed it.
 
 ## Architecture
 
 ```
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
+src/lib/elements.js        the element type registry — what a tile IS and how it renders
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
 src/lib/editor.js          the in-page editor, loaded only for ?edit=1
 src/lib/publish.js         commits a layout to GitHub from the browser
@@ -124,6 +136,56 @@ the whole reason the prototype had to come in. Delete the old copy rather than
 keeping it in sync; it predates `minmax`, the scope argument and the two-layout
 model.
 
+### An element's content is data too
+
+**Layouts hold content as well as geometry.** An element carries `type` and
+`content` alongside its boxes, and `src/lib/elements.js` says what each type
+means. This is why the project exists in the shape it does: before it, the
+editor could move the email tile but could not change the email, because the
+words lived as markup inside `links.astro` where nothing could reach them.
+
+```json
+{ "id": "email", "type": "text", "flow": "stack",
+  "desk": { "col": [2, 8], "row": [9, 2] },
+  "content": { "html": "<a href=\"mailto:…\">Email: …</a>" } }
+```
+
+| type | is | edited by |
+|---|---|---|
+| `slot` | content comes from the page's markup | code |
+| `text` | a run of text with links | double-clicking it in the page |
+| `image` | an image, optionally linked | the right-click settings panel |
+| `html` | a block of markup | the settings panel, as a textarea |
+
+`slot` is the default for an element with no type, and that is deliberate:
+every layout written before this keeps rendering from its page untouched, so
+pages convert **one element at a time** rather than all at once. `/links` is
+converted; `/`, `/writing` and `/music` are not, and nothing forces them to be.
+
+Two things about `slot` worth keeping:
+
+- It is the right answer, not a stopgap, for anything a component renders. The
+  flip card has its own holographic shader; a content schema would only get in
+  its way. `links.json` writes `"type": "slot"` out in full so it reads as a
+  decision rather than a forgotten field.
+- A `slot` element carrying `content` fails the build. That combination can only
+  mean a dropped or misspelled type, and it would otherwise render nothing at
+  all with no complaint.
+
+**Content is checked at build time.** `validateLayout()` runs each element's
+content through its type, so a malformed `content` or one carrying a `<script>`,
+an `<iframe>`, an inline handler or a `javascript:` URL fails the build. That is
+a guard rail against a bad paste, not a security boundary — only someone who can
+commit can write it.
+
+**Typed elements render inside `AdaptiveGrid.astro`, so a page's scoped `<style>`
+cannot reach them.** Pass a class (`<AdaptiveGrid class="links-grid">`) and hang
+the rules off that in an `is:global` block. Bare `#email` in a global block is
+the id collision hard rule 0 is about.
+
+**`scopeFor()` hashes geometry only.** Folding content into it would mean fixing
+a typo renamed every rule in the compiled CSS.
+
 ### Editing a layout in the page
 
 `/links?edit=1` mounts the editor onto the real page. It is behind the query
@@ -133,11 +195,15 @@ never pick a tile up. Interaction follows bureau:
 - **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
 - **corner grips** resize; there are no edge handles
-- **right click** opens that element's settings — flow seed, lock, and on narrow
-  a "reset to derived position"
+- **double click** a text element to edit the words in place. Click away keeps
+  it, Escape reverts. What contenteditable produces is cleaned down to
+  `a/em/strong/b/i/br` before it is stored, so a paste cannot smuggle styled
+  spans into the repo
+- **right click** opens that element's settings — flow seed, lock, the content
+  fields its type declares, and on narrow a "reset to derived position"
 - **Desk / Narrow** tabs switch which layout you are editing; narrow constrains
   the container, which is the real thing because the grid is container-queried
-- **⌘Z / Ctrl-Z** undoes, up to 20 moves
+- **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack
 
 Saving has three levels. **localStorage** holds work in progress and survives a
 reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
@@ -160,15 +226,29 @@ While editing, clicks on links inside the grid are suppressed. Half the tiles
 on `/links` are anchors, and without that, moving the home icon also navigates
 home and takes the editor and the arrangement with it.
 
-## Status: paused — Squarespace is the live site
+## Status: restarted, September 2026 — editor first, migration later
 
-**As of August 2026 this rebuild is parked.** Timothy is making changes on
-Squarespace (timothyvlangas.com) for the time being. Reason: the layout editor
-covers only `/links`, nothing else on the site is a grid, and content still
-can't be edited — so Fluid Engine, whatever its faults, is still the better tool
-for actually running the site today.
+**The rebuild is active again, and the order changed.** It was parked in August
+because content couldn't be edited; that is the thing now being fixed. See
+`docs/SCOPE.md` for the full plan — the short version:
 
-Do not start rebuild work here unless asked. Site changes go to Squarespace —
+- Everything except large media can be built **on GitHub Pages as it stands**.
+  No server, no auth, no hosting move. So the migration is deferred and the
+  editor comes first.
+- `?edit=1` is the "admin mode", and it is deliberately not access control. It
+  is a URL anyone can type, and that is fine because **saving needs a token that
+  only ever exists in Timothy's browser** — a stranger can rearrange tiles in
+  their own session and change nothing for anyone.
+- Media splits: images can be committed to the repo, **audio and video cannot**.
+  Git history is append-only, so a few dozen songs committed once is a few dozen
+  songs in every clone forever. They keep being embedded (SoundCloud, YouTube)
+  until object storage exists.
+- The domain is the one thing that does **not** wait, and it is not a rebuild
+  task. Both domains are registered by *Squarespace Domains LLC* and renew
+  **8 December 2026**. Until they are transferred out, cancelling Squarespace
+  and keeping the address are the same decision. See `docs/SCOPE.md` §0.
+
+Squarespace is still the live site meanwhile, and site changes still go there —
 use the `squarespace-ops` skill, which encodes the admin flow and a save-button
 hazard that silently discards work.
 
@@ -185,9 +265,14 @@ What's already done, so it isn't rediscovered:
 - Saving **is** solved. The editor publishes to `main` through the GitHub
   contents API and the site rebuilds; 28 assertions cover it. The gap is
   breadth, not persistence.
+- Element **content** is now editable too — text in place, image fields in the
+  settings panel — but only on `/links`, which is the one page converted to the
+  typed model. Converting another page is the same shape of work, one element
+  at a time.
 - The remaining work to replace Squarespace is: convert `/`, `/writing`,
-  `/music` to grids; make element *content* editable; build the six blog
-  collections; pull the assets local.
+  `/music` to grids and to typed content; header and footer as editable chrome;
+  uploading an image from the editor; build the six blog collections; pull the
+  assets local.
 - **The asset dependency is no longer urgent.** Every image still comes from
   Squarespace's CDN, and the `?format=` resizing that took the homepage from
   15.3 MB to 0.7 MB depends on it. While the subscription continues that is
