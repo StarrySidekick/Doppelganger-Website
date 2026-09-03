@@ -112,6 +112,85 @@ itself.
 
 ---
 
+## 0.5. Yes — build all of it on GitHub Pages first
+
+**Everything on your list except large media works on GitHub Pages today**, with
+no server, no auth and no migration. And none of it is thrown away later. This
+is the better order, and it replaces the phasing in §8.
+
+### Three of the six already exist
+
+| You asked for | Status |
+|---|---|
+| Move things around bureau style | **Done.** `editor.js` — hold 200ms to pick up, corner grips, ⌘Z undo, Desk/Narrow tabs, overlap refused by `boxOk()` |
+| An “admin mode” toggle | **Effectively done.** `?edit=1` already gates it behind a dynamic import. Wants polish, not building |
+| Export JSON to hand to Claude | **Done.** The **Copy JSON** button — and see below, you have something better |
+| Copy changes in the browser | Needs the content model (§4) |
+| Header and footer | Needs `chrome.json` |
+| Images and media | Needs media handling — one real limit, below |
+
+### You don't have to hand me JSON at all
+
+Saving already has three levels, and the one you described is the middle one:
+
+1. **localStorage** — instant, survives a reload, private to your browser.
+2. **Copy JSON** — the file, to paste to me or drop into `src/data/`.
+3. **Publish** — commits to `main` through the GitHub API; Actions rebuilds and
+   the public site changes in about a minute. Already built, 28 assertions cover it.
+
+So the loop you're describing works today, and the faster loop also works today.
+Use Copy JSON when you want me to review a change; use Publish when you just
+want it live.
+
+The reason Publish eventually moves server-side is the token: a fine-grained PAT
+in `localStorage` is a real credential in a place anything on the origin could
+read. For one author, on one repo, with a short expiry, that is an acceptable
+interim risk — it is the *only* thing the migration buys you on this front.
+
+### The one real limit: media
+
+No server means no upload endpoint. But the browser already talks to the GitHub
+API, so images can go into the repo exactly the way layouts do — the editor
+base64s the file and PUTs it to `public/media/`. The Contents API accepts up to
+100 MB per file, so a few-megabyte image is nothing.
+
+**Images: yes. Songs and video: no.** This is where the rule from §2 bites, and
+it bites hardest in exactly the case you named:
+
+- GitHub Pages caps a published site at **1 GB**, and the repo carries every
+  version of every binary forever, because git history is append-only.
+- “A few dozen songs” committed to git is the one irreversible mistake in this
+  whole document. Don't.
+- **Interim answer:** keep embedding audio and video from where they already
+  live — SoundCloud and YouTube are already in `assets.js`. Hold local audio
+  until R2 exists. Because everything resolves through the media manifest,
+  moving from `public/media/` to R2 later changes one file.
+
+Build frequency isn't a constraint: Pages' soft limit of 10 builds/hour is
+waived for repositories that deploy through a custom Actions workflow, which
+this one already does.
+
+### What “admin mode” means when there's no security
+
+Worth being straight about it, since you raised it. `?edit=1` is not access
+control — it's a URL, and anyone who knows it can open the editor.
+
+That is genuinely fine here, because **they can't save anything.** Publishing
+needs the token, and the token is in your browser only. The worst a stranger can
+do is rearrange tiles in their own session and watch nothing happen to the live
+site. The thing that would actually matter is putting that token somewhere
+shared — don't, and there is no exposure worth the word.
+
+### Nothing built now is thrown away
+
+The migration later changes three things: where the files are served from, where
+the token lives, and where binaries live. It changes **none** of the layout
+engine, the element registry, the editor, the page JSON, or the collections.
+That's what the addressing model in §1 buys — the addresses stay the same when
+what's behind them moves.
+
+---
+
 ## 1. The organising idea: everything gets an address
 
 You asked for "a way to get to each element." That is the right instinct and
@@ -345,27 +424,32 @@ what makes this groundwork rather than a dead end.
 
 ## 8. Phases
 
-Ordered by what unblocks what. Sizes are relative, not calendar estimates.
+Reordered: everything that needs no server comes first, and the migration is
+deferred until you want it. Sizes are relative, not calendar estimates.
+
+### Now — on GitHub Pages, no server, no auth
 
 | | Phase | Size | Unblocks |
 |---|---|---|---|
-| — | **Domain transfer off Squarespace** (§0) — has a real deadline, independent of everything else | S | *nothing blocks on it; it blocks on December* |
-| 0 | Move the ground — Workers, Access on `/admin`, drop `base` | S | everything |
-| 1 | **Content model inversion** (§4) — element types, pages as data | **L** | 2, 4, 5, 11 |
-| 2 | Publish server-side; token leaves the browser; edit text in place | M | the whole point |
-| 3 | Media — R2, upload both ways, `assets.js` as resolver, pull assets across | M | 3, 10; kills the CDN dependency |
-| 4 | Collections — blog + projects, tags, sorting, "new post" | M | 7, 11 |
-| 5 | Header and footer as editable chrome | S | 5 |
-| 6 | Commerce groundwork | S | 4 |
-| 7 | Parity — `/uiux` (40 images), the six blog collections, DNS cutover | M | cancelling Squarespace |
+| 1 | **Content model inversion** (§4) — element types, pages as data | **L** | 2, 3, 5, 6 |
+| 2 | Admin mode polish + edit copy in the browser | M | the daily loop |
+| 3 | Header and footer as editable chrome | S | — |
+| 4 | Images into the repo from the browser + media manifest | M | media, minus audio/video |
+| 5 | Collections — blog + projects, tags, sorting, "new post" | M | — |
+| 6 | Commerce groundwork | S | — |
+| 7 | Parity — `/uiux` (40 images), the six blog collections | M | — |
 
-Phase 0 is worth doing even if you stop immediately afterwards: it drops `base`
-from `astro.config.mjs`, which `CLAUDE.md` already identifies as the only change
-required to move to the real domain.
+### Later — the migration, when you're ready
 
-Phase 1 is the one that matters. Everything after it is small *because* of it.
+| | Phase | Size | Why it waits |
+|---|---|---|---|
+| — | **Domain transfer off Squarespace** (§0) | S | *Does **not** wait — December deadline, independent of everything above* |
+| 8 | Workers + Access — real login, token leaves the browser | S | Only buys credential safety, tolerable meanwhile |
+| 9 | R2 — audio, video, large media; repoint `assets.js` | M | The only thing that unlocks "dozens of songs" |
+| 10 | DNS cutover, drop `base`, cancel Squarespace | S | Needs parity first |
 
----
+Phase 1 is still the one that matters. Everything after it is small *because* of
+it — and Phases 8–10 are genuinely optional until you want them.
 
 ## 9. Things I'd flag before you commit
 
@@ -404,14 +488,14 @@ deadline, it's reversible, it touches the live site not at all, and it stops
 "cancel Squarespace" and "keep my address" from being the same decision. Do it
 whether or not you ever build the rest.
 
-**Then Phase 0, standalone, in an afternoon:** stand the site up on Workers, put
-Access in front of `/editor`, confirm you get a login screen and the site still
-looks right. It's small, it's reversible, it proves the whole auth story, and it
-answers the only question in this document I can't answer from a desk — whether
-a real login in front of your own site feels good to use or feels like a wall.
+**Then Phase 1, on GitHub Pages, with no migration at all** (§0.5). Convert one
+page — `/links`, since it's already a grid — to the v3 model with typed,
+editable elements. That single page proves or disproves the whole content model,
+it's the only genuinely risky work in this document, and it needs nothing that
+doesn't already exist.
 
-If it feels good, Phase 1 is worth the weight. If it doesn't, better to know
-before inverting the content model.
+If it works, the rest of the "Now" track is small. If it doesn't, far better to
+know that on one page than on seven.
 
 ---
 
