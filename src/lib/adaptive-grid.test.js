@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   resolve, resolveDevice, deriveNarrow, compileCSS, scopeFor, validateLayout,
-  normalizeLayout, overlaps, boxOk, freeSpot, columnsFor, deviceFor,
+  normalizeLayout, overlaps, boxOk, freeSpot, columnsFor, deviceFor, packLayout,
 } from './adaptive-grid.js';
 
 /**
@@ -22,7 +22,7 @@ import {
  * engine's geometry; the shipped files are asserted separately, below.
  */
 const v1 = {
-  columns: 24, rowHeight: 26, gap: 8, reflowBelow: 700,
+  columns: 24, gap: 8, reflowBelow: 700,
   elements: [
     { id: 'nav-home', col: [1, 3],  row: [1, 3],  flow: 'pin'   },
     { id: 'nav-sun',  col: [22, 3], row: [1, 3],  flow: 'pin'   },
@@ -40,7 +40,7 @@ test('a v1 layout normalises: its single box becomes the desk box', () => {
   const e = byId(layout.elements);
   assert.deepEqual(e.card.desk, { col: [10, 6], row: [5, 8] });
   assert.equal(e.card.narrow, undefined, 'narrow stays derived until edited');
-  assert.equal(layout.version, 4);
+  assert.equal(layout.version, 5);
   assert.equal(layout.narrowColumns, 24, 'defaults to the wide column count');
 });
 
@@ -258,13 +258,12 @@ test('the shipped layout carries its own content, not the page markup', () => {
 
 test('validateLayout catches the ways editor-written data can break', () => {
   const el = (over = {}) => ({ id: 'a', desk: { col: [1, 2], row: [1, 2] }, flow: 'stack', ...over });
-  const base = { columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700, elements: [el()] };
+  const base = { columns: 12, gap: 8, reflowBelow: 700, elements: [el()] };
   const one = (over) => validateLayout({ ...base, ...over }).join(' | ');
 
   assert.match(one({ columns: 0 }), /columns must be a positive number/);
   assert.match(one({ columns: 2 }), /columns must be at least 3/);
   assert.match(one({ narrowColumns: 2 }), /narrowColumns must be at least 3/);
-  assert.match(one({ rowHeight: -1 }), /rowHeight must be a positive number/);
   assert.match(one({ elements: 'nope' }), /elements must be an array/);
   assert.match(one({ elements: [el({ flow: 'wiggle' })] }), /flow must be one of/);
   assert.match(one({ elements: [el({ id: '' })] }), /id must be a non-empty string/);
@@ -286,7 +285,7 @@ test('validateLayout catches the ways editor-written data can break', () => {
 
 test('validateLayout rejects two elements in the same cell', () => {
   const problems = validateLayout({
-    columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700,
+    columns: 12, gap: 8, reflowBelow: 700,
     elements: [
       { id: 'a', desk: { col: [1, 4], row: [1, 4] }, flow: 'stack' },
       { id: 'b', desk: { col: [3, 4], row: [3, 4] }, flow: 'stack' },
@@ -295,23 +294,71 @@ test('validateLayout rejects two elements in the same cell', () => {
   assert.ok(problems.some((p) => /a overlaps b on desk/.test(p)), problems.join(' | '));
 });
 
-test('every emitted track keeps the load-bearing auto', () => {
-  // Without it, anything taller than its rows overflows and collides. This has
-  // already shipped as a real bug once.
-  const withAuto = (css) =>
-    (css.match(/grid-auto-rows:minmax\(clamp\([^)]*\),auto\)/g) ?? []).length;
-  const anyTrack = (css) => (css.match(/grid-auto-rows:/g) ?? []).length;
+test('every emitted track is a rigid square cell, and no row ever grows', () => {
+  // Rows used to be minmax(clamp(...), auto) so they grew with their content.
+  // That is deliberately gone: the board is rigid, a cell is one column wide
+  // and exactly as tall, and content that does not fit clips. If `auto` ever
+  // comes back, tiles stop being the size you drew them.
+  const css = compileCSS(layout, 'ag-test');
+  // `grid-auto-rows` is the property; what must never come back is a track
+  // that sizes itself — the `auto` keyword as a value, or a minmax around it.
+  assert.doesNotMatch(css, /grid-auto-rows:[^;}]*\bauto\b/, 'no track may size itself to content');
+  assert.doesNotMatch(css, /minmax/);
+  assert.doesNotMatch(css, /clamp/, 'the cell is derived, not clamped between guesses');
 
-  // Same column count both ways: one track, not restated needlessly.
-  const same = compileCSS(layout, 'ag-test');
-  assert.equal(anyTrack(same), 1);
-  assert.equal(withAuto(same), 1);
+  // The cell: one column of the container's own width, so the board scales and
+  // the cell stays square at every window size.
+  assert.match(css, /--ag-cell:calc\(\(100cqi - \d+px\) \/ 24\)/);
+  assert.match(css, /grid-auto-rows:var\(--ag-cell\)/);
 
-  // A coarser narrow grid needs its own track — which must also carry the auto.
-  const coarse = compileCSS(normalizeLayout({ ...v1, narrowColumns: 12 }), 'ag-test');
-  assert.equal(anyTrack(coarse), 2, 'one per device when they differ');
-  assert.equal(withAuto(coarse), 2);
-  assert.match(coarse, /repeat\(12,1fr\)/);
+  // One track per device, always — the narrow one restates the cell because
+  // its column count differs, which is the whole point of the breakpoint.
+  assert.equal((css.match(/grid-auto-rows:/g) ?? []).length, 2);
+  const narrow = css.slice(css.indexOf('@container'));
+  assert.match(narrow, /--ag-cols:24/, 'same count here, but stated for its own block');
+
+  const coarse = compileCSS(normalizeLayout({ ...v1, narrowColumns: 8 }), 'ag-test');
+  assert.match(coarse.slice(coarse.indexOf('@container')), /--ag-cell:calc\(\(100cqi - 56px\) \/ 8\)/);
+});
+
+test('a board can be given a fixed height in cells, and can float', () => {
+  // How tall the header is, and whether it follows you down the page, are two
+  // fields on its layout rather than CSS to go and find.
+  const fixed = compileCSS(normalizeLayout({ ...v1, rows: 3 }), 'ag-test');
+  assert.match(fixed, /grid-template-rows:repeat\(3,var\(--ag-cell\)\)/);
+  assert.match(fixed, /min-height:calc\(var\(--ag-cell\) \* 3/);
+  assert.deepEqual(validateLayout({ ...v1, rows: 3, sticky: true }), []);
+  assert.match(validateLayout({ ...v1, rows: 0 }).join(), /whole number of cells/);
+  assert.match(validateLayout({ ...v1, sticky: 'yes' }).join(), /sticky must be true or false/);
+});
+
+test('packLayout repacks top to bottom in reading order, growing downward', () => {
+  // The answer to "these no longer fit". The board never does this on its own —
+  // nothing moves unless you move it — so this is the deliberate version.
+  const scattered = normalizeLayout({
+    columns: 6, gap: 8, reflowBelow: 700,
+    elements: [
+      { id: 'c', col: [1, 3], row: [9, 2], flow: 'stack' },
+      { id: 'a', col: [1, 4], row: [1, 2], flow: 'stack' },
+      { id: 'b', col: [5, 2], row: [1, 2], flow: 'stack' },
+    ],
+  });
+  const packed = packLayout(scattered, 'desk');
+  // Reading order: a and b share the top row, c follows underneath.
+  assert.deepEqual(packed.get('a'), { col: [1, 4], row: [1, 2] });
+  assert.deepEqual(packed.get('b'), { col: [5, 2], row: [1, 2] });
+  assert.deepEqual(packed.get('c'), { col: [1, 3], row: [3, 2] });
+  // Sizes are never changed, only positions.
+  for (const [id, box] of packed) {
+    const e = scattered.elements.find((x) => x.id === id);
+    assert.deepEqual(box.col[1], e.desk.col[1]);
+    assert.deepEqual(box.row[1], e.desk.row[1]);
+  }
+  // And the result is legal: nothing overlaps.
+  const boxes = [...packed.values()];
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++)
+      assert.equal(overlaps(boxes[i], boxes[j]), false);
 });
 
 test('compiled CSS is confined to its scope', () => {
@@ -378,7 +425,7 @@ test('normalizeElement carries type and content through a round trip', () => {
 
 test('validateLayout rejects unknown kinds and unsafe content', () => {
   const el = (over) => ({ id: 'a', desk: { col: [1, 2], row: [1, 2] }, flow: 'stack', ...over });
-  const one = (e) => validateLayout({ columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700, elements: [e] }).join(' | ');
+  const one = (e) => validateLayout({ columns: 12, gap: 8, reflowBelow: 700, elements: [e] }).join(' | ');
 
   assert.match(one(el({ kind: 'carousel' })), /is not one of/);
   assert.match(one(el({ kind: 'note', body: 42 })), /body must be a string/);
@@ -394,14 +441,14 @@ test('validateLayout rejects unknown kinds and unsafe content', () => {
   assert.match(one(el({ body: 'orphan' })), /would never render/);
   // The shape before this one still validates, because it is upgraded on read.
   assert.deepEqual(validateLayout({
-    columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700,
+    columns: 12, gap: 8, reflowBelow: 700,
     elements: [el({ type: 'text', content: { html: 'Email: <a href="mailto:a@b.c">a@b.c</a>' } })],
   }), []);
 });
 
 test('a layout with no pinned elements starts at the first row', () => {
   const plain = normalizeLayout({
-    columns: 12, rowHeight: 40, gap: 8, reflowBelow: 700,
+    columns: 12, gap: 8, reflowBelow: 700,
     elements: [{ id: 'only', col: [1, 6], row: [1, 2], flow: 'stack' }],
   });
   assert.equal(resolveDevice(plain, 'narrow')[0]._row, 1);
@@ -410,4 +457,35 @@ test('a layout with no pinned elements starts at the first row', () => {
 test('deriveNarrow covers every element', () => {
   const seeds = deriveNarrow(layout);
   assert.equal(seeds.size, layout.elements.length);
+});
+
+test('normalizeElement carries an unlisted field through, whatever it is', () => {
+  // The regression this guards: it used to copy a NAMED set of fields, so
+  // every new part of the model was silently dropped between the editor and
+  // the file until someone remembered to add it. Twice. A field nobody has
+  // invented yet must survive a round trip.
+  const round = (e) => normalizeLayout({ ...v1, elements: [e] }).elements[0];
+  const out = round({
+    id: 'a', col: [1, 2], row: [1, 2], flow: 'stack', kind: 'list',
+    arrange: 'accordion', onclick: 'page', fold: { cols: 9, rows: 5 },
+    items: [{ id: 'i', kind: 'note', title: 'T' }],
+    somethingNobodyHasInventedYet: { deep: ['value'] },
+  });
+  assert.equal(out.arrange, 'accordion');
+  assert.equal(out.onclick, 'page');
+  assert.deepEqual(out.fold, { cols: 9, rows: 5 });
+  assert.deepEqual(out.items, [{ id: 'i', kind: 'note', title: 'T' }]);
+  assert.deepEqual(out.somethingNobodyHasInventedYet, { deep: ['value'] });
+
+  // The two shapes it exists to fold in are still the only things dropped.
+  const old = round({ id: 'a', col: [1, 2], row: [1, 2], flow: 'stack', type: 'text', content: { html: 'x' } });
+  assert.equal(old.col, undefined);
+  assert.equal(old.type, undefined);
+  assert.equal(old.content, undefined);
+  assert.equal(old.body, 'x');
+
+  // And the clone is deep, or the editor would mutate the file it loaded from.
+  const source = { id: 'a', col: [1, 2], row: [1, 2], flow: 'stack', kind: 'list', items: [{ id: 'i', title: 'T' }] };
+  round(source).items[0].title = 'changed';
+  assert.equal(source.items[0].title, 'T');
 });

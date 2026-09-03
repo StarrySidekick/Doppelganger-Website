@@ -74,6 +74,7 @@ Tests, the build and the box geometry all passed. Only the screenshot showed it.
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
 src/lib/elements.js        objects, attributes, kinds, faces — Bureau's model, cut to a website
 src/lib/look.js            the site's colours and the tokens derived from them
+src/lib/interact.js        what a published page does on its own — folds, accordions
 src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
 src/styles/faces.css       how each face draws — all of it CSS behind one class
 src/data/look.json         the look itself: five colours, the type, pinned or flat
@@ -129,16 +130,36 @@ same) — dragging with a thumb across 24 columns is miserable.
   not media queries, so a layout works inside any container. That is also what
   lets the editor show a true narrow preview in a pane rather than an iframe.
 
-`grid-auto-rows` uses `minmax(clamp(...), auto)`. The `auto` is load-bearing:
-without it, any element taller than its allotted rows silently overflows and
-collides with whatever follows.
+**The board is RIGID and the cell is SQUARE.** A cell is one column wide and
+exactly as tall, derived from the container's own width in `cqi`:
 
-**Rows are therefore not a uniform height** — measured on `/links` they run
-18px, 18px, 31.5px … 40.125px, because `auto` lets each grow to its content.
-Nothing may convert pixels to cells by dividing by an average step. The editor
-walks the real track edges from `getComputedStyle().gridTemplateRows`; the first
-version divided by a step and dropped a tile seven rows down when the pointer
-had crossed thirteen. Guarded by the "no drift" check in the editor test.
+```css
+--ag-cell: calc((100cqi - (cols - 1) * gap) / cols);
+grid-auto-rows: var(--ag-cell);
+```
+
+Rows used to be `minmax(clamp(...), auto)` and grew with their content. That is
+gone, deliberately and at Timothy's call: it made every row a different height,
+made a tile's size a consequence of its words rather than of what you drew, and
+meant the drag maths had to walk measured track edges. Now the board scales with
+the window and **nothing on it ever moves or resizes itself.** An object taller
+than its box clips. That is the bargain a rigid board makes, and it is the same
+one Bureau makes.
+
+Consequences worth knowing:
+
+- **A row span means the same as a column span.** Re-tuning a layout from the
+  old model is not a rescale — a box that was 8 rows tall was ~280px and is now
+  8 cells, which is much taller. All three shipped layouts were re-cut by hand.
+- `rowHeight` is gone from the schema. The cell is derived, so there is nothing
+  to state.
+- **`rows` fixes a board's height in cells** and `sticky` makes it follow you
+  down the page. Both are how the header and footer are sized and pinned, and
+  both are fields on the layout rather than CSS to go and find.
+- **Nothing reflows on resize.** The whole board scales. When something genuinely
+  cannot fit — a coarser grid than an object is wide — `packLayout()` repacks
+  top to bottom in reading order and lets the board grow downward. It is never
+  automatic: it runs when you change the grid size, or press **Tidy**.
 
 **The out-of-repo prototype is retired.** `/editor` does its job now — a board
 of labelled placeholders for arranging a layout with no finished page around it,
@@ -169,6 +190,8 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `media` | a picture | `media: {src, alt, …}` |
 | `link` | goes somewhere — a site path or a web address | `link` |
 | `container` | **opens onto a page of its own — this is what makes a drawer** | `link` is the page |
+| `fold` | a folded size and an open size, toggled live — this is the dropdown | `fold: {cols, rows}` |
+| `holds` | holds other objects and lays them out by a rule | `items`, `arrange` |
 
 | kind | attributes | face | made from the picker |
 |---|---|---|---|
@@ -176,8 +199,27 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `image` | media, link | picture | yes |
 | `button` | text, link | plaque | yes |
 | `drawer` | container, media, text | drawer front | yes — **it makes a page** |
+| `fold` | text, fold | card | yes — **replaces a dropdown** |
+| `list` | holds, text | card | yes — **the accordion / gallery** |
 | `html` | text (raw markup) | plain | no, a tool |
 | `slot` | — | — | no, written by code |
+
+**What a click does is a field**, `onclick`, asked of every object — Bureau's
+`clickOf()`. `page` sends you to a page on this site (through `url()`, hard rule
+2), `url` opens a web address in its own tab, `fold` opens and shuts, `none`
+does nothing. Left unset it asks the object what it *is*: something with a
+`/path` goes there, something that folds folds.
+
+**A fold's box on the grid is its FOLDED size.** Opening draws the panel as an
+overlay sized in cells, hanging off the tab. Growing the tile would push its
+neighbours, and on a rigid board nothing moves unless you move it.
+
+**A holder is the one fluid thing, fenced into one tile.** `arrange` is `stack`,
+`row`, `grid` or `accordion`, and its `items` are ordinary objects rendered by
+the same code. The board is rigid; a holder is a box whose *contents* flow,
+which is what an accordion, a row of links and a wrapping gallery all are.
+`src/lib/interact.js` is the only script a published page carries — one
+delegated listener for folds and accordions, so a visitor gets them too.
 
 Ask `has(o, 'media')`, never `o.kind === 'image'`. That rule is the whole reason
 an invented combination works everywhere immediately — a note told to carry a
@@ -291,17 +333,17 @@ on what moves, every gesture live. The padlock in the bar (or `L`) flips it for
 every grid on the page at once. A first visit to `?edit=1` lands unlocked,
 because that is what asking for it means; after that it is whatever you left.
 
-**The checkerboard is real cells, not a gradient.** Rows here are
-`minmax(…, auto)` and grow with content, so a background sized to a cell would
-drift off the truth within a few rows. One `<i class="ag-cell">` per coordinate
-is placed in the grid like a tile and aligns to whatever the tracks turned out
-to be. Bureau can use a gradient because its cells are square and uniform.
-Clicking a bare cell is the picker.
+**The checkerboard is real cells, not a gradient.** Now that cells are square
+and uniform a gradient *would* line up, the way Bureau's does — but a cell is
+also a **target**: one `<i class="ag-cell" data-col data-row>` per coordinate is
+what makes clicking bare board mean "here", and dragging across it mean "this
+big". A gradient cannot be pressed.
 
 Interaction follows bureau:
 
-- **click a bare cell** for the picker — note, image, button, drawer — and what
-  you pick lands on that cell at its kind's size, or in the first free room
+- **click a bare cell** for the picker — and what you pick lands on that cell
+  at its kind's size, or in the first free room
+- **drag across bare cells** to sketch a box; the new object takes that size
 - **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
 - **corner grips** resize; there are no edge handles
@@ -313,6 +355,12 @@ Interaction follows bureau:
   declare, its face, flow seed, lock, delete, and on narrow "reset to derived
   position"
 - **the gear** is the look: colours, type, pinned
+- **Board** is this grid's own geometry: how many columns across (which is how
+  big one piece is), the gap, a fixed height in cells, and floating or set.
+  **Tidy** repacks it top to bottom
+- **Pages** is the working list of every page there is. Bureau's *desks* do not
+  come over — a website has pages, and how a visitor gets between them is
+  whatever you build out of objects and menus
 - **Desk / Narrow** tabs switch which layout you are editing; narrow constrains
   the container, which is the real thing because the grid is container-queried
 - **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack

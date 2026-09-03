@@ -22,20 +22,20 @@
  *
  * Two things differ from Bureau, both forced by this grid:
  *
- * 1. Rows are minmax(clamp(...), auto) and GROW with content, so there is no
- *    single row height to cache. Track positions are read from the live grid
- *    (getComputedStyle → gridTemplateRows) on every gesture start, and the
- *    checkerboard is real cells placed in the grid rather than a gradient, so
- *    it cannot drift off the truth.
+ * 1. The board is rigid and its cells are square, so a cell has ONE size and
+ *    the drag maths could divide by it. It still walks the measured track
+ *    edges instead, because that is correct either way and it is what keeps
+ *    working if the track ever stops being uniform again.
  * 2. The narrow layout is a real stored layout, but an object that has never
  *    been touched at narrow width has no box of its own; it is showing one
  *    derived from its flow. Moving it writes the box down for the first time.
  */
 import {
-  resolveDevice, boxOk, freeSpot, columnsFor, normalizeLayout, validateLayout, FLOWS,
+  resolveDevice, boxOk, freeSpot, columnsFor, normalizeLayout, validateLayout,
+  packLayout, FLOWS,
 } from './adaptive-grid.js';
 import {
-  KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf,
+  KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf, clickOf,
   fieldsOf, getField, setField, renderElement, unsafeHtml, tiltFor, escapeHtml,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
@@ -59,8 +59,8 @@ const NUDGE = 5; // px of movement before a drag counts as a drag
 
 /**
  * Where every column and row line sits, in px relative to the grid box.
- * Read fresh at the start of each gesture: rows grow with their content, so
- * yesterday's numbers are not today's.
+ * Read fresh at the start of each gesture: the cell is derived from the
+ * container's width, so a resized window is a different set of numbers.
  */
 function tracks(grid) {
   const cs = getComputedStyle(grid);
@@ -89,11 +89,10 @@ function tracks(grid) {
 /**
  * Which 1-based track contains this px offset.
  *
- * Rows here are minmax(clamp(...), auto) and every one can be a different
- * height — measured on /links they run 18px, 18px, 31.5px … 40.125px. So a
- * drag CANNOT convert pixels to cells by dividing by a step: doing that moved a
- * tile seven rows when the pointer had crossed thirteen. Walk the real edges
- * instead, and only extrapolate past the end of the grid.
+ * Cells are square and uniform now, so this could divide by the step. It walks
+ * the measured edges anyway: that is correct either way, it costs nothing, and
+ * it is what kept working when rows DID vary — dividing by an average once
+ * moved a tile seven rows when the pointer had crossed thirteen.
  */
 function trackAt(edges, px, step) {
   for (let i = 0; i < edges.length - 1; i++) {
@@ -159,7 +158,7 @@ export const slugify = (s) =>
  * ------------------------------------------------------------------ */
 
 export function mountEditor({
-  root, layout: initial, published, name, assets = {}, base = '/', look, onChange,
+  root, layout: initial, published, name, assets = {}, base = '/', look, pages = [], onChange,
 }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
@@ -182,7 +181,7 @@ export function mountEditor({
     return { col: [r._col, r._span], row: [r._row, r._rowSpan] };
   };
 
-  const chrome = sharedChrome(look);
+  const chrome = sharedChrome(look, pages);
   const toast = chrome.toast;
   const locked = () => chrome.locked();
 
@@ -226,8 +225,16 @@ export function mountEditor({
 
   function paint() {
     for (const r of placed()) {
-      const node = el(r.id);
-      if (!node) continue;
+      /* An object made in the editor and kept in localStorage has no tile in
+         the built page, so on a reload it would be in the layout, in the undo
+         stack and in the publish set — and invisible. Mount it. Only a typed
+         object can be mounted: a `slot` IS the page's markup, and if that has
+         gone the layout is referring to something that no longer exists. */
+      let node = el(r.id);
+      if (!node) {
+        if (!isTyped(r)) continue;
+        node = mountTile(r);
+      }
       node.style.gridColumn = `${r._col} / span ${r._span}`;
       node.style.gridRow = `${r._row} / span ${r._rowSpan}`;
       node.classList.toggle('ag-derived', device === 'narrow' && r._derived);
@@ -401,22 +408,30 @@ export function mountEditor({
    * The other device gets a free spot too, because an object needs a desk box
    * to be valid at all.
    */
-  function create(kind, col, row, extra = {}) {
+  function create(kind, col, row, extra = {}, size = null) {
     const def = KINDS[kind];
     if (!def) return;
     const id = uniqueId(kind);
     const cols = columnsFor(layout, device);
-    const w = Math.min(def.size[0], cols);
-    let box = { col: [Math.min(col, cols - w + 1), w], row: [row, def.size[1]] };
-    if (!boxOk(layout, id, box, device)) box = freeSpot(layout, [w, def.size[1]], device, id);
+    const want = size ? [size.col[1], size.row[1]] : def.size;
+    const w = Math.min(want[0], cols);
+    let box = { col: [Math.min(col, cols - w + 1), w], row: [row, want[1]] };
+    if (!boxOk(layout, id, box, device)) box = freeSpot(layout, [w, want[1]], device, id);
 
     const item = { id, kind, flow: 'stack', ...extra };
-    if (def.body != null && item.body == null && has(item, 'text')) item.body = def.body;
+    for (const k of ['body', 'title', 'fold', 'arrange']) {
+      if (def[k] != null && item[k] == null) item[k] = structuredClone(def[k]);
+    }
+    if (item.body != null && !has(item, 'text')) delete item.body;
+    /* An object made on one device has to exist on the other, or it is not on
+       the site at all. The device you are looking at gets the box you drew;
+       the other gets NO stored box, which means it shows up seeded by its flow
+       — the way a new drawer appears — until you place it there by hand. */
     if (device === 'desk') {
       item.desk = box;
     } else {
       item.narrow = box;
-      item.desk = freeSpot(layout, def.size, 'desk', id);
+      item.desk = freeSpot(layout, [Math.min(want[0], layout.columns), want[1]], 'desk', id);
     }
     layout.elements.push(item);
     const problems = validateLayout(layout, name);
@@ -446,42 +461,90 @@ export function mountEditor({
    * until Publish, like a picked image — and a tile here that opens it. The
    * dynamic route turns the file into the page on the next build.
    */
-  function newDrawer(col, row) {
+  function newDrawer(col, row, size = null) {
     const title = window.prompt('Name the drawer — it becomes a page:', '');
     if (!title) return;
     const slug = slugify(title);
     if (!slug) return toast('That name has no letters in it');
-    const made = create('drawer', col, row, { title, link: `/${slug}` });
+    const made = create('drawer', col, row, { title, link: `/${slug}`, onclick: 'page' }, size);
     if (!made) return;
     chrome.addFile(pathFor(slug), JSON.stringify({
-      version: 4, columns: 24, rowHeight: 26, gap: 8, reflowBelow: 700, title, elements: [],
+      version: 5, columns: 24, narrowColumns: 8, gap: 8, reflowBelow: 700, title, elements: [],
     }, null, 2) + '\n');
     toast(`"${title}" opens /${slug} once published`);
   }
 
   /* ---- the picker ---- */
 
-  function openPicker(col, row, x, y) {
+  function openPicker(col, row, x, y, size = null) {
     chrome.menu(x, y, `
-      <div class="ag-menu-title">New, at ${col},${row}</div>
+      <div class="ag-menu-title">New, at ${col},${row}${size ? ` · ${size.col[1]}×${size.row[1]}` : ''}</div>
       <div class="ag-menu-kinds">
         ${PICKER_KINDS.map((k) => `<button class="ag-menu-btn" data-act="new:${k}">${KINDS[k].label}<small>${KINDS[k].says}</small></button>`).join('')}
       </div>
     `, (act) => {
       const kind = act.startsWith('new:') && act.slice(4);
       if (!kind) return;
-      if (kind === 'drawer') return newDrawer(col, row);
-      const item = create(kind, col, row);
+      if (kind === 'drawer') return newDrawer(col, row, size);
+      const item = create(kind, col, row, {}, size);
       if (item && kind === 'image') pickFileFor(item.id);
     });
   }
 
-  function onCellClick(e) {
-    if (locked()) return;
+  /**
+   * Sketching a box on bare grid.
+   *
+   * A press on a cell starts it; dragging shows the box the new object will
+   * take; letting go opens the picker at that size. A press with no drag is
+   * the same gesture with a one-cell box, so a click still means "one of these
+   * here, at its own size" — which is Bureau's bargain, and the reason there
+   * is no New button anywhere.
+   */
+  let sketch = null;
+
+  function onCellDown(e) {
+    if (locked() || e.button === 2) return;
     const cell = e.target.closest('.ag-cell');
     if (!cell || !grid.contains(cell)) return;
-    if (editing) return endEdit(true);
-    openPicker(+cell.dataset.col, +cell.dataset.row, e.clientX, e.clientY);
+    if (editing) endEdit(true);
+    sketch = {
+      col: +cell.dataset.col, row: +cell.dataset.row,
+      toCol: +cell.dataset.col, toRow: +cell.dataset.row,
+      moved: false,
+      node: Object.assign(document.createElement('div'), { className: 'ag-ghost ag-sketch' }),
+    };
+    place(sketch.node, boxOfSketch());
+    grid.appendChild(sketch.node);
+  }
+
+  const boxOfSketch = () => ({
+    col: [Math.min(sketch.col, sketch.toCol), Math.abs(sketch.toCol - sketch.col) + 1],
+    row: [Math.min(sketch.row, sketch.toRow), Math.abs(sketch.toRow - sketch.row) + 1],
+  });
+
+  function onSketchMove(e) {
+    if (!sketch) return;
+    const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.ag-cell');
+    if (!cell || !grid.contains(cell)) return;
+    const c = +cell.dataset.col, r = +cell.dataset.row;
+    if (c === sketch.toCol && r === sketch.toRow) return;
+    sketch.toCol = c; sketch.toRow = r;
+    sketch.moved = true;
+    const box = boxOfSketch();
+    sketch.node.className = 'ag-ghost ag-sketch' + (boxOk(layout, null, box, device) ? '' : ' ag-bad');
+    place(sketch.node, box);
+  }
+
+  function onSketchUp(e) {
+    if (!sketch) return;
+    const s = sketch; sketch = null;
+    s.node.remove();
+    const box = {
+      col: [Math.min(s.col, s.toCol), Math.abs(s.toCol - s.col) + 1],
+      row: [Math.min(s.row, s.toRow), Math.abs(s.toRow - s.row) + 1],
+    };
+    // A drag says what size it wants; a plain press lets the kind decide.
+    openPicker(box.col[0], box.row[0], e.clientX, e.clientY, s.moved ? box : null);
   }
 
   /* ---- images picked in the browser, not yet in the repo ---- */
@@ -572,6 +635,9 @@ export function mountEditor({
   function onDown(e) {
     if (locked()) return;
     if (e.button === 2) return;               // right click is the settings menu
+    // A fold's own tab is a control, not a handle: pressing it should open the
+    // fold so you can arrange what is inside it. Hold anywhere else to move it.
+    if (e.target.closest('[data-fold],[data-acc]')) return;
     const node = e.target.closest('.ag-editable');
     if (!node || !grid.contains(node)) return;
     const id = node.id;
@@ -590,9 +656,8 @@ export function mountEditor({
       id, node, handle: grip?.dataset.rz ?? null,
       armed: !!grip,                          // a grip drags at once, a tile waits
       box: boxFor(id),
-      // Measured once, at the start. A live resize changes row heights as it
-      // goes; re-reading them mid-gesture would move the ground under the
-      // pointer and the tile would chase itself.
+      // Measured once, at the start, and not re-read mid-gesture: the ground
+      // must not move under the pointer while the tile is following it.
       t,
       startCol: trackAt(t.x, e.clientX - rect.left, t.colStep),
       startRow: trackAt(t.y, e.clientY - rect.top, t.rowStep),
@@ -765,12 +830,20 @@ export function mountEditor({
     selected = id;
     const hasOwn = device === 'narrow' && !!item.narrow;
     const typed = isTyped(item);
+    /* A field draws itself from what it declares, so a new attribute's fields
+       appear in this panel without it being edited. */
+    const control = (f) => {
+      const v = getField(item, f.key);
+      if (f.kind === 'area') return `<textarea data-field="${f.key}" rows="4">${escapeAttr(v ?? '')}</textarea>`;
+      if (f.kind === 'number') return `<input data-field="${f.key}" type="number" min="1" value="${escapeAttr(v ?? '')}" />`;
+      if (f.kind === 'select') {
+        return `<select data-field="${f.key}">${Object.entries(f.options).map(([k, label]) =>
+          `<option value="${escapeAttr(k)}"${String(v ?? '') === k ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}</select>`;
+      }
+      return `<input data-field="${f.key}" type="text" value="${escapeAttr(v ?? '')}" />`;
+    };
     const fields = typed ? fieldsOf(item).map((f) => `
-      <label class="ag-menu-field">${f.label}
-        ${f.kind === 'area'
-          ? `<textarea data-field="${f.key}" rows="4">${escapeAttr(getField(item, f.key) ?? '')}</textarea>`
-          : `<input data-field="${f.key}" type="text" value="${escapeAttr(getField(item, f.key) ?? '')}" />`}
-      </label>`).join('') : '';
+      <label class="ag-menu-field">${f.label}${control(f)}</label>`).join('') : '';
     const faceRow = typed ? `
       <label class="ag-menu-row">Face
         <select data-act="face">
@@ -806,7 +879,11 @@ export function mountEditor({
         const ok = setContent(id, (o) => {
           for (const f of fieldsOf(o)) {
             const input = menuEl.querySelector(`[data-field="${f.key}"]`);
-            if (input) setField(o, f.key, input.value.trim());
+            if (!input) continue;
+            const raw = input.value.trim();
+            // A number field has to store a number: "8" would fail its own
+            // check, which asks for a positive count of cells.
+            setField(o, f.key, f.kind === 'number' && raw !== '' ? Number(raw) : raw);
           }
         });
         if (ok) toast(`${id} updated`);
@@ -861,6 +938,60 @@ export function mountEditor({
     getPending: () => pending,
     isDirty: () => JSON.stringify(layout) !== baselineJson,
     undo: undoLast,
+    board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
+      gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true }),
+    setBoard: (patch) => {
+      const before = structuredClone(layout);
+      Object.assign(layout, patch);
+      for (const k of ['rows', 'narrowRows']) if (layout[k] === '' || layout[k] == null) delete layout[k];
+
+      /* A coarser grid can leave objects hanging off the right-hand edge —
+         #socials spans ten columns and cannot sit on a board eight wide. That
+         is exactly the case where things HAVE to move, so this is where the
+         repack earns its keep: keep sizes, keep reading order, walk them top
+         to bottom and let the board grow downward. Only if that still cannot
+         be made legal is the change refused. */
+      let repacked = 0;
+      if (validateLayout(layout, name).length) {
+        for (const dev of ['desk', 'narrow']) {
+          const cols = columnsFor(layout, dev);
+          for (const e of layout.elements) {
+            const box = e[dev];
+            if (box && box.col[1] > cols) { box.col = [1, cols]; repacked++; }
+          }
+          for (const [id, box] of packLayout(layout, dev)) {
+            const e = find(id);
+            if (!e) continue;
+            if (dev === 'narrow' && !e.narrow) continue;   // still seeded by flow
+            if (JSON.stringify(e[dev]) !== JSON.stringify(box)) { e[dev] = box; repacked++; }
+          }
+        }
+      }
+      const problems = validateLayout(layout, name);
+      if (problems.length) {
+        for (const k of Object.keys(layout)) delete layout[k];
+        Object.assign(layout, before);
+        return toast(problems[0].replace(/^[^:]+: /, ''));
+      }
+      if (repacked) toast(`${repacked} object${repacked > 1 ? 's' : ''} moved to fit the new grid`);
+      // The compiled CSS is built at build time, so a column change cannot be
+      // previewed live without recompiling the whole grid. Say so plainly
+      // rather than let the board look wrong until a rebuild.
+      commit();
+      toast('Board changed — publish to see it, the grid CSS is built');
+    },
+    tidy: () => {
+      const boxes = packLayout(layout, device);
+      let moved = 0;
+      for (const [id, box] of boxes) {
+        const e = find(id);
+        const cur = e?.[device];
+        if (!cur || cur.col[0] !== box.col[0] || cur.row[0] !== box.row[0]) moved++;
+        if (e) e[device] = box;
+      }
+      commit();
+      toast(moved ? `Tidied ${moved} object${moved > 1 ? 's' : ''} on ${device}` : 'Already tidy');
+    },
     pickImage: () => pickFileFor(selected && has(find(selected) ?? {}, 'media') ? selected : firstImageId()),
     onLock: () => { if (editing) endEdit(true); paint(); },
     afterPublish: () => {
@@ -881,7 +1012,9 @@ export function mountEditor({
   grid.addEventListener('dragover', allowDrop);
   grid.addEventListener('drop', onDrop);
   grid.addEventListener('dragleave', (e) => { if (!grid.contains(e.relatedTarget)) markDrop(null); });
-  grid.addEventListener('click', onCellClick);
+  grid.addEventListener('pointerdown', onCellDown);
+  window.addEventListener('pointermove', onSketchMove);
+  window.addEventListener('pointerup', onSketchUp);
   // With a header, a page and a footer all on one screen there are three grids
   // and one bar. Touching a grid is what makes it the one the bar acts on.
   grid.addEventListener('pointerdown', () => chrome.setActive(name), true);
@@ -917,7 +1050,9 @@ export function mountEditor({
       grid.removeEventListener('paste', onPaste);
       grid.removeEventListener('dragover', allowDrop);
       grid.removeEventListener('drop', onDrop);
-      grid.removeEventListener('click', onCellClick);
+      grid.removeEventListener('pointerdown', onCellDown);
+      window.removeEventListener('pointermove', onSketchMove);
+      window.removeEventListener('pointerup', onSketchUp);
       window.removeEventListener('keydown', onKey);
       chrome.unregister(name);
     },
@@ -939,9 +1074,9 @@ export function mountEditor({
  * changed, every picked image and any new page as ONE commit.
  */
 let CHROME = null;
-export const sharedChrome = (look) => (CHROME ??= buildChrome(look));
+export const sharedChrome = (look, pages) => (CHROME ??= buildChrome(look, pages));
 
-function buildChrome(lookInitial) {
+function buildChrome(lookInitial, pages = []) {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -955,6 +1090,9 @@ function buildChrome(lookInitial) {
   toastEl.className = 'ag-toast';
   toastEl.hidden = true;
   document.body.appendChild(toastEl);
+
+  /** Every layout file there is, for the working page list. */
+  const pageList = pages;
 
   /** name -> the editor's api. */
   const editors = new Map();
@@ -1088,6 +1226,8 @@ function buildChrome(lookInitial) {
         images ? `${images} image${images > 1 ? 's' : ''}` : '',
         lookDirty() ? 'look' : '',
       ].filter(Boolean).join(' · ')} waiting</span>` : ''}
+      <button data-bar="pages" title="Every page on the site">Pages</button>
+      <button data-bar="board" title="This board's grid">Board</button>
       <button data-bar="image">Add image…</button>
       <button data-bar="look" title="The site's look">⚙</button>
       <button data-bar="undo">Undo</button>
@@ -1133,6 +1273,87 @@ function buildChrome(lookInitial) {
     } else if (key === 'tilt') patch.tilt = t.checked;
     else patch[key] = t.value;
     setLook(patch);
+  }
+
+  /* ---- the board: this grid's own geometry ---- */
+
+  /**
+   * How big a cell is, said in the only unit that means anything: how many fit
+   * across. The board fills its container, so more columns is a finer grid and
+   * a smaller piece — and the px figure is what that works out to right now.
+   */
+  function openBoard() {
+    const a = active();
+    if (!a) return;
+    const b = a.board();
+    const px = (cols) => {
+      const g = a.root.querySelector('.ag-grid');
+      const w = g ? g.getBoundingClientRect().width : 0;
+      return w ? Math.round((w - (cols - 1) * b.gap) / cols) : 0;
+    };
+    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 200, `
+      <div class="ag-menu-title">Board · ${activeName}</div>
+      <div class="ag-menu-note">
+        The grid is rigid and its cells are square. It fills the width it is
+        given, so the column count is how big one piece is.
+      </div>
+      <label class="ag-menu-field">Columns across (desk) — ${px(b.columns)}px a piece
+        <input data-board="columns" type="number" min="3" max="60" value="${b.columns}" />
+      </label>
+      <label class="ag-menu-field">Columns across (narrow)
+        <input data-board="narrowColumns" type="number" min="3" max="30" value="${b.narrowColumns}" />
+      </label>
+      <label class="ag-menu-field">Gap between cells (px)
+        <input data-board="gap" type="number" min="0" max="40" value="${b.gap}" />
+      </label>
+      <label class="ag-menu-field">Height in cells — blank means as tall as it needs
+        <input data-board="rows" type="number" min="1" max="40" value="${b.rows ?? ''}" />
+      </label>
+      <label class="ag-menu-check">
+        <input data-board="sticky" type="checkbox"${b.sticky ? ' checked' : ''} />
+        Floating — follows you as you scroll
+      </label>
+      <div class="ag-menu-actions">
+        <button class="ag-menu-btn" data-act="board-apply">Apply</button>
+        <button class="ag-menu-btn" data-act="tidy">Tidy</button>
+      </div>
+      <div class="ag-menu-note">
+        <b>Tidy</b> repacks this board top to bottom in reading order, growing
+        downward. Nothing moves on its own — this is the deliberate version.
+      </div>
+    `, (act, _v, menuEl) => {
+      if (act === 'tidy') return a.tidy();
+      if (act !== 'board-apply') return;
+      const num = (k) => {
+        const raw = menuEl.querySelector(`[data-board="${k}"]`).value.trim();
+        return raw === '' ? null : Number(raw);
+      };
+      a.setBoard({
+        columns: num('columns'), narrowColumns: num('narrowColumns'), gap: num('gap'),
+        rows: num('rows'), sticky: menuEl.querySelector('[data-board="sticky"]').checked,
+      });
+    });
+  }
+
+  /* ---- the pages: a working list, not the site's navigation ---- */
+
+  /**
+   * Bureau's desks do not come over. A website has PAGES, and how you get
+   * between them for a visitor is whatever you built out of objects and menus.
+   * This is only the working list — every layout file there is, so you can go
+   * and edit one without hunting for its URL.
+   */
+  function openPages() {
+    const here = location.pathname;
+    const rows = pageList.map((p) => {
+      const at = p.href === here || `${p.href}/` === here;
+      return `<a class="ag-menu-btn" href="${escapeAttr(p.href)}?edit=1"${at ? ' aria-current="true"' : ''}>${escapeAttr(p.title)}<small>${escapeAttr(p.href)}</small></a>`;
+    }).join('');
+    openMenu(window.innerWidth / 2 - 150, 90, `
+      <div class="ag-menu-title">Pages</div>
+      <div class="ag-menu-kinds ag-menu-pages">${rows || '<div class="ag-menu-note">No layouts found.</div>'}</div>
+      <div class="ag-menu-note">A working list. What a visitor navigates by is whatever you put on the boards.</div>
+    `, null);
   }
 
   /* ---- publishing ---- */
@@ -1242,6 +1463,8 @@ function buildChrome(lookInitial) {
     const act = e.target.closest('[data-bar]')?.dataset.bar;
     if (act === 'lock') return setLocked(!isLocked);
     if (act === 'look') return openLook();
+    if (act === 'pages') return openPages();
+    if (act === 'board') return openBoard();
     if (act === 'publish') return openPublish();
     const a = active();
     if (!a) return;
@@ -1288,7 +1511,9 @@ function buildChrome(lookInitial) {
     if (btn.dataset.act !== 'pick') closeMenu();
   });
   menu.addEventListener('change', (e) => {
-    const sel = e.target.closest('select[data-act]');
+    // A select that is a FIELD belongs to the Apply button, not to the menu's
+    // own action handler — reading it here would close the panel mid-edit.
+    const sel = e.target.closest('select[data-act]:not([data-field])');
     if (!sel) return;
     onPick?.(sel.dataset.act, sel.value);
     closeMenu();

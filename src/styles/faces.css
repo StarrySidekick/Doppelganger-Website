@@ -1,38 +1,53 @@
 /* Faces — how a thing draws.
    Every difference between faces is here, the way Bureau's SHAPES and FACES
    are pure CSS behind one class. A face is `fc-<name>` on the tile; the tile's
-   inside is what elements.js renders — .ob-img, .ob-title, .ob-body, and an
-   .ob-link wrapping it when the object goes somewhere.
+   inside is what elements.js renders — .ob-img, .ob-title, .ob-body, .ob-tab,
+   .ob-fold, .ob-holds — and an .ob-link wrapping it when the object goes
+   somewhere.
 
    Tokens come from look.js: --paper, --ink, --accent and their steps. A face
-   never states a colour of its own, so a look change re-dresses every face. */
+   never states a colour of its own, so a look change re-dresses every face.
+   Cell geometry comes from the compiled grid: --ag-cell and --ag-gap. */
 
-.ob { position: relative; min-width: 0; min-height: 0; font-family: var(--body-font, inherit); }
-.ob .ob-link { display: block; height: 100%; color: inherit; text-decoration: none; }
-.ob .ob-img { display: block; max-width: 100%; height: auto; }
-.ob .ob-body { min-width: 0; }
+/* The board is rigid: a tile is exactly its box, and content that does not fit
+   is clipped rather than pushing the row taller. That is the bargain — see the
+   note at the top of adaptive-grid.js. */
+.ob {
+  position: relative;
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+  font-family: var(--body-font, inherit);
+}
+.ob .ob-link { display: block; width: 100%; height: 100%; color: inherit; text-decoration: none; }
+.ob .ob-img { display: block; max-width: 100%; }
+.ob .ob-body { min-width: 0; overflow: hidden; }
 .ob .ob-body a { color: inherit; text-underline-offset: 3px; }
 .ob .ob-title { display: block; }
 
 /* ---- plain: the content as it is ------------------------------------ */
-.fc-none {}
+.fc-none { overflow: visible; }
 
 /* ---- card ---------------------------------------------------------- */
 .fc-card {
   background: var(--paper-2);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: clamp(8px, 1.4cqi, 16px);
-  overflow: hidden;
+  padding: clamp(6px, 1cqi, 14px);
+}
+
+/* ---- panel: flat, hairline ------------------------------------------ */
+.fc-panel {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  padding: clamp(6px, 1cqi, 14px);
 }
 
 /* ---- torn note: paper with a ragged bottom -------------------------- */
 .fc-note {
   background: var(--paper-2);
   color: var(--ink);
-  padding: clamp(10px, 1.6cqi, 18px) clamp(10px, 1.6cqi, 18px) clamp(16px, 2.2cqi, 26px);
+  padding: clamp(8px, 1.2cqi, 16px) clamp(8px, 1.2cqi, 16px) clamp(14px, 2cqi, 24px);
   box-shadow: 0 1px 0 var(--line), 0 6px 18px -10px rgba(0, 0, 0, .7);
-  /* the tear: a jagged mask along the bottom edge */
   --tear: 7px;
   clip-path: polygon(
     0 0, 100% 0, 100% calc(100% - var(--tear)),
@@ -42,36 +57,34 @@
     35% calc(100% - 3px), 30% 100%, 26% calc(100% - var(--tear)), 21% calc(100% - 2px), 16% 100%,
     12% calc(100% - var(--tear)), 8% calc(100% - 3px), 4% 100%, 0 calc(100% - var(--tear))
   );
-  overflow: hidden;
-  line-height: 1.45;
+  line-height: 1.4;
 }
-.fc-note .ob-body { font-size: clamp(.95rem, 1.5cqi, 1.15rem); }
+.fc-note .ob-body { font-size: clamp(.85rem, 1.3cqi, 1.05rem); }
 
 /* ---- picture: the image fills the tile ------------------------------ */
-.fc-picture { overflow: hidden; border-radius: 4px; }
+.fc-picture { border-radius: 4px; }
 .fc-picture .ob-link, .fc-picture .ob-img { width: 100%; height: 100%; }
 .fc-picture .ob-img { object-fit: cover; }
 .fc-picture .ob-title {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 8px 10px;
-  font-size: .8rem; letter-spacing: .04em;
+  padding: 6px 10px;
+  font-size: .78rem; letter-spacing: .04em;
   color: var(--ink);
-  background: linear-gradient(to top, color-mix(in srgb, var(--paper) 78%, transparent), transparent);
+  background: linear-gradient(to top, color-mix(in srgb, var(--paper) 82%, transparent), transparent);
 }
 
 /* ---- plaque: a small engraved plate --------------------------------- */
 .fc-plaque {
   display: grid; place-items: center;
   text-align: center;
-  padding: clamp(6px, 1cqi, 12px) clamp(10px, 1.6cqi, 18px);
+  padding: 4px clamp(8px, 1.2cqi, 16px);
   background: linear-gradient(160deg, var(--paper-3), var(--paper-2));
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 18%, transparent),
-              inset 0 -1px 0 color-mix(in srgb, var(--paper) 60%, transparent),
               0 2px 6px -3px rgba(0, 0, 0, .6);
   letter-spacing: .08em; text-transform: uppercase;
-  font-size: clamp(.7rem, 1.1cqi, .85rem);
+  font-size: clamp(.62rem, .9cqi, .8rem);
 }
 .fc-plaque .ob-link { display: grid; place-items: center; }
 .fc-plaque:hover { border-color: var(--accent-2); }
@@ -81,32 +94,28 @@
   background: var(--paper-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 6%, transparent),
-              inset 0 1px 0 color-mix(in srgb, var(--ink) 14%, transparent),
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 14%, transparent),
               0 8px 22px -14px rgba(0, 0, 0, .9);
-  overflow: hidden;
 }
-.fc-front .ob-link { display: grid; grid-template-rows: 1fr auto; height: 100%; }
+.fc-front .ob-link { display: grid; grid-template-rows: 1fr auto; }
 .fc-front .ob-img { width: 100%; height: 100%; object-fit: cover; grid-row: 1; }
 .fc-front .ob-title {
   grid-row: 2;
-  padding: 8px 12px 12px;
+  padding: 6px 10px 10px;
   text-align: center;
-  font-size: clamp(.8rem, 1.3cqi, 1rem);
+  font-size: clamp(.72rem, 1.1cqi, .95rem);
   letter-spacing: .06em;
 }
 .fc-front .ob-body { display: none; }
-/* the pull: a small brass-coloured knob, lit from the upper left like Bureau's */
+/* the pull: a small knob, lit from the upper left like Bureau's */
 .fc-front::after {
   content: '';
-  position: absolute; left: 50%; bottom: 8px;
-  width: 10px; height: 10px; margin-left: -5px;
-  border-radius: 50%;
+  position: absolute; top: 8px; right: 8px;
+  width: 9px; height: 9px; border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 55%, #000));
   box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
   pointer-events: none;
 }
-.fc-front:has(.ob-title)::after { bottom: auto; top: 10px; right: 10px; left: auto; margin: 0; }
 
 /* ---- spine: a book on a shelf, the name running up it --------------- */
 .fc-spine {
@@ -115,15 +124,84 @@
     var(--paper-3) 22%, var(--paper-2) 40%, var(--paper-3) 100%);
   border-radius: 3px;
   box-shadow: inset 1px 0 0 color-mix(in srgb, var(--ink) 20%, transparent), 0 4px 10px -6px rgba(0, 0, 0, .8);
-  overflow: hidden;
 }
 .fc-spine .ob-link { display: grid; place-items: center; }
 .fc-spine .ob-title, .fc-spine .ob-body {
   writing-mode: vertical-rl; transform: rotate(180deg);
-  white-space: nowrap; letter-spacing: .1em; font-size: clamp(.75rem, 1.2cqi, .95rem);
+  white-space: nowrap; letter-spacing: .1em; font-size: clamp(.7rem, 1cqi, .9rem);
   padding: 8px 0;
 }
 .fc-spine .ob-img { display: none; }
+
+/* ================= folding ==========================================
+   A fold replaces a dropdown. Its BOX on the grid is the folded size — that
+   is its footprint, and the board stays rigid because the footprint never
+   changes. Opening draws the panel as an OVERLAY sized in cells, hanging off
+   the tab. Growing the tile instead would push its neighbours, and on a rigid
+   board nothing moves unless you move it. */
+.ob-tab {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; height: 100%;
+  font: inherit; color: inherit; text-align: left;
+  background: none; border: 0; padding: 0 clamp(6px, 1cqi, 12px);
+  cursor: pointer;
+}
+.ob-tab::after {
+  content: '';
+  width: 7px; height: 7px; flex: none;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+  opacity: .6;
+  transition: transform .16s ease;
+}
+.ob-tab[aria-expanded="true"]::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.ob .ob-fold[hidden] { display: none; }
+.ob .ob-fold {
+  position: absolute; z-index: 30;
+  top: 100%; left: 0; margin-top: var(--ag-gap, 8px);
+  /* n cells wide is n cells plus the gaps between them */
+  width: calc(var(--fold-w, 8) * var(--ag-cell, 48px) + (var(--fold-w, 8) - 1) * var(--ag-gap, 8px));
+  height: calc(var(--fold-h, 4) * var(--ag-cell, 48px) + (var(--fold-h, 4) - 1) * var(--ag-gap, 8px));
+  overflow: auto;
+  padding: clamp(8px, 1.2cqi, 16px);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .9);
+}
+/* the overlay has to escape the tile's clip, so a folding tile does not clip */
+.ob:has(> .ob-fold) { overflow: visible; }
+/* …and has to sit above its neighbours while it is open */
+.ob:has(> .ob-fold:not([hidden])) { z-index: 30; }
+
+/* ================= holding ==========================================
+   The one fluid thing on a rigid board, fenced into a single tile: a holder is
+   a box whose CONTENTS flow. Which is what an accordion, a row of links and a
+   wrapping gallery all are. */
+.ob-holds { display: grid; gap: 8px; overflow: auto; height: 100%; }
+.ob-holds.ar-stack { grid-auto-flow: row; align-content: start; }
+.ob-holds.ar-row   { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: start; }
+.ob-holds.ar-grid  { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); align-content: start; }
+.ob-holds.ar-accordion { grid-auto-flow: row; align-content: start; gap: 4px; }
+.ob-item { min-width: 0; }
+.ob-holds .ob-img { width: 100%; height: auto; }
+.ob-holds.ar-accordion .ob-item {
+  border-bottom: 1px solid var(--line);
+}
+.ob-holds.ar-accordion .ob-tab {
+  height: auto; padding: 8px 4px;
+  font-size: clamp(.8rem, 1.1cqi, .95rem);
+}
+.ob-holds .ob-panel[hidden] { display: none; }
+.ob-holds .ob-panel { padding: 0 4px 10px; font-size: clamp(.78rem, 1cqi, .92rem); line-height: 1.5; }
+/* a holder's own title is a heading over what it holds, not part of the flow */
+.ob:has(> .ob-holds) > .ob-title {
+  font-size: clamp(.7rem, 1cqi, .85rem);
+  letter-spacing: .08em; text-transform: uppercase;
+  opacity: .6; margin-bottom: 6px;
+}
+.ob:has(> .ob-holds) { display: flex; flex-direction: column; }
+.ob:has(> .ob-holds) > .ob-holds { flex: 1; min-height: 0; }
 
 /* ---- pinned: every tile leans a degree or two (Bureau decision 75) ----
    The angle is a hash of the object's id so it never changes between renders.
@@ -133,4 +211,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .look-tilt .ob { transform: none; }
+  .ob-tab::after { transition: none; }
 }

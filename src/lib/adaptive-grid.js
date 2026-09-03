@@ -20,6 +20,15 @@
  *   full  → spans the full width
  *   stack → drops into a single inset column
  *
+ * **The board is rigid, and the cell is square.** A cell is one column wide and
+ * exactly as tall, derived from the container's own width in `cqi`, so the
+ * whole board scales with the window and nothing on it ever moves or resizes
+ * itself. Rows used to be `minmax(clamp(...), auto)` and grew with their
+ * content; that made every row a different height, made the drag maths walk
+ * measured track edges, and meant a tile's height was decided by its words
+ * rather than by you. It is gone. An object taller than its box clips, which
+ * is the bargain a rigid board makes and the same one Bureau makes.
+ *
  * The grid is a coordinate space, not a flow. There is no grid-auto-flow: an
  * empty cell stays empty, and a move that would overlap a sibling is refused
  * rather than shoving it aside — position is meant to carry meaning.
@@ -55,13 +64,23 @@ export function normalizeElement(input) {
   const out = { id: e.id, flow: e.flow, desk };
   if (e.narrow) out.narrow = e.narrow;
   if (e.locked) out.locked = true;
-  // This function used to build `out` from a fixed key list, which meant
-  // anything new was silently DROPPED — a text edit would round-trip through
-  // the editor and vanish on save. Every object field is carried explicitly.
-  for (const k of ['kind', 'attrs', 'face', 'title', 'body', 'link']) {
-    if (e[k] != null) out[k] = Array.isArray(e[k]) ? [...e[k]] : e[k];
+
+  /* Everything that is not geometry is carried through UNLISTED.
+   *
+   * This used to copy a named set of fields, and that failed twice the same
+   * way: a text edit vanished on save before `body` was added to the list,
+   * and a holder lost its items and its arrangement before `items` and
+   * `arrange` were. A list of what to keep has to be updated every time the
+   * model grows, and nothing fails loudly when it is not — the field simply
+   * disappears somewhere between the editor and the file. A list of what to
+   * DROP cannot rot that way: the only things that do not survive are the two
+   * shapes this function exists to fold in.
+   */
+  const GEOMETRY = new Set(['id', 'flow', 'desk', 'narrow', 'locked', 'col', 'row', 'type', 'content']);
+  for (const [k, v] of Object.entries(e)) {
+    if (GEOMETRY.has(k) || v == null) continue;
+    out[k] = typeof v === 'object' ? structuredClone(v) : v;
   }
-  if (e.media) out.media = structuredClone(e.media);
   return out;
 }
 
@@ -70,7 +89,7 @@ export function normalizeLayout(layout) {
   if (!layout || typeof layout !== 'object') return layout;
   return {
     ...layout,
-    version: 4,
+    version: 5,
     // Narrow may use a coarser grid than the wide one — dragging a tile with a
     // thumb across 24 columns is miserable. Defaults to the same count so an
     // existing layout is unchanged.
@@ -223,6 +242,42 @@ export function resolve(layout, width) {
   return resolveDevice(layout, deviceFor(layout, width));
 }
 
+/**
+ * Repack a board top to bottom, in reading order, growing downward.
+ *
+ * The rigid board never does this to you on its own — nothing moves unless you
+ * move it. This is the deliberate version: the answer to "these no longer fit,
+ * tidy them", and the fallback when a desk arrangement has to be expressed in
+ * a narrower grid. Objects keep their size and their order and take the first
+ * free room scanning left to right then down, so the result is predictable
+ * rather than clever, and the board simply gets taller.
+ *
+ * @returns {Map<string, {col:[number,number], row:[number,number]}>}
+ */
+export function packLayout(layout, device = 'desk') {
+  const cols = columnsFor(layout, device);
+  const ordered = [...resolveDevice(layout, device)].sort(
+    (a, b) => a._row - b._row || a._col - b._col
+  );
+  const taken = [];
+  const out = new Map();
+  for (const e of ordered) {
+    const w = Math.min(e._span, cols);
+    const h = e._rowSpan;
+    let box = null;
+    for (let row = 1; !box && row < 1000; row++) {
+      for (let col = 1; col <= cols - w + 1; col++) {
+        const b = { col: [col, w], row: [row, h] };
+        if (!taken.some((t) => overlaps(t, b))) { box = b; break; }
+      }
+    }
+    box ??= { col: [1, w], row: [1, h] };
+    taken.push(box);
+    out.set(e.id, box);
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ *
  * Validation
  * ------------------------------------------------------------------ */
@@ -245,10 +300,18 @@ export function validateLayout(input, name = 'layout') {
   }
   const layout = normalizeLayout(input);
 
-  for (const key of ['columns', 'rowHeight', 'gap', 'reflowBelow']) {
+  for (const key of ['columns', 'gap', 'reflowBelow']) {
     const v = layout[key];
     if (!Number.isFinite(v) || v <= 0) bad(`${key} must be a positive number, got ${JSON.stringify(v)}`);
   }
+  // Optional. `rows` fixes a board's height in cells, which is how the header
+  // and footer are sized; `sticky` makes chrome follow you down the page.
+  for (const key of ['rows', 'narrowRows']) {
+    const v = layout[key];
+    if (v != null && (!Number.isInteger(v) || v < 1)) bad(`${key} must be a whole number of cells, got ${JSON.stringify(v)}`);
+  }
+  if (layout.sticky != null && typeof layout.sticky !== 'boolean') bad('sticky must be true or false');
+  if (layout.title != null && typeof layout.title !== 'string') bad('title must be a string');
   for (const key of ['columns', 'narrowColumns']) {
     const v = layout[key];
     // `stack` insets one column each side and `pin` divides by three, so a grid
@@ -339,7 +402,8 @@ export function scopeFor(layout) {
   const json = JSON.stringify({
     columns: layout.columns,
     narrowColumns: layout.narrowColumns,
-    rowHeight: layout.rowHeight,
+    rows: layout.rows,
+    narrowRows: layout.narrowRows,
     gap: layout.gap,
     reflowBelow: layout.reflowBelow,
     elements: (layout.elements ?? []).map((e) => [e.id, e.desk, e.narrow]),
@@ -373,30 +437,41 @@ export function compileCSS(input, scope) {
   }
 
   const layout = normalizeLayout(input);
-  const { rowHeight, gap, reflowBelow } = layout;
+  const { gap, reflowBelow } = layout;
   const s = `.${scope}`;
   const lines = [];
 
-  const track = (cols) =>
+  /**
+   * A square cell, derived rather than declared.
+   *
+   * `100cqi` is the width of the .ag-root container, and .ag-grid is a direct
+   * child of it with no padding, so the arithmetic below is exactly the column
+   * width — and setting the row height to it makes the cell square at every
+   * window size. That is what "rigid" means here: the board scales, and
+   * nothing on it reflows, because a row is never taller than a cell.
+   *
+   * Both numbers are published as custom properties because the editor's
+   * checkerboard, a fold's overlay and a holder's inside all need to think in
+   * cells, and none of them should measure the DOM to find out how big one is.
+   */
+  const track = (cols, rows) =>
+    `--ag-cols:${cols};--ag-gap:${gap}px;` +
+    `--ag-cell:calc((100cqi - ${(cols - 1) * gap}px) / ${cols});` +
     `display:grid;grid-template-columns:repeat(${cols},1fr);` +
-    `grid-auto-rows:minmax(clamp(${Math.round(rowHeight * 0.7)}px,${(rowHeight / 14).toFixed(2)}cqi,${Math.round(rowHeight * 1.5)}px),auto);` +
-    `gap:clamp(4px,0.6cqi,${gap}px)`;
+    `grid-auto-rows:var(--ag-cell);gap:${gap}px;` +
+    (rows ? `grid-template-rows:repeat(${rows},var(--ag-cell));` : '') +
+    `min-height:calc(var(--ag-cell) * ${rows || 1} + ${((rows || 1) - 1) * gap}px)`;
 
   // The scope class sits on the .ag-root element itself, so every rule below is
   // confined to this one grid.
-  // minmax(..., auto): rows keep their fluid target height but are allowed to
-  // GROW when content needs more room. Without the auto, any element taller
-  // than its allotted rows silently overflows and collides with what follows.
   lines.push(`${s}{container-type:inline-size}`);
-  lines.push(`${s} .ag-grid{${track(layout.columns)}}`);
+  lines.push(`${s} .ag-grid{${track(layout.columns, layout.rows)}}`);
   for (const r of resolveDevice(layout, 'desk')) {
     lines.push(`${s} #${r.id}{grid-column:${r._col}/span ${r._span};grid-row:${r._row}/span ${r._rowSpan}}`);
   }
 
   lines.push(`@container (max-width:${reflowBelow - 1}px){`);
-  // Only restate the track when narrow actually uses a different column count.
-  const narrowCols = columnsFor(layout, 'narrow');
-  if (narrowCols !== layout.columns) lines.push(`${s} .ag-grid{${track(narrowCols)}}`);
+  lines.push(`${s} .ag-grid{${track(columnsFor(layout, 'narrow'), layout.narrowRows ?? layout.rows)}}`);
   for (const r of resolveDevice(layout, 'narrow')) {
     lines.push(`${s} #${r.id}{grid-column:${r._col}/span ${r._span};grid-row:${r._row}/span ${r._rowSpan}}`);
   }

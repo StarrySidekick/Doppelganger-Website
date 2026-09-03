@@ -18,8 +18,13 @@ import { getLayout } from '../lib/layouts.js';
 const { part } = Astro.props;   // 'header' | 'footer'
 const layout = getLayout(part);
 const Tag = part === 'header' ? 'header' : 'footer';
+// How tall the chrome is, and whether it follows you down the page, are two
+// fields on its own layout — so both are editable rather than CSS to go and
+// find. `sticky` is position:sticky, which keeps it in the flow (fixed would
+// take its height out and the page would jump under it).
+const sticky = layout.sticky === true;
 ---
-<Tag class={`site-${part}`}>
+<Tag class:list={[`site-${part}`, sticky && 'is-sticky']}>
   <AdaptiveGrid layout={layout} name={part} class={`${part}-grid`} />
 </Tag>
 
@@ -32,6 +37,19 @@ const Tag = part === 'header' ? 'header' : 'footer';
     padding-inline: clamp(12px, 3vw, 40px);
   }
   .site-header { padding-block: clamp(10px, 2vw, 22px); }
+  /* Floating rather than set: it follows you down the page. position:sticky,
+     not fixed — fixed takes the chrome out of the flow and the page jumps up
+     underneath it by exactly the header's height. */
+  .site-header.is-sticky {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .site-footer.is-sticky {
+    position: sticky; bottom: 0; z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
   .site-footer {
     padding-block: clamp(20px, 4vw, 44px) clamp(28px, 5vw, 60px);
     margin-top: auto;

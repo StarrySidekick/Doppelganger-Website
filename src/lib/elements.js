@@ -17,8 +17,8 @@
  * line: **a drawer opens onto a page.** Bureau's drawer opens onto a nested
  * grid inside the app; here `container` + `link` means the object's contents
  * are the page at that path, and its face on this board is the way in. The
- * site map is the container tree. Nothing had to be built for nested grids,
- * because Astro pages already are them.
+ * site map is the container tree, and there are no desks — a website has
+ * pages, and pages are what a drawer opens.
  *
  * Two rules hold this file in shape, and both are load-bearing:
  *
@@ -90,10 +90,61 @@ export const ATTRS = {
   media:     { label: 'Picture',   says: 'An image',                                  field: 'media' },
   link:      { label: 'Link',      says: 'Points somewhere — a page here, or a web address', field: 'link' },
   container: { label: 'Container', says: 'Opens onto a page of its own — this is what makes a drawer' },
+  fold:      { label: 'Folds',     says: 'Has a folded size and an open size, and toggles between them', field: 'fold' },
+  holds:     { label: 'Holds',     says: 'Holds other objects and lays them out by a rule', field: 'items' },
 };
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds'];
+
+/* ------------------------------------------------------------------ *
+ * What a click does
+ * ------------------------------------------------------------------ */
+
+/**
+ * Bureau's `clickOf()`, in web verbs. Per object, then its kind's, then a
+ * default that asks the object what it *is* rather than what it is called.
+ *
+ * "Send to page" is the one that gets used constantly, and it is deliberately
+ * not the same as "open a link": an internal path goes through the caller's
+ * url() resolver (hard rule 2) and an external one does not.
+ */
+export const CLICKS = {
+  none: 'Nothing',
+  page: 'Go to a page on this site',
+  url:  'Open a web address',
+  fold: 'Fold it open and shut',
+};
+
+/** What a click on this object does. */
+export const clickOf = (o) => {
+  const said = o?.onclick ?? K(o).onclick;
+  if (said && CLICKS[said]) return said;
+  if (has(o, 'fold')) return 'fold';
+  if ((has(o, 'link') || has(o, 'container')) && o?.link) {
+    return String(o.link).startsWith('/') ? 'page' : 'url';
+  }
+  return 'none';
+};
+
+/* ------------------------------------------------------------------ *
+ * How a holder lays out what it holds
+ * ------------------------------------------------------------------ */
+
+/**
+ * The one place this tool does anything fluid, and it is deliberately fenced
+ * into a single tile. The board itself is rigid — nothing on it moves unless
+ * you move it — but a holder is a box whose *contents* flow, which is what an
+ * accordion, a list of links or a wrapping gallery all are.
+ */
+export const ARRANGES = {
+  stack:     'One under another',
+  row:       'Side by side',
+  grid:      'A wrapping grid',
+  accordion: 'Titles, opening one at a time',
+};
+
+export const arrangeOf = (o) => (ARRANGES[o?.arrange] ? o.arrange : 'stack');
 
 /* ------------------------------------------------------------------ *
  * Kinds — named presets of attributes
@@ -102,7 +153,8 @@ export const USER_ATTRS = ['text', 'media', 'link'];
 /**
  * A kind is a preset, not a category. Changing an object's kind swaps which
  * attributes it has and leaves its data alone. Each states the attributes it
- * carries, the face it wears by default, and the size a new one is born at.
+ * carries, the face it wears by default, and the size a new one is born at —
+ * in **cells**, which are square (see adaptive-grid.js).
  *
  * `slot` is the odd one out and the escape hatch: its content comes from the
  * page's own markup, which is right for anything a component renders — the
@@ -110,16 +162,18 @@ export const USER_ATTRS = ['text', 'media', 'link'];
  * also what keeps every layout written before this file rendering untouched.
  */
 export const KINDS = {
-  slot:   { label: 'From the page', says: 'Rendered by the page itself',           attrs: [],                          face: 'none',    size: [4, 3] },
-  note:   { label: 'Note',          says: 'Words on paper',                        attrs: ['text'],                    face: 'note',    size: [6, 4], body: 'A note.' },
-  image:  { label: 'Image',         says: 'A picture, which can be a way somewhere', attrs: ['media', 'link'],         face: 'picture', size: [4, 4] },
-  button: { label: 'Button',        says: 'A label that goes somewhere',           attrs: ['text', 'link'],            face: 'plaque',  size: [4, 2], body: 'Go' },
-  drawer: { label: 'Drawer',        says: 'Opens onto a page of its own',          attrs: ['container', 'media', 'text'], face: 'front', size: [6, 6] },
-  html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',   attrs: ['text'],                    face: 'none',    size: [6, 4], body: '' },
+  slot:   { label: 'From the page', says: 'Rendered by the page itself',             attrs: [],                            face: 'none',    size: [6, 4] },
+  note:   { label: 'Note',          says: 'Words on paper',                          attrs: ['text'],                      face: 'note',    size: [6, 3], body: 'A note.' },
+  image:  { label: 'Image',         says: 'A picture, which can be a way somewhere', attrs: ['media', 'link'],             face: 'picture', size: [4, 4] },
+  button: { label: 'Button',        says: 'A label that goes somewhere',             attrs: ['text', 'link'],              face: 'plaque',  size: [4, 1], body: 'Go' },
+  drawer: { label: 'Drawer',        says: 'Opens onto a page of its own',            attrs: ['container', 'media', 'text'], face: 'front',   size: [5, 4] },
+  fold:   { label: 'Fold',          says: 'A title that opens to reveal more',       attrs: ['text', 'fold'],              face: 'card',    size: [6, 1], body: 'What it says when open.', title: 'Open me', fold: { cols: 8, rows: 4 } },
+  list:   { label: 'Holder',        says: 'Holds other objects and lays them out',   attrs: ['holds', 'text'],             face: 'card',    size: [6, 5], arrange: 'stack' },
+  html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer'];
+export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list'];
 
 /* ------------------------------------------------------------------ *
  * Faces — how a thing draws
@@ -138,6 +192,7 @@ export const FACES = {
   plaque:  { label: 'Plaque',       says: 'A small engraved plate' },
   front:   { label: 'Drawer front', says: 'A drawer front with a pull' },
   spine:   { label: 'Book spine',   says: 'A spine, the name running up it' },
+  panel:   { label: 'Panel',        says: 'A flat panel with a hairline edge' },
 };
 
 /* ------------------------------------------------------------------ *
@@ -171,6 +226,19 @@ export const isContainer = (o) => has(o, 'container');
 /** Can its words be edited in place? Anything that carries text but is not raw markup. */
 export const isInline = (o) => has(o, 'text') && kindOf(o) !== 'html';
 
+/** Does the object go somewhere? A link, or a container — whose link is its page. */
+export const goesSomewhere = (o) =>
+  !!((has(o, 'link') || has(o, 'container')) && o.link && ['page', 'url'].includes(clickOf(o)));
+
+/** How big it is when folded open, in cells. */
+export const foldSpan = (o) => ({
+  cols: Math.max(1, Math.round(o?.fold?.cols ?? K(o).fold?.cols ?? 8)),
+  rows: Math.max(1, Math.round(o?.fold?.rows ?? K(o).fold?.rows ?? 4)),
+});
+
+/** What a holder holds. Always an array. */
+export const itemsOf = (o) => (Array.isArray(o?.items) ? o.items : []);
+
 /**
  * The fields the settings panel offers, derived from the attributes rather
  * than listed per kind — so an invented combination gets its panel for free.
@@ -181,10 +249,23 @@ export function fieldsOf(o) {
     out.push({ key: 'media.src', label: 'Picture', kind: 'text' });
     out.push({ key: 'media.alt', label: 'Alt text', kind: 'text' });
   }
-  if (has(o, 'link')) out.push({ key: 'link', label: has(o, 'container') ? 'Opens the page' : 'Links to', kind: 'text' });
-  if (has(o, 'container') && !has(o, 'link')) out.push({ key: 'link', label: 'Opens the page', kind: 'text' });
+  if (has(o, 'container') || has(o, 'link')) {
+    out.push({ key: 'link', label: has(o, 'container') ? 'Opens the page' : 'Goes to', kind: 'text' });
+  }
   if (has(o, 'text') && kindOf(o) === 'html') out.push({ key: 'body', label: 'Markup', kind: 'area' });
-  if (has(o, 'container') || has(o, 'media')) out.push({ key: 'title', label: 'Title', kind: 'text' });
+  if (has(o, 'container') || has(o, 'media') || has(o, 'fold') || has(o, 'holds')) {
+    out.push({ key: 'title', label: 'Title', kind: 'text' });
+  }
+  if (has(o, 'fold')) {
+    out.push({ key: 'fold.cols', label: 'Open width (cells)', kind: 'number' });
+    out.push({ key: 'fold.rows', label: 'Open height (cells)', kind: 'number' });
+  }
+  if (has(o, 'holds')) {
+    out.push({ key: 'arrange', label: 'Lays them out', kind: 'select', options: ARRANGES });
+  }
+  // What a click does is a field like any other, so an invented combination
+  // gets it too. Bureau's clickOf(), asked as a question in the panel.
+  out.push({ key: 'onclick', label: 'When clicked', kind: 'select', options: { '': `Whatever suits (${clickOf(o)})`, ...CLICKS } });
   return out;
 }
 
@@ -200,8 +281,11 @@ export function setField(o, key, value) {
   let at = o;
   for (const k of path) at = at[k] ??= {};
   if (value == null || value === '') delete at[last]; else at[last] = value;
-  // An emptied media object is no media at all.
-  if (path[0] === 'media' && o.media && Object.keys(o.media).length === 0) delete o.media;
+  // An emptied sub-object is no sub-object at all.
+  const head = path[0];
+  if (head && o[head] && typeof o[head] === 'object' && !Array.isArray(o[head]) && Object.keys(o[head]).length === 0) {
+    delete o[head];
+  }
   return o;
 }
 
@@ -209,24 +293,9 @@ export function setField(o, key, value) {
  * Rendering
  * ------------------------------------------------------------------ */
 
-/**
- * Render an object's inside to HTML, or null when the page supplies it.
- *
- * Built from the attributes present, not from the kind: a picture is drawn if
- * there is media, words if there is text, and the whole lot becomes a link if
- * there is one. So a drawer with a picture on its front and a caption draws
- * all three without anyone having designed "a drawer with a picture".
- *
- * `ctx.image(media)` resolves an asset to {src, srcset, sizes} and
- * `ctx.link(href)` prefixes an internal path — both supplied by the caller.
- */
-/** Does the object go somewhere? A link, or a container — whose link is its page. */
-export const goesSomewhere = (o) => !!((has(o, 'link') || has(o, 'container')) && o.link);
-
-export function renderElement(o, ctx = {}) {
-  if (!isTyped(o)) return null;
+/** The picture, title and words an object shows — its inside, without its shell. */
+function inner(o, ctx, { linked = false, depth = 0 } = {}) {
   const parts = [];
-  const linked = goesSomewhere(o);
 
   if (has(o, 'media') && o.media?.src) {
     const r = ctx.image?.(o.media) ?? { src: o.media.src };
@@ -245,25 +314,77 @@ export function renderElement(o, ctx = {}) {
     parts.push(`<img class="ob-img" ${attrs} />`);
   }
 
-  if (o.title && (has(o, 'container') || has(o, 'media'))) {
+  if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds'))) {
     parts.push(`<span class="ob-title" data-edit="title">${escapeHtml(o.title)}</span>`);
   }
 
-  if (has(o, 'text') && o.body != null) {
+  if (has(o, 'holds')) parts.push(renderHolder(o, ctx, depth));
+
+  if (has(o, 'text') && o.body != null && !has(o, 'fold')) {
     const body = rewriteLinks(o.body, ctx.link);
-    parts.push(kindOf(o) === 'html'
-      ? body
-      : `<div class="ob-body" data-edit="body">${body}</div>`);
+    parts.push(kindOf(o) === 'html' ? body : `<div class="ob-body" data-edit="body">${body}</div>`);
+  }
+  return parts.join('');
+}
+
+/** What a holder holds, laid out by its rule. One level deep only. */
+function renderHolder(o, ctx, depth) {
+  const items = itemsOf(o);
+  const arrange = arrangeOf(o);
+  if (!items.length) return `<div class="ob-holds ar-${arrange}" data-arrange="${arrange}"></div>`;
+  // Depth 1: a holder inside a holder would be a layout engine, and the board
+  // is the layout engine. An item that holds is drawn as its title alone.
+  const drawn = items.map((it, i) => {
+    const face = faceOf(it);
+    if (arrange === 'accordion') {
+      return `<div class="ob-item fc-${face}" data-item="${i}">
+        <button class="ob-tab" type="button" data-acc="${i}" aria-expanded="false">${escapeHtml(it.title ?? `Item ${i + 1}`)}</button>
+        <div class="ob-panel" hidden>${depth > 0 ? '' : inner(it, ctx, { depth: depth + 1 })}</div>
+      </div>`;
+    }
+    return `<div class="ob-item fc-${face}" data-item="${i}">${depth > 0 ? escapeHtml(it.title ?? '') : inner(it, ctx, { depth: depth + 1 })}</div>`;
+  }).join('');
+  return `<div class="ob-holds ar-${arrange}" data-arrange="${arrange}">${drawn}</div>`;
+}
+
+/**
+ * Render an object's inside to HTML, or null when the page supplies it.
+ *
+ * Built from the attributes present, not from the kind: a picture is drawn if
+ * there is media, words if there is text, a list if it holds things, and the
+ * whole lot becomes a link if a click is meant to take you somewhere. So a
+ * drawer with a picture on its front and a caption draws all three without
+ * anyone having designed "a drawer with a picture".
+ *
+ * `ctx.image(media)` resolves an asset to {src, srcset, sizes} and
+ * `ctx.link(href)` prefixes an internal path — both supplied by the caller.
+ */
+export function renderElement(o, ctx = {}) {
+  if (!isTyped(o)) return null;
+
+  // A fold is a shell of its own: a tab that is always there, and a panel that
+  // the click opens. The panel is an OVERLAY, not a resize — see faces.css.
+  // Growing the tile would push its neighbours, and on a rigid board nothing
+  // moves unless you move it.
+  if (has(o, 'fold')) {
+    const { cols, rows } = foldSpan(o);
+    const body = rewriteLinks(o.body ?? '', ctx.link);
+    return `<button class="ob-tab" type="button" data-fold aria-expanded="false"`
+      + ` style="--fold-w:${cols};--fold-h:${rows}">`
+      + `<span class="ob-title" data-edit="title">${escapeHtml(o.title ?? 'Open')}</span></button>`
+      + `<div class="ob-fold" hidden>${inner(o, ctx)}<div class="ob-body" data-edit="body">${body}</div></div>`;
   }
 
-  const inner = parts.join('');
-  if (linked) {
-    const href = ctx.link?.(o.link) ?? o.link;
-    const label = o.media?.alt || o.title;
-    const aria = label ? ` aria-label="${escapeHtml(label)}"` : '';
-    return `<a class="ob-link" href="${escapeHtml(href)}"${aria}>${inner}</a>`;
-  }
-  return inner;
+  const linked = goesSomewhere(o);
+  const guts = inner(o, ctx, { linked });
+  if (!linked) return guts;
+
+  const href = ctx.link?.(o.link) ?? o.link;
+  const label = o.media?.alt || o.title;
+  const aria = label ? ` aria-label="${escapeHtml(label)}"` : '';
+  // An external address opens in its own tab; an internal one is navigation.
+  const ext = clickOf(o) === 'url' ? ' target="_blank" rel="noopener"' : '';
+  return `<a class="ob-link" href="${escapeHtml(href)}"${aria}${ext}>${guts}</a>`;
 }
 
 /** Problems with one object's kind, attributes and fields. Empty means fine. */
@@ -277,10 +398,11 @@ export function checkElement(o, at = 'element') {
     else for (const a of o.attrs) if (!ATTRS[a]) out.push(`${at}.attrs has unknown attribute ${JSON.stringify(a)}`);
   }
   if (o?.face != null && !FACES[o.face]) out.push(`${at}.face ${JSON.stringify(o.face)} is not one of ${Object.keys(FACES).join(', ')}`);
+  if (o?.onclick != null && o.onclick !== '' && !CLICKS[o.onclick]) out.push(`${at}.onclick ${JSON.stringify(o.onclick)} is not one of ${Object.keys(CLICKS).join(', ')}`);
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -306,6 +428,17 @@ export function checkElement(o, at = 'element') {
   }
   if (has(o, 'container') && !o.link) {
     out.push(`${at} is a container with no page to open — set link to a path like "/links"`);
+  }
+  if (has(o, 'fold') && o.fold != null) {
+    for (const k of ['cols', 'rows']) {
+      const v = o.fold[k];
+      if (v != null && (!Number.isFinite(v) || v < 1)) out.push(`${at}.fold.${k} must be a positive number of cells`);
+    }
+  }
+  if (has(o, 'holds')) {
+    if (o.arrange != null && !ARRANGES[o.arrange]) out.push(`${at}.arrange ${JSON.stringify(o.arrange)} is not one of ${Object.keys(ARRANGES).join(', ')}`);
+    if (o.items != null && !Array.isArray(o.items)) out.push(`${at}.items must be an array`);
+    else for (const [i, it] of itemsOf(o).entries()) out.push(...checkElement(it, `${at}.items[${i}]`));
   }
   return out;
 }

@@ -8,7 +8,15 @@
  */
 import { asset } from '../lib/assets.js';
 import lookData from '../data/look.json';
+import { layouts } from '../lib/layouts.js';
 const { name, layout, scope } = Astro.props;
+
+// The working page list: every layout that is a page. Chrome is not a page,
+// and neither is anything the site has no route for.
+const pages = Object.entries(layouts)
+  .filter(([n]) => !['header', 'footer'].includes(n))
+  .map(([n, l]) => ({ name: n, href: n === 'index' ? '/' : `/${n}`, title: l.title ?? n }))
+  .sort((a, b) => a.title.localeCompare(b.title));
 
 // The asset map travels as data so the editor can preview an image the moment
 // its source changes. editor.js may not import assets.js — the engine and the
@@ -27,7 +35,7 @@ const base = import.meta.env.BASE_URL;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData })}
+  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData, pages })}
 />
 
 <script>
@@ -35,7 +43,7 @@ const base = import.meta.env.BASE_URL;
   // splits it into its own chunk and a visitor never downloads it.
   if (new URLSearchParams(location.search).has('edit')) {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope, assets, base, look } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets, base, look, pages } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -58,7 +66,7 @@ const base = import.meta.env.BASE_URL;
           mountEditor({
             // `published` is what the build rendered; `layout` may be a draft
             // from this browser. The difference is what Publish has to send.
-            root, name, layout: start, published: layout, assets, base, look,
+            root, name, layout: start, published: layout, assets, base, look, pages,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -183,6 +191,11 @@ const base = import.meta.env.BASE_URL;
   .ag-menu-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .ag-menu-kinds .ag-menu-btn { display: flex; flex-direction: column; gap: 2px; }
   .ag-menu-kinds small { opacity: .55; font-weight: 400; }
+  .ag-menu-pages { grid-template-columns: 1fr; }
+  .ag-menu-pages a { text-decoration: none; color: inherit; }
+  .ag-menu-pages a[aria-current] { border-color: rgba(255,255,255,.6); }
+  /* the sketched box, while you are dragging out a size on bare grid */
+  .ag-sketch { border-style: dashed; }
   .ag-menu-danger { border-color: rgba(255,107,107,.5) !important; color: #FFB4B4; }
   .ag-menu-danger:hover { background: rgba(255,107,107,.15) !important; }
   .ag-menu-list { margin: 6px 0 0; padding-left: 16px; }

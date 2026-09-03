@@ -1,61 +1,95 @@
 {
-  "version": 4,
+  "version": 5,
   "columns": 24,
-  "rowHeight": 26,
+  "narrowColumns": 8,
   "gap": 8,
   "reflowBelow": 700,
+  "title": "Links",
   "elements": [
     {
       "id": "card",
+      "kind": "slot",
       "flow": "full",
       "desk": {
         "col": [
-          10,
-          6
+          9,
+          7
         ],
         "row": [
-          5,
-          8
+          1,
+          5
         ]
       },
-      "kind": "slot"
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          1,
+          5
+        ]
+      }
     },
     {
       "id": "email",
+      "kind": "note",
+      "face": "none",
       "flow": "stack",
+      "onclick": "none",
       "desk": {
         "col": [
           2,
+          11
+        ],
+        "row": [
+          7,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
           8
         ],
         "row": [
-          9,
-          2
+          7,
+          1
         ]
       },
-      "kind": "note",
-      "face": "none",
       "body": "<a href=\"mailto:TimothyVlangas@gmail.com\">Email: TimothyVlangas@gmail.com</a>"
     },
     {
       "id": "phone",
-      "flow": "stack",
-      "desk": {
-        "col": [
-          3,
-          7
-        ],
-        "row": [
-          12,
-          2
-        ]
-      },
       "kind": "note",
       "face": "none",
+      "flow": "stack",
+      "onclick": "none",
+      "desk": {
+        "col": [
+          2,
+          9
+        ],
+        "row": [
+          9,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          9,
+          1
+        ]
+      },
       "body": "<a href=\"tel:+14012978580\">Phone: 401-297-8580</a>"
     },
     {
       "id": "socials",
+      "kind": "slot",
       "flow": "full",
       "desk": {
         "col": [
@@ -63,14 +97,25 @@
           10
         ],
         "row": [
-          15,
-          3
+          11,
+          2
         ]
       },
-      "kind": "slot"
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          11,
+          2
+        ]
+      }
     },
     {
       "id": "qr",
+      "kind": "image",
+      "face": "none",
       "flow": "keep",
       "desk": {
         "col": [
@@ -78,12 +123,20 @@
           4
         ],
         "row": [
-          19,
-          5
+          14,
+          4
         ]
       },
-      "kind": "image",
-      "face": "none",
+      "narrow": {
+        "col": [
+          3,
+          4
+        ],
+        "row": [
+          14,
+          4
+        ]
+      },
       "media": {
         "src": "asset:qr",
         "alt": "QR code linking to this page"

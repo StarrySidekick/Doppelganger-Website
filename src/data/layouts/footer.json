@@ -1,44 +1,69 @@
 {
-  "version": 4,
-  "columns": 12,
-  "narrowColumns": 6,
-  "rowHeight": 22,
+  "version": 5,
+  "columns": 24,
+  "narrowColumns": 8,
   "gap": 8,
   "reflowBelow": 700,
+  "rows": 2,
+  "narrowRows": 3,
+  "sticky": false,
+  "title": "Footer",
   "elements": [
     {
       "id": "site-nav",
+      "kind": "note",
+      "face": "none",
       "flow": "full",
+      "onclick": "none",
       "desk": {
+        "col": [
+          1,
+          12
+        ],
+        "row": [
+          1,
+          1
+        ]
+      },
+      "narrow": {
         "col": [
           1,
           8
         ],
         "row": [
           1,
-          2
+          1
         ]
       },
-      "kind": "note",
-      "face": "none",
-      "body": "<a href=\"/\">Home</a> · <a href=\"/links\">Links</a> · <a href=\"/writing\">Writing</a> · <a href=\"/music\">Music</a> · <a href=\"/contact\">Contact</a>"
+      "body": "<a href=\"/\">Home</a> \u00b7 <a href=\"/links\">Links</a> \u00b7 <a href=\"/writing\">Writing</a> \u00b7 <a href=\"/music\">Music</a> \u00b7 <a href=\"/contact\">Contact</a>"
     },
     {
       "id": "site-colophon",
+      "kind": "note",
+      "face": "none",
       "flow": "stack",
+      "onclick": "none",
       "desk": {
         "col": [
-          9,
-          4
+          16,
+          9
         ],
         "row": [
           1,
-          2
+          1
         ]
       },
-      "kind": "note",
-      "face": "none",
-      "body": "Timothy Vlangas — <a href=\"mailto:TimothyVlangas@gmail.com\">get in touch</a>"
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          3,
+          1
+        ]
+      },
+      "body": "Timothy Vlangas \u2014 <a href=\"mailto:TimothyVlangas@gmail.com\">get in touch</a>"
     }
   ]
 }

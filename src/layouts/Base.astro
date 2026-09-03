@@ -71,6 +71,11 @@ const ogImage = sized(asset.wordmark, 1000);
   <SiteChrome part="header" />
   <slot />
   <SiteChrome part="footer" />
+  <script>
+    // A fold and an accordion are live for every visitor, not only in the
+    // editor, so this is the one script a published page carries.
+    import('../lib/interact.js').then(({ wireInteractions }) => wireInteractions());
+  </script>
 </body>
 </html>
 

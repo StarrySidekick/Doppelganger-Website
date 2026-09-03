@@ -103,9 +103,13 @@ test('attribute values cannot break out of their attribute', () => {
 });
 
 test('the settings fields follow the attributes, not the kind name', () => {
-  assert.deepEqual(fieldsOf({ kind: 'image' }).map((f) => f.key), ['media.src', 'media.alt', 'link', 'title']);
-  assert.deepEqual(fieldsOf({ kind: 'note' }).map((f) => f.key), []);
-  assert.deepEqual(fieldsOf({ kind: 'html' }).map((f) => f.key), ['body']);
+  assert.deepEqual(fieldsOf({ kind: 'image' }).map((f) => f.key), ['media.src', 'media.alt', 'link', 'title', 'onclick']);
+  assert.deepEqual(fieldsOf({ kind: 'note' }).map((f) => f.key), ['onclick']);
+  assert.deepEqual(fieldsOf({ kind: 'html' }).map((f) => f.key), ['body', 'onclick']);
+  // Every object can be told what a click does, because that is a field like
+  // any other rather than something only a link-shaped thing gets.
+  assert.deepEqual(fieldsOf({ kind: 'fold' }).map((f) => f.key), ['title', 'fold.cols', 'fold.rows', 'onclick']);
+  assert.deepEqual(fieldsOf({ kind: 'list' }).map((f) => f.key), ['title', 'arrange', 'onclick']);
   assert.ok(fieldsOf({ kind: 'drawer' }).some((f) => f.key === 'link'));
   const o = { kind: 'image' };
   setField(o, 'media.src', 'u'); setField(o, 'media.alt', 'x');
