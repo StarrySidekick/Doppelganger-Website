@@ -7,6 +7,7 @@
  * file over, and Publish to commit it straight to main.
  */
 import { asset } from '../lib/assets.js';
+import lookData from '../data/look.json';
 const { name, layout, scope } = Astro.props;
 
 // The asset map travels as data so the editor can preview an image the moment
@@ -26,7 +27,7 @@ const base = import.meta.env.BASE_URL;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope, assets, base })}
+  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData })}
 />
 
 <script>
@@ -34,7 +35,7 @@ const base = import.meta.env.BASE_URL;
   // splits it into its own chunk and a visitor never downloads it.
   if (new URLSearchParams(location.search).has('edit')) {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope, assets, base } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets, base, look } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -55,7 +56,9 @@ const base = import.meta.env.BASE_URL;
       import('../lib/editor.js')
         .then(({ mountEditor }) => {
           mountEditor({
-            root, name, layout: start, assets, base,
+            // `published` is what the build rendered; `layout` may be a draft
+            // from this browser. The difference is what Publish has to send.
+            root, name, layout: start, published: layout, assets, base, look,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -74,30 +77,56 @@ const base = import.meta.env.BASE_URL;
 </script>
 
 <style is:global>
-  /* Only ever applied when the editor has mounted. */
-  .ag-editing .ag-editable { position: relative; cursor: grab; }
-  .ag-editing .ag-editable::after {
+  /* .ag-editing: the editor is mounted (the bar is there).
+     .ag-unlocked: you are arranging. Locked is the site exactly as a visitor
+     sees it, bar aside — Bureau's one lock for every board (its decision 74). */
+  .ag-editing .ob { position: relative; }
+  .ag-unlocked .ag-editable { position: relative; cursor: grab; }
+  .ag-unlocked .ag-editable::after {
     content: '';
     position: absolute; inset: 0;
     outline: 1px dashed rgba(255,255,255,.22);
     outline-offset: 2px;
     pointer-events: none;
   }
-  .ag-editing .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
-  .ag-editing .ag-lifted { z-index: 40; }
+  .ag-unlocked .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
+  .ag-unlocked .ag-lifted { z-index: 40; }
 
   /* A tile whose words can be edited says so, and differently from a tile that
      can only be moved — otherwise the only way to discover it is to guess. */
-  .ag-editing .ag-text { cursor: text; }
-  .ag-editing .ag-text::after { outline-style: dotted; outline-color: rgba(140,200,255,.5); }
-  .ag-editing .ag-writing { cursor: text; }
-  .ag-editing .ag-writing::after {
+  .ag-unlocked .ag-text { cursor: text; }
+  .ag-unlocked .ag-text::after { outline-style: dotted; outline-color: rgba(140,200,255,.5); }
+  .ag-unlocked .ag-writing { cursor: text; }
+  .ag-unlocked .ag-writing::after {
     outline: 2px solid rgba(140,200,255,.9);
     outline-offset: 3px;
   }
-  .ag-editing .ag-writing:focus { outline: none; }
-  .ag-editing .ag-dragging { opacity: .85; cursor: grabbing; pointer-events: none; }
-  .ag-editing .ag-dragging.ag-invalid::after { outline-color: rgba(255,107,107,.9); }
+  .ag-unlocked [contenteditable="true"] { outline: none; cursor: text; }
+  .ag-unlocked .ag-dragging { opacity: .85; cursor: grabbing; pointer-events: none; }
+  .ag-unlocked .ag-dragging.ag-invalid::after { outline-color: rgba(255,107,107,.9); }
+  /* an image object with nothing in it yet is the button that chooses a file */
+  .ag-unlocked .ob.ag-empty::before {
+    content: 'drop an image here';
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font: 11px/1.3 ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase;
+    color: rgba(255,255,255,.45);
+    border: 1px dashed rgba(255,255,255,.3); border-radius: 6px;
+  }
+
+  /* The checkerboard: one cell per coordinate, placed in the grid itself, so it
+     aligns to the real tracks. Rows here are minmax(…, auto) and grow with
+     their content, so a background gradient sized to a cell would drift off
+     the truth within a few rows — Bureau can use one because its cells are
+     square and uniform. Only ever drawn when unlocked. */
+  .ag-cell { display: none; }
+  .ag-unlocked .ag-cell {
+    display: block; z-index: 0;
+    background: var(--board-1, #0c0c0c);
+    cursor: cell;
+  }
+  .ag-unlocked .ag-cell.ag-cell-b { background: var(--board-2, #171717); }
+  .ag-unlocked .ag-cell:hover { outline: 1px solid rgba(255,255,255,.35); outline-offset: -1px; }
+  .ag-unlocked .ag-grid > .ob, .ag-unlocked .ag-grid > [id] { z-index: 1; }
 
   .ag-grip {
     position: absolute; width: 14px; height: 14px; z-index: 41;
@@ -105,7 +134,7 @@ const base = import.meta.env.BASE_URL;
     border-radius: 2px;
     opacity: 0; transition: opacity .12s ease;
   }
-  .ag-editing .ag-editable:hover .ag-grip { opacity: .9; }
+  .ag-unlocked .ag-editable:hover .ag-grip { opacity: .9; }
   .ag-grip-nw { top: -7px; left: -7px; cursor: nwse-resize; }
   .ag-grip-ne { top: -7px; right: -7px; cursor: nesw-resize; }
   .ag-grip-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
@@ -146,6 +175,18 @@ const base = import.meta.env.BASE_URL;
   }
   .ag-bar button:hover { background: rgba(255,255,255,.12); }
   .ag-bar button[aria-current] { background: #fff; color: #000; border-color: #fff; }
+  .ag-lock { font-size: 14px; line-height: 1; padding: 3px 8px !important; }
+  .ag-lock.on { color: #FFD27A; border-color: rgba(255,210,122,.6) !important; }
+  .ag-menu-swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .ag-menu-swatches label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ag-menu-swatches input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid rgba(255,255,255,.28); border-radius: 4px; background: none; }
+  .ag-menu-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .ag-menu-kinds .ag-menu-btn { display: flex; flex-direction: column; gap: 2px; }
+  .ag-menu-kinds small { opacity: .55; font-weight: 400; }
+  .ag-menu-danger { border-color: rgba(255,107,107,.5) !important; color: #FFB4B4; }
+  .ag-menu-danger:hover { background: rgba(255,107,107,.15) !important; }
+  .ag-menu-list { margin: 6px 0 0; padding-left: 16px; }
+  .ag-menu-list li { margin: 2px 0; }
   .ag-tabs { display: flex; gap: 4px; }
   /* Which grid the bar is acting on. Only shown when there is more than one,
      which on a normal page means header, body and footer. */
@@ -160,7 +201,7 @@ const base = import.meta.env.BASE_URL;
     border: 1px solid rgba(255,196,107,.4);
   }
   /* A tile being dragged over is about to have its picture replaced. */
-  .ag-editing .ag-editable.ag-drop::after { outline: 2px solid rgba(140,255,180,.9); }
+  .ag-unlocked .ag-editable.ag-drop::after { outline: 2px solid rgba(140,255,180,.9); }
   .ag-hint { opacity: .5; }
   /* The hint is the first thing worth losing when the bar runs out of room. */
   @media (max-width: 860px) { .ag-hint { display: none; } }

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "columns": 12,
   "narrowColumns": 6,
   "rowHeight": 22,
@@ -8,19 +8,37 @@
   "elements": [
     {
       "id": "site-nav",
-      "type": "text",
       "flow": "full",
-      "desk": { "col": [1, 8], "row": [1, 2] },
-      "content": {
-        "html": "<a href=\"/\">Home</a> · <a href=\"/links\">Links</a> · <a href=\"/writing\">Writing</a> · <a href=\"/music\">Music</a> · <a href=\"/contact\">Contact</a>"
-      }
+      "desk": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          1,
+          2
+        ]
+      },
+      "kind": "note",
+      "face": "none",
+      "body": "<a href=\"/\">Home</a> · <a href=\"/links\">Links</a> · <a href=\"/writing\">Writing</a> · <a href=\"/music\">Music</a> · <a href=\"/contact\">Contact</a>"
     },
     {
       "id": "site-colophon",
-      "type": "text",
       "flow": "stack",
-      "desk": { "col": [9, 4], "row": [1, 2] },
-      "content": { "html": "Timothy Vlangas — <a href=\"mailto:TimothyVlangas@gmail.com\">get in touch</a>" }
+      "desk": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          1,
+          2
+        ]
+      },
+      "kind": "note",
+      "face": "none",
+      "body": "Timothy Vlangas — <a href=\"mailto:TimothyVlangas@gmail.com\">get in touch</a>"
     }
   ]
 }

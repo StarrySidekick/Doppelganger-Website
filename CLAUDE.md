@@ -3,6 +3,13 @@
 Self-hosted rebuild of **timothyvlangas.com** (brand: StarrySidekick.com), replacing
 a Squarespace 7.1 site. Runs in parallel with Squarespace until it reaches parity.
 
+**It is also the guinea pig for a tool.** Everything under `src/lib/` — the grid
+engine, the object model, the faces, the editor, the look — is a web-design
+version of Bureau, working name **DigiDesk**, and this website is the first
+thing built with it. Two things live in this repo: the tool, and the site made
+with the tool. Hard rule 4 is the seam between them, and it is what lets the
+tool be lifted out under its own name later without the site coming with it.
+
 Timothy is a designer — fluent in CSS, new to terminals and git. Explain what a
 command does before running it. Don't assume git vocabulary.
 
@@ -65,8 +72,12 @@ Tests, the build and the box geometry all passed. Only the screenshot showed it.
 
 ```
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
-src/lib/elements.js        the element type registry — what a tile IS and how it renders
+src/lib/elements.js        objects, attributes, kinds, faces — Bureau's model, cut to a website
+src/lib/look.js            the site's colours and the tokens derived from them
 src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
+src/styles/faces.css       how each face draws — all of it CSS behind one class
+src/data/look.json         the look itself: five colours, the type, pinned or flat
+src/pages/[...slug].astro  any layout with no hand-written page is a page anyway
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
 src/lib/editor.js          the in-page editor, loaded only for ?edit=1
 src/lib/publish.js         commits a layout to GitHub from the browser
@@ -137,55 +148,85 @@ the whole reason the prototype had to come in. Delete the old copy rather than
 keeping it in sync; it predates `minmax`, the scope argument and the two-layout
 model.
 
-### An element's content is data too
+### Everything on the grid is an object
 
-**Layouts hold content as well as geometry.** An element carries `type` and
-`content` alongside its boxes, and `src/lib/elements.js` says what each type
-means. This is why the project exists in the shape it does: before it, the
-editor could move the email tile but could not change the email, because the
-words lived as markup inside `links.astro` where nothing could reach them.
+**This is Bureau's model, and it is deliberate.** An element used to carry a
+`type` and a `content` bag; now it is an **object** carrying **attributes**, and
+what it can do is decided by which attributes it has — additive, independent,
+never inferred from a name. A **kind** is a named preset of attributes, and a
+**face** is how it draws. `src/lib/elements.js` is the registry; Bureau's
+`docs/SYSTEM.md` §1, §5 and §6 are the reasoning.
 
 ```json
-{ "id": "email", "type": "text", "flow": "stack",
+{ "id": "email", "kind": "note", "flow": "stack",
   "desk": { "col": [2, 8], "row": [9, 2] },
-  "content": { "html": "<a href=\"mailto:…\">Email: …</a>" } }
+  "body": "<a href=\"mailto:…\">Email: …</a>" }
 ```
 
-| type | is | edited by |
+| attribute | gives the object | field |
 |---|---|---|
-| `slot` | content comes from the page's markup | code |
-| `text` | a run of text with links | double-clicking it in the page |
-| `image` | an image, optionally linked | the right-click settings panel |
-| `html` | a block of markup | the settings panel, as a textarea |
+| `text` | a body of words, editable in place by double-clicking | `body` |
+| `media` | a picture | `media: {src, alt, …}` |
+| `link` | goes somewhere — a site path or a web address | `link` |
+| `container` | **opens onto a page of its own — this is what makes a drawer** | `link` is the page |
 
-`slot` is the default for an element with no type, and that is deliberate:
+| kind | attributes | face | made from the picker |
+|---|---|---|---|
+| `note` | text | torn note | yes |
+| `image` | media, link | picture | yes |
+| `button` | text, link | plaque | yes |
+| `drawer` | container, media, text | drawer front | yes — **it makes a page** |
+| `html` | text (raw markup) | plain | no, a tool |
+| `slot` | — | — | no, written by code |
+
+Ask `has(o, 'media')`, never `o.kind === 'image'`. That rule is the whole reason
+an invented combination works everywhere immediately — a note told to carry a
+link is a note you can click, and nothing was designed for it.
+
+**A drawer is a page.** This is the one place the port departs from Bureau, and
+it is the whole port in a line. Bureau's drawer opens onto a nested grid inside
+the app; here `container` + `link: "/game-design"` means the object's contents
+are the page at that path, and its face on this board is the way in. The site
+map is the container tree. `[...slug].astro` turns any layout file that has no
+hand-written page into one, so **New drawer in the editor writes a layout file
+and a tile that opens it**, and the next build makes the page. Nothing was
+built for nested grids, because Astro pages already are them.
+
+**Faces are CSS.** `fc-<name>` on the tile, and every difference between
+`note`, `picture`, `plaque`, `front`, `spine`, `card` and `none` is in
+`src/styles/faces.css`. A face never states a colour of its own — it takes
+`--paper`, `--ink`, `--accent` and their steps from the look — so a look change
+re-dresses every face. A new face is a CSS block and a label in `FACES`.
+
+**`slot` is the default for an element with no kind, and that is deliberate:**
 every layout written before this keeps rendering from its page untouched, so
-pages convert **one element at a time** rather than all at once. `/links` is
-converted; `/`, `/writing` and `/music` are not, and nothing forces them to be.
+pages convert one object at a time. It is the right answer, not a stopgap, for
+anything a component renders — the flip card has its own shader. A slot carrying
+fields fails the build: that combination can only mean a dropped kind.
 
-Two things about `slot` worth keeping:
+**The v3 shape still reads.** `upgradeElement()` turns `type` + `content` into
+the object shape on the way in, idempotently, and `normalizeElement()` calls it.
+A file in either shape is the same layout.
 
-- It is the right answer, not a stopgap, for anything a component renders. The
-  flip card has its own holographic shader; a content schema would only get in
-  its way. `links.json` writes `"type": "slot"` out in full so it reads as a
-  decision rather than a forgotten field.
-- A `slot` element carrying `content` fails the build. That combination can only
-  mean a dropped or misspelled type, and it would otherwise render nothing at
-  all with no complaint.
+**Content is checked at build time.** `validateLayout()` runs each object's
+fields through its attributes, so a malformed body, a `<script>`, an inline
+handler or a `javascript:` URL fails the build. A guard rail against a bad
+paste, not a security boundary — only someone who can commit can write it.
 
-**Content is checked at build time.** `validateLayout()` runs each element's
-content through its type, so a malformed `content` or one carrying a `<script>`,
-an `<iframe>`, an inline handler or a `javascript:` URL fails the build. That is
-a guard rail against a bad paste, not a security boundary — only someone who can
-commit can write it.
-
-**Typed elements render inside `AdaptiveGrid.astro`, so a page's scoped `<style>`
+**Typed objects render inside `AdaptiveGrid.astro`, so a page's scoped `<style>`
 cannot reach them.** Pass a class (`<AdaptiveGrid class="links-grid">`) and hang
-the rules off that in an `is:global` block. Bare `#email` in a global block is
-the id collision hard rule 0 is about.
+the rules off that in an `is:global` block. **`scopeFor()` hashes geometry
+only**, so fixing a typo does not rename every rule in the compiled CSS.
 
-**`scopeFor()` hashes geometry only.** Folding content into it would mean fixing
-a typo renamed every rule in the compiled CSS.
+### The look
+
+`src/data/look.json` is the site's dressing: page, ink and accent colours, the
+two checkerboard squares, the type face, and whether tiles are pinned (each
+leans a degree or two, off a hash of its id — Bureau's decision 75). `look.js`
+derives a full token set from those few values the way Bureau's `look.js` does
+(its decision 33), so the second and third tints of a colour agree with the
+first by construction. `Base.astro` emits them on `:root`; the editor's gear
+writes the same tokens live and publishes the file with everything else.
 
 ### Header and footer are layouts too
 
@@ -240,25 +281,48 @@ commits the layout and its images as **one commit** — see below.
 
 `/links?edit=1` mounts the editor onto the real page. It is behind the query
 parameter, and behind a dynamic import, so a visitor never downloads it and can
-never pick a tile up. Interaction follows bureau:
+never pick a tile up.
 
+**There is one lock, and it is which mode you are in.** Bureau's decision 74,
+taken whole: **locked** is the site exactly as a visitor sees it with a bar
+along the bottom — links work, nothing has an outline, double-click does
+nothing; **unlocked** is the board — a checkerboard under everything, outlines
+on what moves, every gesture live. The padlock in the bar (or `L`) flips it for
+every grid on the page at once. A first visit to `?edit=1` lands unlocked,
+because that is what asking for it means; after that it is whatever you left.
+
+**The checkerboard is real cells, not a gradient.** Rows here are
+`minmax(…, auto)` and grow with content, so a background sized to a cell would
+drift off the truth within a few rows. One `<i class="ag-cell">` per coordinate
+is placed in the grid like a tile and aligns to whatever the tracks turned out
+to be. Bureau can use a gradient because its cells are square and uniform.
+Clicking a bare cell is the picker.
+
+Interaction follows bureau:
+
+- **click a bare cell** for the picker — note, image, button, drawer — and what
+  you pick lands on that cell at its kind's size, or in the first free room
 - **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
 - **corner grips** resize; there are no edge handles
-- **double click** a text element to edit the words in place. Click away keeps
-  it, Escape reverts. What contenteditable produces is cleaned down to
-  `a/em/strong/b/i/br` before it is stored, so a paste cannot smuggle styled
-  spans into the repo
-- **right click** opens that element's settings — flow seed, lock, the content
-  fields its type declares, and on narrow a "reset to derived position"
+- **double click** the words and they become a field where they sit — the
+  body or the title, never the whole tile, because a drawer front has a picture
+  in it too. Click away keeps it, Escape reverts. What contenteditable produces
+  is cleaned down to `a/em/strong/b/i/br` before it is stored
+- **right click** opens that object's settings — the fields its attributes
+  declare, its face, flow seed, lock, delete, and on narrow "reset to derived
+  position"
+- **the gear** is the look: colours, type, pinned
 - **Desk / Narrow** tabs switch which layout you are editing; narrow constrains
   the container, which is the real thing because the grid is container-queried
 - **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack
 
 Saving has three levels. **localStorage** holds work in progress and survives a
 reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
-**Publish** commits it straight to `main` and rebuilds the site — about a
-minute. It uses the **git data API** (blob, tree, commit, move the ref) rather
+**Publish sends everything at once** — every grid on the page that changed,
+every picked image, any page a new drawer made, and the look if it changed — as
+**one commit** to `main`, and the site rebuilds in about a minute. It uses the
+**git data API** (blob, tree, commit, move the ref) rather
 than the contents API, because a layout and the images it references have to
 arrive together: one commit, one rebuild, and never a published JSON pointing at
 an image that is not there yet. The ref move is not forced, so a push that
@@ -325,6 +389,10 @@ What's already done, so it isn't rediscovered:
 - **Header, footer and image upload are done.** Chrome is two layouts on every
   page; images are picked or dropped in the editor and committed with the
   layout.
+- **The object model is Bureau's, and the editor is a desk.** Lock, checkerboard,
+  a picker that makes notes, images, buttons and drawers, faces, and a look
+  panel. A drawer makes a page. This is the point at which the thing under
+  `src/lib/` stopped being "the editor for this site" and became the tool.
 - The remaining work to replace Squarespace is: convert `/`, `/writing`,
   `/music` to grids and to typed content; build the six blog collections; pull
   the assets local.

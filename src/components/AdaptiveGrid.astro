@@ -1,12 +1,12 @@
 ---
 import { compileCSS, scopeFor, normalizeLayout } from '../lib/adaptive-grid.js';
-import { renderElement, isTyped } from '../lib/elements.js';
+import { renderElement, isTyped, faceOf, tiltFor } from '../lib/elements.js';
 import { asset, url, sized, srcset } from '../lib/assets.js';
 import LayoutEditor from './LayoutEditor.astro';
 
 // `name` is the layout's filename in src/data/layouts. Passing it turns on the
 // in-page editor — but only for a visitor who asks for it with ?edit=1.
-// `class` lets the page scope its own styling for these ids. Typed elements
+// `class` lets the page scope its own styling for these ids. Typed objects
 // render inside THIS component, so a page's scoped <style> can no longer reach
 // them — and bare `#email` in a global block is the id collision hard rule 0 is
 // about. A class on the root gives the page somewhere safe to hang its rules.
@@ -25,33 +25,33 @@ const css = compileCSS(layout, scope);
  * This component is the ONE place where the general engine meets this
  * particular website — elements.js deliberately imports neither assets.js nor
  * anything under src/data, so that the engine could be lifted out whole. Every
- * site-specific fact an element needs arrives through here.
+ * site-specific fact an object needs arrives through here.
  */
 const ctx = {
-  image(c) {
+  image(m) {
     // A file committed by the editor. Already downscaled on the way in, so no
     // srcset — the CDN's ?format= trick does not apply to our own files.
-    if (c.src?.startsWith('media:')) return { src: url('media/' + c.src.slice(6)) };
+    if (m.src?.startsWith('media:')) return { src: url('media/' + m.src.slice(6)) };
 
-    const key = c.src?.startsWith('asset:') && c.src.slice(6);
-    const src = key ? asset[key] : c.src;
+    const key = m.src?.startsWith('asset:') && m.src.slice(6);
+    const src = key ? asset[key] : m.src;
     // A layout naming an asset that doesn't exist is a typo in data, and the
     // build is the right place to find out. (The dashed placeholders on /links
     // are a different thing: those are assets known to be missing, kept visible
     // on purpose, and they live in the page's markup as slots.)
     if (key && !src) {
       throw new Error(
-        `Layout "${name ?? '?'}" element #${c.id ?? ''} wants asset "${key}", ` +
-          `which is not in assets.js. Known: ${Object.keys(asset).join(', ')}`
+        `Layout "${name ?? '?'}" wants asset "${key}", which is not in assets.js. ` +
+          `Known: ${Object.keys(asset).join(', ')}`
       );
     }
     // The widest entry doubles as the plain src, so a browser ignoring srcset
     // still gets a sized image rather than the multi-megabyte original.
-    const widths = c.widths;
+    const widths = m.widths;
     return {
       src: sized(src, widths ? widths[widths.length - 1] : 1000),
       srcset: srcset(src, widths),
-      sizes: c.sizes,
+      sizes: m.sizes,
     };
   },
   // Hard rule 2: an internal link must go through url(), or it breaks on the
@@ -59,16 +59,23 @@ const ctx = {
   link: (href) => (href?.startsWith('/') ? url(href.slice(1)) : href),
 };
 
-// Typed elements render from data. Everything else is a `slot` and comes from
-// the page's own markup below — which is what lets a page be converted one
-// element at a time instead of all at once.
+// Typed objects render from data, each wearing its face as a class. Everything
+// else is a `slot` and comes from the page's own markup below — which is what
+// lets a page be converted one object at a time instead of all at once.
 const typed = layout.elements
   .filter(isTyped)
-  .map((e) => ({ id: e.id, html: renderElement(e, { ...ctx, image: (c) => ctx.image({ ...c, id: e.id }) }) }));
+  .map((o) => ({
+    id: o.id,
+    face: faceOf(o),
+    tilt: tiltFor(o.id).toFixed(2) + 'deg',
+    html: renderElement(o, ctx),
+  }));
 ---
 <div class:list={['ag-root', scope, className]}>
   <div class="ag-grid">
-    {typed.map((t) => <div id={t.id} set:html={t.html} />)}
+    {typed.map((t) => (
+      <div id={t.id} class={`ob fc-${t.face}`} style={`--tilt:${t.tilt}`} set:html={t.html} />
+    ))}
     <slot />
   </div>
 </div>

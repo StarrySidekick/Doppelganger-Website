@@ -1,6 +1,15 @@
 ---
 import { PROD_ORIGIN, asset, sized, url } from '../lib/assets.js';
 import SiteChrome from '../components/SiteChrome.astro';
+import { lookCSS, validateLook, normalizeLook } from '../lib/look.js';
+import lookData from '../data/look.json';
+import '../styles/faces.css';
+
+// The site's look is data too — see src/lib/look.js. A malformed look.json
+// fails the build here rather than shipping a page with no colours.
+const lookProblems = validateLook(lookData, 'look.json');
+if (lookProblems.length) throw new Error('Invalid look:\n  ' + lookProblems.join('\n  '));
+const look = normalizeLook(lookData);
 
 const {
   title,
@@ -53,8 +62,9 @@ const ogImage = sized(asset.wordmark, 1000);
     href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap"
     rel="stylesheet"
   />
+  <style is:inline set:html={lookCSS(look)}></style>
 </head>
-<body class="has-chrome">
+<body class:list={["has-chrome", look.tilt && "look-tilt"]}>
   <!-- Header and footer are layouts, not markup, so they can be arranged and
        reworded in the editor like anything else. Every page gets them; pages no
        longer opt in one at a time. -->
@@ -81,7 +91,7 @@ const ogImage = sized(asset.wordmark, 1000);
   }
   body {
     margin: 0;
-    background: var(--bg);
+    background: var(--paper, var(--bg));
     color: var(--ink);
     font-family: var(--font-body);
     min-height: 100vh;

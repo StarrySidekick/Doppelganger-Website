@@ -1,0 +1,39 @@
+---
+/**
+ * Any layout that has no hand-written page of its own is a page anyway.
+ *
+ * This is what makes a drawer a page: the editor's "New drawer" writes a
+ * layout file and a tile pointing at it, and this route turns the file into
+ * the page the tile opens. Hand-written pages (links, writing, …) still win —
+ * Astro prefers a static route over a dynamic one — so nothing existing moves,
+ * and hard rule 3 holds.
+ */
+import Base from '../layouts/Base.astro';
+import AdaptiveGrid from '../components/AdaptiveGrid.astro';
+import { layouts } from '../lib/layouts.js';
+
+export function getStaticPaths() {
+  // Names that already have a file in src/pages, and the two that are chrome.
+  const written = new Set(
+    Object.keys(import.meta.glob('./*.astro')).map((p) => p.replace(/^\.\/|\.astro$/g, '')),
+  );
+  written.add('index');
+  return Object.keys(layouts)
+    .filter((n) => !['header', 'footer'].includes(n) && !written.has(n))
+    .map((n) => ({ params: { slug: n }, props: { name: n } }));
+}
+
+const { name } = Astro.props;
+const layout = layouts[name];
+const title = layout.title ?? name.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+---
+<Base title={title} path={`/${name}`}>
+  <main class="drawer-page">
+    <h1 class="sr-only">{title}</h1>
+    <AdaptiveGrid layout={layout} name={name} class="page-grid" />
+  </main>
+</Base>
+
+<style is:global>
+  .drawer-page { padding: clamp(12px, 3vw, 40px); }
+</style>

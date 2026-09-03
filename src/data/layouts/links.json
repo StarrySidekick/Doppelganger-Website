@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "columns": 24,
   "rowHeight": 26,
   "gap": 8,
@@ -7,7 +7,6 @@
   "elements": [
     {
       "id": "card",
-      "type": "slot",
       "flow": "full",
       "desk": {
         "col": [
@@ -18,11 +17,11 @@
           5,
           8
         ]
-      }
+      },
+      "kind": "slot"
     },
     {
       "id": "email",
-      "type": "text",
       "flow": "stack",
       "desk": {
         "col": [
@@ -34,13 +33,12 @@
           2
         ]
       },
-      "content": {
-        "html": "<a href=\"mailto:TimothyVlangas@gmail.com\">Email: TimothyVlangas@gmail.com</a>"
-      }
+      "kind": "note",
+      "face": "none",
+      "body": "<a href=\"mailto:TimothyVlangas@gmail.com\">Email: TimothyVlangas@gmail.com</a>"
     },
     {
       "id": "phone",
-      "type": "text",
       "flow": "stack",
       "desk": {
         "col": [
@@ -52,13 +50,12 @@
           2
         ]
       },
-      "content": {
-        "html": "<a href=\"tel:+14012978580\">Phone: 401-297-8580</a>"
-      }
+      "kind": "note",
+      "face": "none",
+      "body": "<a href=\"tel:+14012978580\">Phone: 401-297-8580</a>"
     },
     {
       "id": "socials",
-      "type": "slot",
       "flow": "full",
       "desk": {
         "col": [
@@ -69,11 +66,11 @@
           15,
           3
         ]
-      }
+      },
+      "kind": "slot"
     },
     {
       "id": "qr",
-      "type": "image",
       "flow": "keep",
       "desk": {
         "col": [
@@ -85,7 +82,9 @@
           5
         ]
       },
-      "content": {
+      "kind": "image",
+      "face": "none",
+      "media": {
         "src": "asset:qr",
         "alt": "QR code linking to this page"
       }

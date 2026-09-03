@@ -28,7 +28,7 @@
  * stays responsible for WHERE something sits and elements.js for WHAT it is,
  * which is why the two can be validated and reasoned about separately.
  */
-import { checkElement } from './elements.js';
+import { checkElement, upgradeElement } from './elements.js';
 
 /** The only legal values for an element's reflow seed. */
 export const FLOWS = ['pin', 'keep', 'full', 'stack'];
@@ -46,19 +46,22 @@ export const DEVICES = ['desk', 'narrow'];
  * v1 put a single box on the element as `col`/`row`. That box was always the
  * wide one, so it becomes `desk` and narrow stays derived.
  */
-export function normalizeElement(e) {
-  if (!e || typeof e !== 'object') return e;
+export function normalizeElement(input) {
+  if (!input || typeof input !== 'object') return input;
+  // v3 stored `type` and a `content` bag; v4 is Bureau's object shape. The
+  // upgrade is idempotent, so a file in either shape reads the same.
+  const e = upgradeElement(input);
   const desk = e.desk ?? (e.col && e.row ? { col: e.col, row: e.row } : undefined);
   const out = { id: e.id, flow: e.flow, desk };
   if (e.narrow) out.narrow = e.narrow;
   if (e.locked) out.locked = true;
-  // v3: content lives on the element. This function used to build `out` from a
-  // fixed set of keys, which meant anything new was silently DROPPED — a text
-  // edit would round-trip through the editor and vanish. Carry them explicitly.
-  // An element with no type is a slot, so every layout written before v3 keeps
-  // rendering from its page's markup exactly as it did.
-  if (e.type) out.type = e.type;
-  if (e.content) out.content = structuredClone(e.content);
+  // This function used to build `out` from a fixed key list, which meant
+  // anything new was silently DROPPED — a text edit would round-trip through
+  // the editor and vanish on save. Every object field is carried explicitly.
+  for (const k of ['kind', 'attrs', 'face', 'title', 'body', 'link']) {
+    if (e[k] != null) out[k] = Array.isArray(e[k]) ? [...e[k]] : e[k];
+  }
+  if (e.media) out.media = structuredClone(e.media);
   return out;
 }
 
@@ -67,7 +70,7 @@ export function normalizeLayout(layout) {
   if (!layout || typeof layout !== 'object') return layout;
   return {
     ...layout,
-    version: 3,
+    version: 4,
     // Narrow may use a coarser grid than the wide one — dragging a tile with a
     // thumb across 24 columns is miserable. Defaults to the same count so an
     // existing layout is unchanged.

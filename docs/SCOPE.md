@@ -351,7 +351,12 @@ flipcard · link · spacer · collection-list · project-grid · form · buy
 
 That registry is also, precisely, the thing your last bullet describes. A web
 design suite is an element registry, a grid engine and an editor that reads
-both. You already have two of the three. **So one architectural rule is worth
+both. You already have two of the three.
+
+**Update, September 2026:** this became explicit. The tool has a working name —
+**DigiDesk** — and is a web-design version of Bureau: its object model,
+attributes, faces, lock and look, ported under `src/lib/`. This website is the
+guinea pig. The two share a repo for now; hard rule 4 is the seam. **So one architectural rule is worth
 adopting now, while it's free:** `src/lib/` (the engine, the editor, the
 registry) must not import from `src/data/` or `assets.js`. The engine may not
 know this is Timothy's website. That boundary costs nothing today and is

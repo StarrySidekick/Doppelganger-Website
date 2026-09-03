@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "columns": 12,
   "narrowColumns": 6,
   "rowHeight": 26,
@@ -8,30 +8,80 @@
   "elements": [
     {
       "id": "site-home",
-      "type": "image",
       "flow": "pin",
-      "desk": { "col": [1, 2], "row": [1, 3] },
-      "content": {
-        "src": "asset:home", "alt": "Home", "href": "/",
-        "width": 480, "height": 480, "sizes": "120px", "widths": [100, 300]
+      "desk": {
+        "col": [
+          1,
+          2
+        ],
+        "row": [
+          1,
+          3
+        ]
+      },
+      "kind": "image",
+      "face": "none",
+      "link": "/",
+      "media": {
+        "src": "asset:home",
+        "alt": "Home",
+        "width": 480,
+        "height": 480,
+        "sizes": "120px",
+        "widths": [
+          100,
+          300
+        ]
       }
     },
     {
       "id": "site-wordmark",
-      "type": "image",
       "flow": "keep",
-      "desk": { "col": [4, 6], "row": [1, 3] },
-      "content": {
-        "src": "asset:wordmark", "alt": "Starry Sidekick", "href": "/",
-        "sizes": "(max-width: 700px) 60vw, 380px", "widths": [300, 500, 750]
+      "desk": {
+        "col": [
+          4,
+          6
+        ],
+        "row": [
+          1,
+          3
+        ]
+      },
+      "kind": "image",
+      "face": "none",
+      "link": "/",
+      "media": {
+        "src": "asset:wordmark",
+        "alt": "Starry Sidekick",
+        "sizes": "(max-width: 700px) 60vw, 380px",
+        "widths": [
+          300,
+          500,
+          750
+        ]
       }
     },
     {
       "id": "site-sun",
-      "type": "image",
       "flow": "pin",
-      "desk": { "col": [11, 2], "row": [1, 3] },
-      "content": { "src": "asset:sun", "alt": "", "width": 128, "height": 128 }
+      "desk": {
+        "col": [
+          11,
+          2
+        ],
+        "row": [
+          1,
+          3
+        ]
+      },
+      "kind": "image",
+      "face": "none",
+      "media": {
+        "src": "asset:sun",
+        "alt": "",
+        "width": 128,
+        "height": 128
+      }
     }
   ]
 }

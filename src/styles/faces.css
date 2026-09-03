@@ -1,0 +1,136 @@
+/* Faces — how a thing draws.
+   Every difference between faces is here, the way Bureau's SHAPES and FACES
+   are pure CSS behind one class. A face is `fc-<name>` on the tile; the tile's
+   inside is what elements.js renders — .ob-img, .ob-title, .ob-body, and an
+   .ob-link wrapping it when the object goes somewhere.
+
+   Tokens come from look.js: --paper, --ink, --accent and their steps. A face
+   never states a colour of its own, so a look change re-dresses every face. */
+
+.ob { position: relative; min-width: 0; min-height: 0; font-family: var(--body-font, inherit); }
+.ob .ob-link { display: block; height: 100%; color: inherit; text-decoration: none; }
+.ob .ob-img { display: block; max-width: 100%; height: auto; }
+.ob .ob-body { min-width: 0; }
+.ob .ob-body a { color: inherit; text-underline-offset: 3px; }
+.ob .ob-title { display: block; }
+
+/* ---- plain: the content as it is ------------------------------------ */
+.fc-none {}
+
+/* ---- card ---------------------------------------------------------- */
+.fc-card {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: clamp(8px, 1.4cqi, 16px);
+  overflow: hidden;
+}
+
+/* ---- torn note: paper with a ragged bottom -------------------------- */
+.fc-note {
+  background: var(--paper-2);
+  color: var(--ink);
+  padding: clamp(10px, 1.6cqi, 18px) clamp(10px, 1.6cqi, 18px) clamp(16px, 2.2cqi, 26px);
+  box-shadow: 0 1px 0 var(--line), 0 6px 18px -10px rgba(0, 0, 0, .7);
+  /* the tear: a jagged mask along the bottom edge */
+  --tear: 7px;
+  clip-path: polygon(
+    0 0, 100% 0, 100% calc(100% - var(--tear)),
+    97% 100%, 94% calc(100% - var(--tear)), 90% calc(100% - 3px), 86% 100%, 82% calc(100% - var(--tear)),
+    77% calc(100% - 2px), 72% 100%, 68% calc(100% - var(--tear)), 63% calc(100% - 3px), 58% 100%,
+    54% calc(100% - var(--tear)), 49% calc(100% - 1px), 44% 100%, 40% calc(100% - var(--tear)),
+    35% calc(100% - 3px), 30% 100%, 26% calc(100% - var(--tear)), 21% calc(100% - 2px), 16% 100%,
+    12% calc(100% - var(--tear)), 8% calc(100% - 3px), 4% 100%, 0 calc(100% - var(--tear))
+  );
+  overflow: hidden;
+  line-height: 1.45;
+}
+.fc-note .ob-body { font-size: clamp(.95rem, 1.5cqi, 1.15rem); }
+
+/* ---- picture: the image fills the tile ------------------------------ */
+.fc-picture { overflow: hidden; border-radius: 4px; }
+.fc-picture .ob-link, .fc-picture .ob-img { width: 100%; height: 100%; }
+.fc-picture .ob-img { object-fit: cover; }
+.fc-picture .ob-title {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 8px 10px;
+  font-size: .8rem; letter-spacing: .04em;
+  color: var(--ink);
+  background: linear-gradient(to top, color-mix(in srgb, var(--paper) 78%, transparent), transparent);
+}
+
+/* ---- plaque: a small engraved plate --------------------------------- */
+.fc-plaque {
+  display: grid; place-items: center;
+  text-align: center;
+  padding: clamp(6px, 1cqi, 12px) clamp(10px, 1.6cqi, 18px);
+  background: linear-gradient(160deg, var(--paper-3), var(--paper-2));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 18%, transparent),
+              inset 0 -1px 0 color-mix(in srgb, var(--paper) 60%, transparent),
+              0 2px 6px -3px rgba(0, 0, 0, .6);
+  letter-spacing: .08em; text-transform: uppercase;
+  font-size: clamp(.7rem, 1.1cqi, .85rem);
+}
+.fc-plaque .ob-link { display: grid; place-items: center; }
+.fc-plaque:hover { border-color: var(--accent-2); }
+
+/* ---- drawer front: a front with a pull ------------------------------ */
+.fc-front {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 6%, transparent),
+              inset 0 1px 0 color-mix(in srgb, var(--ink) 14%, transparent),
+              0 8px 22px -14px rgba(0, 0, 0, .9);
+  overflow: hidden;
+}
+.fc-front .ob-link { display: grid; grid-template-rows: 1fr auto; height: 100%; }
+.fc-front .ob-img { width: 100%; height: 100%; object-fit: cover; grid-row: 1; }
+.fc-front .ob-title {
+  grid-row: 2;
+  padding: 8px 12px 12px;
+  text-align: center;
+  font-size: clamp(.8rem, 1.3cqi, 1rem);
+  letter-spacing: .06em;
+}
+.fc-front .ob-body { display: none; }
+/* the pull: a small brass-coloured knob, lit from the upper left like Bureau's */
+.fc-front::after {
+  content: '';
+  position: absolute; left: 50%; bottom: 8px;
+  width: 10px; height: 10px; margin-left: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 55%, color-mix(in srgb, var(--accent) 55%, #000));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+  pointer-events: none;
+}
+.fc-front:has(.ob-title)::after { bottom: auto; top: 10px; right: 10px; left: auto; margin: 0; }
+
+/* ---- spine: a book on a shelf, the name running up it --------------- */
+.fc-spine {
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--paper-3) 70%, #000) 0,
+    var(--paper-3) 22%, var(--paper-2) 40%, var(--paper-3) 100%);
+  border-radius: 3px;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--ink) 20%, transparent), 0 4px 10px -6px rgba(0, 0, 0, .8);
+  overflow: hidden;
+}
+.fc-spine .ob-link { display: grid; place-items: center; }
+.fc-spine .ob-title, .fc-spine .ob-body {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  white-space: nowrap; letter-spacing: .1em; font-size: clamp(.75rem, 1.2cqi, .95rem);
+  padding: 8px 0;
+}
+.fc-spine .ob-img { display: none; }
+
+/* ---- pinned: every tile leans a degree or two (Bureau decision 75) ----
+   The angle is a hash of the object's id so it never changes between renders.
+   Set on the tile as --tilt by AdaptiveGrid. */
+.look-tilt .ob { transform: rotate(var(--tilt, 0deg)); }
+.look-tilt .ob.ag-dragging, .look-tilt .ob.ag-lifted { transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .look-tilt .ob { transform: none; }
+}

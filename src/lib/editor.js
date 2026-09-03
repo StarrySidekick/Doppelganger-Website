@@ -1,42 +1,54 @@
 /**
- * In-page layout editor.
+ * In-page editor.
  *
  * Loaded only when the URL carries ?edit=1, so a visitor never pays for it and
- * can never pick a tile up. Inside edit mode there is no arrange sub-mode:
- * everything is movable, and a 200ms hold arms the drag — the same bargain
- * bureau makes, and the reason a plain click can still do nothing surprising.
+ * can never pick a tile up. Once it is mounted there is ONE switch that decides
+ * what the page is: **locked** is the site exactly as a visitor sees it, with
+ * a bar along the bottom; **unlocked** is the board — a checkerboard under
+ * everything, outlines on what can move, and every gesture below live. That
+ * is Bureau's lock (its decision 74): not a property of a board but which mode
+ * you are in, reading or arranging, one switch for every grid on the page.
  *
- * Interaction, after bureau:
- *   hold 200ms   pick a tile up
- *   drag         move; ghost shows where it lands, red when refused
- *   corner grip  resize, live, like dragging a window edge
- *   double click edit the words, in place, for a text element
- *   right click  settings for that element — including its content fields
- *   device tabs  switch between the desk and narrow layouts
+ * Interaction, after Bureau:
+ *   padlock       lock or unlock everything (or press L)
+ *   hold 200ms    pick a tile up
+ *   drag          move; ghost shows where it lands, red when refused
+ *   corner grip   resize, live, like dragging a window edge
+ *   double click  the words become a field where they sit
+ *   click a cell  the picker — what you pick lands on that cell
+ *   right click   settings for that object: its fields, its face, delete
+ *   device tabs   switch between the desk and narrow layouts
+ *   gear          the site's look: colours, tilt, type
  *
- * Two things differ from bureau, both forced by this grid:
+ * Two things differ from Bureau, both forced by this grid:
  *
  * 1. Rows are minmax(clamp(...), auto) and GROW with content, so there is no
  *    single row height to cache. Track positions are read from the live grid
- *    (getComputedStyle → gridTemplateRows) on every gesture start. Bureau's
- *    hardest-won lesson — never assume or round the cell size — applies more
- *    here, not less.
- * 2. The narrow layout is a real stored layout, but an element that has never
+ *    (getComputedStyle → gridTemplateRows) on every gesture start, and the
+ *    checkerboard is real cells placed in the grid rather than a gradient, so
+ *    it cannot drift off the truth.
+ * 2. The narrow layout is a real stored layout, but an object that has never
  *    been touched at narrow width has no box of its own; it is showing one
  *    derived from its flow. Moving it writes the box down for the first time.
  */
 import {
-  resolveDevice, boxOk, columnsFor, normalizeLayout, validateLayout, FLOWS,
+  resolveDevice, boxOk, freeSpot, columnsFor, normalizeLayout, validateLayout, FLOWS,
 } from './adaptive-grid.js';
-import { specOf, isInline, isTyped, renderElement, unsafeHtml } from './elements.js';
+import {
+  KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf,
+  fieldsOf, getField, setField, renderElement, unsafeHtml, tiltFor, escapeHtml,
+} from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
-import { publishLayout, TARGET, pathFor } from './publish.js';
+import { publishFiles, pathFor, TARGET } from './publish.js';
+import { tokensFor, normalizeLook, validateLook } from './look.js';
 
 const TOKEN_KEY = 'doppelganger.ghToken';
+const LOCK_KEY = 'doppelganger.locked';
+const LOOK_KEY = 'doppelganger.look';
+const LOOK_PATH = 'src/data/look.json';
 
 /** For putting a stored value back into a form field without breaking out of it. */
-const escapeAttr = (v) =>
-  String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const escapeAttr = escapeHtml;
 
 const HOLD_MS = 200;
 const NUDGE = 5; // px of movement before a drag counts as a drag
@@ -96,7 +108,7 @@ function trackAt(edges, px, step) {
  * ------------------------------------------------------------------ */
 
 /**
- * The tags a text element may keep, and the attributes each may carry.
+ * The tags a body may keep, and the attributes each may carry.
  *
  * contenteditable is generous: it will happily leave behind styled spans, font
  * tags and nested divs from a paste. What lands in the layout file is committed
@@ -138,31 +150,51 @@ export function cleanRichText(html) {
   return box.innerHTML.replace(/\s+/g, ' ').trim();
 }
 
+/** A page name to a path segment: "Game Design" → "game-design". */
+export const slugify = (s) =>
+  String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+
 /* ------------------------------------------------------------------ *
  * Editor
  * ------------------------------------------------------------------ */
 
-export function mountEditor({ root, layout: initial, name, assets = {}, base = '/', onChange }) {
+export function mountEditor({
+  root, layout: initial, published, name, assets = {}, base = '/', look, onChange,
+}) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
 
   let layout = normalizeLayout(structuredClone(initial));
+  // What the build rendered. Publish sends this layout only when it differs.
+  let baselineJson = JSON.stringify(normalizeLayout(published ?? initial));
   let device = 'desk';
   let undo = [];
   let G = null;          // the gesture in flight
   let holdTimer = null;
-  let editing = null;    // {id, node, before} while text is being edited
+  let editing = null;    // {id, field, node, tile, before} while words are being edited
+  let selected = null;   // the tile the settings panel was last opened on
+
+  const el = (id) => grid.querySelector(`#${CSS.escape(id)}`);
+  const find = (id) => layout.elements.find((e) => e.id === id);
+  const placed = () => resolveDevice(layout, device);
+  const boxFor = (id) => {
+    const r = placed().find((p) => p.id === id);
+    return { col: [r._col, r._span], row: [r._row, r._rowSpan] };
+  };
+
+  const chrome = sharedChrome(look);
+  const toast = chrome.toast;
+  const locked = () => chrome.locked();
+
+  /* ---- previewing an object's inside ---- */
 
   /**
-   * Re-render one typed element into the page.
-   *
    * Preview only: it resolves an asset key to its bare URL and skips the
    * srcset, because the sizing helpers live in assets.js and this file is not
-   * allowed to import them. The build does the real thing — so an image looks
-   * right here and is served responsively once published.
+   * allowed to import them. The build does the real thing.
    */
   const previewCtx = {
-    image: (c) => ({ src: resolvePreview(c.src) }),
+    image: (m) => ({ src: resolvePreview(m.src) }),
     link: (href) => href,
   };
   function resolvePreview(src) {
@@ -175,81 +207,20 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
     }
     return src;
   }
-
-  /* ---- images picked in the browser, not yet in the repo ---- */
-
-  /** name -> {path, base64, previewUrl}. Published with the layout, in one commit. */
-  const pending = new Map();
-
-  /**
-   * Take a picked file, prepare it, and point an element at it.
-   *
-   * Nothing is uploaded here. The bytes sit in this tab until Publish, so the
-   * layout and the images it references reach the repo as a single commit —
-   * see publish.js. Which also means an unpublished image is lost on reload,
-   * and the bar says so rather than pretending otherwise.
-   */
-  async function addImage(id, file) {
-    const item = find(id);
-    if (!item) return;
-    if (isTyped(item) && specOf(item) !== specOf({ type: 'image' })) {
-      return toast(`${id} is not an image element`);
-    }
-    try {
-      toast('Preparing…');
-      const m = await prepareImage(file);
-      pending.set(m.name, {
-        path: mediaPath(m.name), base64: await blobToBase64(m.blob), previewUrl: m.previewUrl,
-      });
-      const next = { ...(item.content ?? {}), src: mediaRef(m.name) };
-      // Stale dimensions from the image being replaced would set the wrong box.
-      if (m.width) { next.width = m.width; next.height = m.height; } else { delete next.width; delete next.height; }
-      delete next.widths; delete next.sizes;   // the CDN sizing does not apply to a local file
-      setContent(id, next);
-      toast(`${m.name} · ${m.note} · ${Math.round(m.bytes / 1024)}KB — Publish to commit it`);
-    } catch (err) {
-      toast(err.message || 'Could not use that image');
-    }
+  function dressTile(node, item) {
+    for (const c of [...node.classList]) if (c.startsWith('fc-')) node.classList.remove(c);
+    node.classList.add('ob', `fc-${faceOf(item)}`);
+    node.style.setProperty('--tilt', tiltFor(item.id).toFixed(2) + 'deg');
+    node.classList.toggle('ag-empty', has(item, 'media') && !item.media?.src && !item.body && !item.title);
   }
-
-  /** Dropping a file on a tile is the shortest path there is to replacing it. */
-  function onDrop(e) {
-    const node = e.target.closest('.ag-editable');
-    const file = e.dataTransfer?.files?.[0];
-    markDrop(null);
-    if (!node || !grid.contains(node) || !file) return;
-    e.preventDefault();
-    addImage(node.id, file);
-  }
-  let dropTarget = null;
-  const markDrop = (node) => {
-    if (dropTarget === node) return;
-    dropTarget?.classList.remove('ag-drop');
-    dropTarget = node;
-    dropTarget?.classList.add('ag-drop');
-  };
-  const allowDrop = (e) => {
-    if (!e.dataTransfer?.types?.includes('Files')) return;
-    const node = e.target.closest('.ag-editable');
-    if (!node || !grid.contains(node)) return markDrop(null);
-    e.preventDefault();
-    markDrop(node);
-  };
   function repaintContent(id) {
     const item = find(id);
     const node = el(id);
     if (!item || !node || !isTyped(item)) return;
     node.innerHTML = renderElement(item, previewCtx);
+    dressTile(node, item);
     addGrips(node);
   }
-
-  const el = (id) => grid.querySelector(`#${CSS.escape(id)}`);
-  const find = (id) => layout.elements.find((e) => e.id === id);
-  const placed = () => resolveDevice(layout, device);
-  const boxFor = (id) => {
-    const r = placed().find((p) => p.id === id);
-    return { col: [r._col, r._span], row: [r._row, r._rowSpan] };
-  };
 
   /* ---- applying a layout to the live DOM ---- */
 
@@ -261,14 +232,17 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
       node.style.gridRow = `${r._row} / span ${r._rowSpan}`;
       node.classList.toggle('ag-derived', device === 'narrow' && r._derived);
       node.classList.add('ag-editable');
-      node.classList.toggle('ag-text', isInline(find(r.id)));
-      if (!node.querySelector('.ag-grip')) addGrips(node);
+      node.classList.toggle('ag-text', isInline(r));
+      if (isTyped(r)) dressTile(node, r);
+      addGrips(node);
     }
     root.dataset.agDevice = device;
+    paintChecker();
     if (chrome.activeName() === name) chrome.render();
   }
 
   function addGrips(node) {
+    if (node.querySelector('.ag-grip')) return;
     for (const corner of ['nw', 'ne', 'se', 'sw']) {
       const g = document.createElement('span');
       g.className = `ag-grip ag-grip-${corner}`;
@@ -277,13 +251,46 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
     }
   }
 
+  /**
+   * The checkerboard: one cell per coordinate, in the grid itself.
+   *
+   * Placed with grid-column/grid-row like a tile, so each square is exactly one
+   * real cell whatever height that row turned out to be. Drawn a few rows past
+   * the last object, which is where a new thing would go.
+   */
+  function paintChecker() {
+    grid.querySelectorAll('.ag-cell').forEach((c) => c.remove());
+    if (locked()) return;
+    const cols = columnsFor(layout, device);
+    const last = placed().reduce((m, r) => Math.max(m, r._row + r._rowSpan - 1), 0);
+    const rows = Math.max(last + 5, 8);
+    const frag = document.createDocumentFragment();
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        const cell = document.createElement('i');
+        cell.className = 'ag-cell' + ((c + r) % 2 ? ' ag-cell-b' : '');
+        cell.style.gridColumn = `${c} / span 1`;
+        cell.style.gridRow = `${r} / span 1`;
+        cell.dataset.col = c; cell.dataset.row = r;
+        frag.appendChild(cell);
+      }
+    }
+    grid.prepend(frag);
+  }
+
   /* ---- mutation ---- */
+
+  const GEOMETRY = ['id', 'flow', 'desk', 'narrow', 'locked'];
+
+  function pushUndo(step) {
+    undo.push(step);
+    if (undo.length > 20) undo.shift();
+  }
 
   function setBox(id, box, { record = true } = {}) {
     const e = find(id);
     if (!e) return;
-    if (record) undo.push({ kind: 'box', id, device, prev: e[device] ? structuredClone(e[device]) : null });
-    if (undo.length > 20) undo.shift();
+    if (record) pushUndo({ kind: 'box', id, device, prev: e[device] ? structuredClone(e[device]) : null });
     e[device] = { col: [...box.col], row: [...box.row] };
     commit();
   }
@@ -295,25 +302,49 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
       // happen, say so loudly rather than saving something the build rejects.
       console.error('[editor] refusing to save an invalid layout\n' + problems.join('\n'));
       toast('That would make the layout invalid — not saved');
-      return;
+      return false;
     }
     paint();
     onChange?.(layout);
+    return true;
   }
+
+  /** Everything on an object that is not its geometry. */
+  const contentOf = (e) => {
+    const out = {};
+    for (const k of Object.keys(e)) if (!GEOMETRY.includes(k)) out[k] = structuredClone(e[k]);
+    return out;
+  };
+  const restoreContent = (e, prev) => {
+    for (const k of Object.keys(e)) if (!GEOMETRY.includes(k)) delete e[k];
+    Object.assign(e, prev);
+  };
 
   function undoLast() {
     const move = undo.pop();
     if (!move) return toast('Nothing to undo');
+
+    if (move.kind === 'add') {
+      const i = layout.elements.findIndex((e) => e.id === move.id);
+      if (i >= 0) { layout.elements.splice(i, 1); el(move.id)?.remove(); }
+      commit();
+      return toast(`Removed ${move.id}`);
+    }
+    if (move.kind === 'remove') {
+      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.element);
+      mountTile(move.element);
+      commit();
+      return toast(`Put ${move.element.id} back`);
+    }
+
     const e = find(move.id);
     if (!e) return;
-
     if (move.kind === 'content') {
-      if (move.prev) e.content = move.prev; else delete e.content;
+      restoreContent(e, move.prev);
       commit();
       repaintContent(move.id);
       return toast(`Undid the change to ${move.id}`);
     }
-
     if (move.prev) e[move.device] = move.prev; else delete e[move.device];
     const was = device;
     device = move.device;
@@ -321,70 +352,202 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
     if (was !== device) toast(`Undone on ${device}`);
   }
 
-  /** Record a content change and apply it. Shares the one undo stack. */
-  function setContent(id, next) {
+  /** Apply a content change to an object and record it. Shares the one undo stack. */
+  function setContent(id, mutate) {
     const e = find(id);
-    if (!e) return;
-    undo.push({ kind: 'content', id, prev: e.content ? structuredClone(e.content) : null });
-    if (undo.length > 20) undo.shift();
-    e.content = next;
+    if (!e) return false;
+    const prev = contentOf(e);
+    mutate(e);
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      restoreContent(e, prev);
+      toast(problems[0].replace(/^[^:]+: /, ''));
+      return false;
+    }
+    pushUndo({ kind: 'content', id, prev });
     commit();
     repaintContent(id);
+    return true;
   }
 
-  /* ---- editing the words, in place ---- */
+  /* ---- making and removing things ---- */
 
-  function beginEdit(id) {
-    const item = find(id);
-    const node = el(id);
-    if (!item || !node || !isInline(item) || item.locked) return;
-    if (editing) endEdit(true);
-    onCancel();                                  // drop any half-started gesture
-    editing = { id, node, before: item.content?.html ?? '' };
-    node.contentEditable = 'true';
-    node.spellcheck = true;
-    node.classList.add('ag-writing');
-    // Grips inside a contenteditable become editable content themselves and can
-    // be typed over or deleted. Take them out for the duration.
-    node.querySelectorAll('.ag-grip').forEach((g) => g.remove());
-    node.focus();
-    toast('Editing text — Escape to cancel, click away to keep');
+  function uniqueId(kind) {
+    const taken = new Set([...document.querySelectorAll('[id]')].map((n) => n.id));
+    for (const e of layout.elements) taken.add(e.id);
+    let n = 1;
+    while (taken.has(`${kind}-${n}`)) n++;
+    return `${kind}-${n}`;
   }
 
-  function endEdit(keep) {
-    if (!editing) return;
-    const { id, node, before } = editing;
-    editing = null;
-    node.contentEditable = 'false';
-    node.classList.remove('ag-writing');
-
-    const next = keep ? cleanRichText(node.innerHTML) : before;
-    if (!keep || next === before) {
-      // Nothing to store, but the DOM may hold the browser's own markup, so put
-      // the stored version back rather than leaving a div soup behind.
-      const item = find(id);
-      node.innerHTML = item ? renderElement(item, previewCtx) : before;
-      addGrips(node);
-      if (!keep) toast('Reverted');
-      return;
+  /** A fresh tile in the DOM for an object that was not built into the page. */
+  function mountTile(item) {
+    let node = el(item.id);
+    if (!node) {
+      node = document.createElement('div');
+      node.id = item.id;
+      grid.appendChild(node);
     }
-    setContent(id, { ...(find(id).content ?? {}), html: next });
+    node.innerHTML = renderElement(item, previewCtx) ?? '';
+    dressTile(node, item);
+    return node;
   }
 
-  function onDblClick(e) {
+  /**
+   * Make an object of a kind at a cell.
+   *
+   * Lands where you clicked at the size its kind declares, or in the first
+   * free room if that would collide — the same rule as Bureau's `ensureBox()`.
+   * The other device gets a free spot too, because an object needs a desk box
+   * to be valid at all.
+   */
+  function create(kind, col, row, extra = {}) {
+    const def = KINDS[kind];
+    if (!def) return;
+    const id = uniqueId(kind);
+    const cols = columnsFor(layout, device);
+    const w = Math.min(def.size[0], cols);
+    let box = { col: [Math.min(col, cols - w + 1), w], row: [row, def.size[1]] };
+    if (!boxOk(layout, id, box, device)) box = freeSpot(layout, [w, def.size[1]], device, id);
+
+    const item = { id, kind, flow: 'stack', ...extra };
+    if (def.body != null && item.body == null && has(item, 'text')) item.body = def.body;
+    if (device === 'desk') {
+      item.desk = box;
+    } else {
+      item.narrow = box;
+      item.desk = freeSpot(layout, def.size, 'desk', id);
+    }
+    layout.elements.push(item);
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      layout.elements.pop();
+      toast(problems[0].replace(/^[^:]+: /, ''));
+      return null;
+    }
+    pushUndo({ kind: 'add', id });
+    mountTile(item);
+    commit();
+    return item;
+  }
+
+  function remove(id) {
+    const index = layout.elements.findIndex((e) => e.id === id);
+    if (index < 0) return;
+    const [element] = layout.elements.splice(index, 1);
+    pushUndo({ kind: 'remove', index, element });
+    el(id)?.remove();
+    commit();
+    toast(`Deleted ${id} — ⌘Z puts it back`);
+  }
+
+  /**
+   * A drawer is a page. Making one writes a new empty layout file — pending
+   * until Publish, like a picked image — and a tile here that opens it. The
+   * dynamic route turns the file into the page on the next build.
+   */
+  function newDrawer(col, row) {
+    const title = window.prompt('Name the drawer — it becomes a page:', '');
+    if (!title) return;
+    const slug = slugify(title);
+    if (!slug) return toast('That name has no letters in it');
+    const made = create('drawer', col, row, { title, link: `/${slug}` });
+    if (!made) return;
+    chrome.addFile(pathFor(slug), JSON.stringify({
+      version: 4, columns: 24, rowHeight: 26, gap: 8, reflowBelow: 700, title, elements: [],
+    }, null, 2) + '\n');
+    toast(`"${title}" opens /${slug} once published`);
+  }
+
+  /* ---- the picker ---- */
+
+  function openPicker(col, row, x, y) {
+    chrome.menu(x, y, `
+      <div class="ag-menu-title">New, at ${col},${row}</div>
+      <div class="ag-menu-kinds">
+        ${PICKER_KINDS.map((k) => `<button class="ag-menu-btn" data-act="new:${k}">${KINDS[k].label}<small>${KINDS[k].says}</small></button>`).join('')}
+      </div>
+    `, (act) => {
+      const kind = act.startsWith('new:') && act.slice(4);
+      if (!kind) return;
+      if (kind === 'drawer') return newDrawer(col, row);
+      const item = create(kind, col, row);
+      if (item && kind === 'image') pickFileFor(item.id);
+    });
+  }
+
+  function onCellClick(e) {
+    if (locked()) return;
+    const cell = e.target.closest('.ag-cell');
+    if (!cell || !grid.contains(cell)) return;
+    if (editing) return endEdit(true);
+    openPicker(+cell.dataset.col, +cell.dataset.row, e.clientX, e.clientY);
+  }
+
+  /* ---- images picked in the browser, not yet in the repo ---- */
+
+  /** name -> {path, base64, previewUrl}. Published with the layout, in one commit. */
+  const pending = new Map();
+
+  async function addImage(id, file) {
+    const item = find(id);
+    if (!item) return;
+    if (!has(item, 'media')) return toast(`${id} does not carry a picture`);
+    try {
+      toast('Preparing…');
+      const m = await prepareImage(file);
+      pending.set(m.name, {
+        path: mediaPath(m.name), base64: await blobToBase64(m.blob), previewUrl: m.previewUrl,
+      });
+      setContent(id, (o) => {
+        o.media = { ...(o.media ?? {}), src: mediaRef(m.name) };
+        // Stale dimensions from the image being replaced would set the wrong box,
+        // and the CDN sizing does not apply to a local file.
+        if (m.width) { o.media.width = m.width; o.media.height = m.height; } else { delete o.media.width; delete o.media.height; }
+        delete o.media.widths; delete o.media.sizes;
+      });
+      chrome.render();
+      toast(`${m.name} · ${m.note} · ${Math.round(m.bytes / 1024)}KB — Publish to commit it`);
+    } catch (err) {
+      toast(err.message || 'Could not use that image');
+    }
+  }
+
+  /** One hidden <input type=file>, made fresh each time. The file arrives on change. */
+  function pickFileFor(id) {
+    if (!id) return toast('Right-click a picture first, or click a cell to make one');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = ACCEPT;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (file) addImage(id, file);
+    }, { once: true });
+    input.click();
+  }
+  const firstImageId = () => layout.elements.find((e) => has(e, 'media'))?.id ?? null;
+
+  let dropTarget = null;
+  const markDrop = (node) => {
+    if (dropTarget === node) return;
+    dropTarget?.classList.remove('ag-drop');
+    dropTarget = node;
+    dropTarget?.classList.add('ag-drop');
+  };
+  const allowDrop = (e) => {
+    if (locked() || !e.dataTransfer?.types?.includes('Files')) return;
     const node = e.target.closest('.ag-editable');
-    if (!node || !grid.contains(node)) return;
-    if (!isInline(find(node.id))) return;
+    if (!node || !grid.contains(node)) return markDrop(null);
     e.preventDefault();
-    beginEdit(node.id);
-  }
-
-  /** Paste as text. A paste from a browser or a doc arrives full of markup. */
-  function onPaste(e) {
-    if (!editing) return;
+    markDrop(node);
+  };
+  function onDrop(e) {
+    const node = e.target.closest('.ag-editable');
+    const file = e.dataTransfer?.files?.[0];
+    markDrop(null);
+    if (locked() || !node || !grid.contains(node) || !file) return;
     e.preventDefault();
-    const text = e.clipboardData?.getData('text/plain') ?? '';
-    document.execCommand('insertText', false, text);
+    addImage(node.id, file);
   }
 
   /* ---- gestures ---- */
@@ -407,6 +570,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
   }
 
   function onDown(e) {
+    if (locked()) return;
     if (e.button === 2) return;               // right click is the settings menu
     const node = e.target.closest('.ag-editable');
     if (!node || !grid.contains(node)) return;
@@ -523,9 +687,72 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
     node.style.gridRow = `${box.row[0]} / span ${box.row[1]}`;
   }
 
-  /* ---- right click: settings for one element ---- */
+  /* ---- editing the words, in place ---- */
+
+  /**
+   * The words become a field where they sit. The field is the [data-edit]
+   * node inside the tile — a body, or a title — never the whole tile, because
+   * a drawer front has a picture in it too and that is not text.
+   */
+  function beginEdit(id, field) {
+    const item = find(id);
+    const tile = el(id);
+    if (!item || !tile || !isInline(item) || item.locked) return;
+    const node = tile.querySelector(field ? `[data-edit="${field}"]` : '[data-edit]');
+    if (!node) return;
+    field = node.dataset.edit;
+    if (editing) endEdit(true);
+    onCancel();                                  // drop any half-started gesture
+    editing = { id, field, node, tile, before: item[field] ?? '' };
+    node.contentEditable = 'true';
+    node.spellcheck = true;
+    tile.classList.add('ag-writing');
+    // Grips inside a contenteditable become editable content themselves.
+    tile.querySelectorAll('.ag-grip').forEach((g) => g.remove());
+    node.focus();
+    toast('Editing — Escape to cancel, click away to keep');
+  }
+
+  function endEdit(keep) {
+    if (!editing) return;
+    const { id, field, node, tile, before } = editing;
+    editing = null;
+    node.contentEditable = 'false';
+    tile.classList.remove('ag-writing');
+
+    const next = keep
+      ? (field === 'body' ? cleanRichText(node.innerHTML) : node.textContent.replace(/\s+/g, ' ').trim())
+      : before;
+    if (!keep || next === before) {
+      repaintContent(id);                        // put the stored markup back
+      if (!keep) toast('Reverted');
+      return;
+    }
+    setContent(id, (o) => { o[field] = next; });
+  }
+
+  function onDblClick(e) {
+    if (locked()) return;
+    const tile = e.target.closest('.ag-editable');
+    if (!tile || !grid.contains(tile)) return;
+    if (!isInline(find(tile.id))) return;
+    e.preventDefault();
+    const hit = e.target.closest('[data-edit]');
+    beginEdit(tile.id, hit?.dataset.edit);
+  }
+
+  /** Paste as text. A paste from a browser or a doc arrives full of markup. */
+  function onPaste(e) {
+    if (!editing) return;
+    e.preventDefault();
+    const text = e.clipboardData?.getData('text/plain') ?? '';
+    document.execCommand('insertText', false, text);
+  }
+
+  /* ---- right click: settings for one object ---- */
 
   function onContext(e) {
+    if (locked()) return;
     const node = e.target.closest('.ag-editable');
     if (!node || !grid.contains(node)) return;
     e.preventDefault();
@@ -537,23 +764,26 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
     if (!item) return;
     selected = id;
     const hasOwn = device === 'narrow' && !!item.narrow;
-    const spec = specOf(item);
-    // Fields are declared by the type, not listed here, so a new element type
-    // gets its panel for free — see elements.js.
-    const fields = spec.fields.map((f) => `
+    const typed = isTyped(item);
+    const fields = typed ? fieldsOf(item).map((f) => `
       <label class="ag-menu-field">${f.label}
         ${f.kind === 'area'
-          ? `<textarea data-field="${f.key}" rows="4">${escapeAttr(item.content?.[f.key] ?? '')}</textarea>`
-          : `<input data-field="${f.key}" type="text" value="${escapeAttr(item.content?.[f.key] ?? '')}" />`}
-      </label>`).join('');
+          ? `<textarea data-field="${f.key}" rows="4">${escapeAttr(getField(item, f.key) ?? '')}</textarea>`
+          : `<input data-field="${f.key}" type="text" value="${escapeAttr(getField(item, f.key) ?? '')}" />`}
+      </label>`).join('') : '';
+    const faceRow = typed ? `
+      <label class="ag-menu-row">Face
+        <select data-act="face">
+          ${Object.entries(FACES).map(([k, f]) => `<option value="${k}"${k === faceOf(item) ? ' selected' : ''}>${f.label}</option>`).join('')}
+        </select>
+      </label>` : '';
+
     chrome.menu(x, y, `
-      <div class="ag-menu-title">${id} <span class="ag-menu-kind">${spec.label}</span></div>
+      <div class="ag-menu-title">${id} <span class="ag-menu-kind">${K(item).label}</span></div>
       ${fields ? `${fields}<div class="ag-menu-actions"><button class="ag-menu-btn" data-act="fields">Apply</button></div>` : ''}
-      ${spec === specOf({ type: 'image' })
-        ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>'
-          + '<div class="ag-menu-note">Or drop a file straight onto the tile. It is resized, kept see-through if it was, and committed when you Publish.</div>'
-        : ''}
-      ${spec.inline ? '<div class="ag-menu-note">Double-click it in the page to edit the words.</div>' : ''}
+      ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
+      ${isInline(item) ? '<div class="ag-menu-note">Double-click the words in the page to edit them.</div>' : ''}
+      ${faceRow}
       <label class="ag-menu-row">Reflow seed
         <select data-act="flow">
           ${FLOWS.map((f) => `<option value="${f}"${f === item.flow ? ' selected' : ''}>${f}</option>`).join('')}
@@ -563,24 +793,23 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
       ${device === 'narrow' ? `<button class="ag-menu-btn" data-act="reset"${hasOwn ? '' : ' disabled'}>
         ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
       </button>` : ''}
+      ${typed ? '<button class="ag-menu-btn ag-menu-danger" data-act="delete">Delete</button>' : ''}
       <div class="ag-menu-note">${describe(item)}</div>
     `, (act, value, menuEl) => {
       if (act === 'flow') { item.flow = value; commit(); }
+      if (act === 'face') { setContent(id, (o) => { o.face = value; }); }
       if (act === 'lock') { item.locked = !item.locked; commit(); }
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
       if (act === 'pick') { pickFileFor(id); return; }
+      if (act === 'delete') { remove(id); }
       if (act === 'fields') {
-        const next = { ...(item.content ?? {}) };
-        for (const f of spec.fields) {
-          const input = menuEl.querySelector(`[data-field="${f.key}"]`);
-          if (!input) continue;
-          const v = input.value.trim();
-          if (v) next[f.key] = v; else delete next[f.key];
-        }
-        const problems = spec.check(next);
-        if (problems.length) return toast(problems[0]);
-        setContent(id, next);
-        toast(`${id} updated`);
+        const ok = setContent(id, (o) => {
+          for (const f of fieldsOf(o)) {
+            const input = menuEl.querySelector(`[data-field="${f.key}"]`);
+            if (input) setField(o, f.key, input.value.trim());
+          }
+        });
+        if (ok) toast(`${id} updated`);
       }
     });
   }
@@ -595,6 +824,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
   /* ---- keyboard ---- */
 
   function onKey(e) {
+    if (chrome.activeName() !== name) return;
     if (e.key === 'Escape') {
       if (editing) { endEdit(false); return; }
       chrome.closeMenu();
@@ -608,9 +838,8 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
-    if (e.key === 'd' || e.key === 'D') {
-      setDevice(device === 'desk' ? 'narrow' : 'desk');
-    }
+    if (e.key === 'd' || e.key === 'D') setDevice(device === 'desk' ? 'narrow' : 'desk');
+    if (e.key === 'l' || e.key === 'L') chrome.setLocked(!locked());
   }
 
   function setDevice(next) {
@@ -624,68 +853,23 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
 
   /* ---- chrome ---- */
 
-  const chrome = sharedChrome();
-  const toast = chrome.toast;
   chrome.register(name, {
     root,
     getDevice: () => device,
     setDevice,
     getLayout: () => layout,
     getPending: () => pending,
+    isDirty: () => JSON.stringify(layout) !== baselineJson,
     undo: undoLast,
-    publish: doPublish,
-    pickImage: () => pickFileFor(selected ?? firstImageId()),
-    focus: () => root.scrollIntoView({ block: 'nearest' }),
-  });
-
-  /** The tile the settings panel was last opened on — what "add an image" acts on. */
-  let selected = null;
-  const firstImageId = () =>
-    layout.elements.find((e) => isTyped(e) && specOf(e) === specOf({ type: 'image' }))?.id ?? null;
-
-  /** One hidden <input type=file>, reused. The file arrives on its change event. */
-  function pickFileFor(id) {
-    if (!id) return toast('Right-click an image first, then Add image');
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = ACCEPT;
-    input.addEventListener('change', () => {
-      const file = input.files?.[0];
-      if (file) addImage(id, file);
-    }, { once: true });
-    input.click();
-  }
-
-  /* ---- publishing ---- */
-
-  async function doPublish({ token, message, remember }) {
-    const problems = validateLayout(layout, name);
-    if (problems.length) {
-      toast('Layout is invalid — fix it before publishing');
-      console.error(problems.join('\n'));
-      return;
-    }
-    chrome.busy(true);
-    try {
-      const media = [...pending.values()].map(({ path, base64 }) => ({ path, base64 }));
-      const { url } = await publishLayout({ token, name, layout, message, media });
-      // They are in the repo now, so the local copies stop being the truth.
+    pickImage: () => pickFileFor(selected && has(find(selected) ?? {}, 'media') ? selected : firstImageId()),
+    onLock: () => { if (editing) endEdit(true); paint(); },
+    afterPublish: () => {
       for (const { previewUrl } of pending.values()) URL.revokeObjectURL(previewUrl);
       pending.clear();
-      if (remember) {
-        try { localStorage.setItem(TOKEN_KEY, token); } catch { /* quota, private mode */ }
-      }
-      // The committed file is now the source of truth, so the local copy is no
-      // longer "unsaved work" — drop it rather than have it shadow the build.
+      baselineJson = JSON.stringify(layout);
       try { localStorage.removeItem(`doppelganger.layout.${name}`); } catch { /* ignore */ }
-      chrome.published(url);
-    } catch (err) {
-      // Never log the error object wholesale — the request carried the token.
-      toast(err.message || 'Publish failed');
-    } finally {
-      chrome.busy(false);
-    }
-  }
+    },
+  });
 
   grid.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
@@ -697,26 +881,26 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
   grid.addEventListener('dragover', allowDrop);
   grid.addEventListener('drop', onDrop);
   grid.addEventListener('dragleave', (e) => { if (!grid.contains(e.relatedTarget)) markDrop(null); });
+  grid.addEventListener('click', onCellClick);
   // With a header, a page and a footer all on one screen there are three grids
   // and one bar. Touching a grid is what makes it the one the bar acts on.
   grid.addEventListener('pointerdown', () => chrome.setActive(name), true);
   // Clicking anywhere outside the tile being written in keeps the change — the
   // same bargain as a spreadsheet cell, and the reason there is no Save button.
   document.addEventListener('pointerdown', (e) => {
-    if (editing && !editing.node.contains(e.target)) endEdit(true);
+    if (editing && !editing.tile.contains(e.target)) endEdit(true);
   });
   window.addEventListener('keydown', onKey);
   /* While arranging you are not browsing. Half these tiles are links, and a
      drag ends with a click the browser sends anyway — without this, moving the
      home icon also navigates home and the editor is gone along with the
-     arrangement. Suppressing every click inside the grid is simpler than
-     tracking which ones followed a drag, and there is nothing in edit mode you
-     would want a link to do. */
+     arrangement. Locked, the site is the site, and links do what links do. */
   grid.addEventListener('click', (e) => {
+    if (locked()) return;
     const link = e.target.closest('a[href]');
     if (link && grid.contains(link)) { e.preventDefault(); e.stopPropagation(); }
   }, true);
-  grid.addEventListener('dragstart', (e) => e.preventDefault());
+  grid.addEventListener('dragstart', (e) => { if (!locked()) e.preventDefault(); });
 
   paint();
 
@@ -733,6 +917,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
       grid.removeEventListener('paste', onPaste);
       grid.removeEventListener('dragover', allowDrop);
       grid.removeEventListener('drop', onDrop);
+      grid.removeEventListener('click', onCellClick);
       window.removeEventListener('keydown', onKey);
       chrome.unregister(name);
     },
@@ -740,7 +925,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
 }
 
 /* ------------------------------------------------------------------ *
- * Chrome: one bar for every grid on the page
+ * Chrome: one bar, one lock, one look, for every grid on the page
  * ------------------------------------------------------------------ */
 
 /**
@@ -749,13 +934,14 @@ export function mountEditor({ root, layout: initial, name, assets = {}, base = '
  * A page has a header, a body and a footer, and each is its own grid running
  * its own editor. Three bars stacked at the bottom of the screen would be
  * absurd, and worse, ambiguous — "Publish" would need to say which grid it
- * meant. So the chrome is a singleton every editor registers with, and the
- * grid you last touched is the one it acts on.
+ * meant. So the chrome is a singleton every editor registers with; the lock
+ * and the look are site-wide and live here; and Publish sends every grid that
+ * changed, every picked image and any new page as ONE commit.
  */
 let CHROME = null;
-export const sharedChrome = () => (CHROME ??= buildChrome());
+export const sharedChrome = (look) => (CHROME ??= buildChrome(look));
 
-function buildChrome() {
+function buildChrome(lookInitial) {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -770,7 +956,7 @@ function buildChrome() {
   toastEl.hidden = true;
   document.body.appendChild(toastEl);
 
-  /** name -> the editor's api. Insertion order is the order they mounted in. */
+  /** name -> the editor's api. */
   const editors = new Map();
   let activeName = null;
 
@@ -783,6 +969,56 @@ function buildChrome() {
   };
 
   const active = () => editors.get(activeName);
+
+  /* ---- the lock ---- */
+
+  // ?edit=1 is a request to edit, so the first visit lands unlocked. After
+  // that it is whatever you left it, because you may have locked it to look.
+  let isLocked = false;
+  try { isLocked = localStorage.getItem(LOCK_KEY) === 'true'; } catch { /* ignore */ }
+  const applyLock = () => {
+    document.documentElement.classList.add('ag-editing');
+    document.documentElement.classList.toggle('ag-unlocked', !isLocked);
+  };
+  function setLocked(v) {
+    isLocked = !!v;
+    try { localStorage.setItem(LOCK_KEY, String(isLocked)); } catch { /* ignore */ }
+    applyLock();
+    closeMenu();
+    for (const e of editors.values()) e.onLock?.(isLocked);
+    render();
+    toast(isLocked ? 'Locked — this is the site as a visitor sees it' : 'Unlocked — arrange, write, add');
+  }
+  applyLock();
+
+  /* ---- the look ---- */
+
+  let publishedLook = normalizeLook(lookInitial);
+  let look = publishedLook;
+  try {
+    const draft = localStorage.getItem(LOOK_KEY);
+    if (draft) look = normalizeLook(JSON.parse(draft));
+  } catch { /* ignore */ }
+  const lookDirty = () => JSON.stringify(look) !== JSON.stringify(publishedLook);
+  function applyLook() {
+    const st = document.documentElement.style;
+    for (const [k, v] of Object.entries(tokensFor(look))) st.setProperty(k, v);
+    document.body.classList.toggle('look-tilt', !!look.tilt);
+  }
+  function setLook(patch) {
+    const next = normalizeLook({ ...look, ...patch });
+    const problems = validateLook(next);
+    if (problems.length) return toast(problems[0]);
+    look = next;
+    try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch { /* ignore */ }
+    applyLook();
+    render();
+  }
+  applyLook();
+
+  /* ---- files waiting to be committed that are not images: new pages ---- */
+  const files = new Map();   // path -> text
+  const addFile = (path, text) => { files.set(path, text); render(); };
 
   function register(name, api) {
     editors.set(name, api);
@@ -801,16 +1037,7 @@ function buildChrome() {
     render();
   }
 
-  /** Images picked but not yet committed, across every grid on the page. */
-  const pendingTotal = () =>
-    [...editors.values()].reduce((n, e) => n + (e.getPending?.().size ?? 0), 0);
-
-  /**
-   * Grid names in the order they appear on the page, not the order they
-   * mounted in. A page's own grid registers before the header does — its script
-   * is earlier in the document — so registration order reads "links, header,
-   * footer", which is not what anyone is looking at.
-   */
+  /** Grid names in the order they appear on the page, not the order they mounted in. */
   function orderedNames() {
     return [...editors.entries()]
       .sort(([, a], [, b]) => {
@@ -823,14 +1050,31 @@ function buildChrome() {
       .map(([n]) => n);
   }
 
+  /** Everything that would go in a commit right now. */
+  function gather() {
+    const out = [];
+    for (const [n, e] of editors) {
+      if (e.isDirty()) out.push({ path: pathFor(n), text: JSON.stringify(e.getLayout(), null, 2) + '\n' });
+      for (const { path, base64 } of e.getPending().values()) out.push({ path, base64 });
+    }
+    for (const [path, text] of files) out.push({ path, text });
+    if (lookDirty()) out.push({ path: LOOK_PATH, text: JSON.stringify(look, null, 2) + '\n' });
+    return out;
+  }
+
   function render() {
     const a = active();
     bar.hidden = !a;
     if (!a) return;
     const d = a.getDevice();
     const names = orderedNames();
-    const waiting = pendingTotal();
+    const waiting = gather();
+    const images = waiting.filter((f) => f.base64).length;
+    const layouts = waiting.filter((f) => f.text && f.path !== LOOK_PATH).length;
     bar.innerHTML = `
+      <button class="ag-lock${isLocked ? ' on' : ''}" data-bar="lock"
+        title="${isLocked ? 'Locked — the site as a visitor sees it. Press to arrange.' : 'Unlocked — arranging. Press to see the site as it is.'}"
+        aria-pressed="${isLocked}">${isLocked ? '🔒' : '🔓'}</button>
       ${names.length > 1 ? `<div class="ag-tabs ag-grids" role="group" aria-label="Which grid">
         ${names.map((n) => `<button data-grid="${n}"${n === activeName ? ' aria-current="true"' : ''}>${n}</button>`).join('')}
       </div>` : ''}
@@ -838,31 +1082,75 @@ function buildChrome() {
         <button data-dev="desk"${d === 'desk' ? ' aria-current="true"' : ''}>Desk</button>
         <button data-dev="narrow"${d === 'narrow' ? ' aria-current="true"' : ''}>Narrow</button>
       </div>
-      <span class="ag-hint">hold to pick up · corners resize · double-click text · right click for settings</span>
-      ${waiting ? `<span class="ag-pending" title="Not committed until you publish">${waiting} image${waiting > 1 ? 's' : ''} waiting</span>` : ''}
+      <span class="ag-hint">${isLocked ? 'locked · press the padlock or L to arrange' : 'click a cell to add · hold to pick up · corners resize · double-click words · right click for settings'}</span>
+      ${waiting.length ? `<span class="ag-pending" title="Not committed until you publish">${[
+        layouts ? `${layouts} layout${layouts > 1 ? 's' : ''}` : '',
+        images ? `${images} image${images > 1 ? 's' : ''}` : '',
+        lookDirty() ? 'look' : '',
+      ].filter(Boolean).join(' · ')} waiting</span>` : ''}
       <button data-bar="image">Add image…</button>
+      <button data-bar="look" title="The site's look">⚙</button>
       <button data-bar="undo">Undo</button>
       <button data-bar="copy">Copy JSON</button>
-      <button data-bar="publish" class="ag-publish">Publish…</button>
+      <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
     `;
   }
 
-  /** The publish form. Kept in the menu element so there is only one popup. */
+  /* ---- the look panel ---- */
+
+  function openLook() {
+    const swatch = (key, label, value) =>
+      `<label>${label}<input type="color" data-look="${key}" value="${escapeAttr(value)}" /></label>`;
+    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 190, `
+      <div class="ag-menu-title">Look</div>
+      <div class="ag-menu-note">The whole site is dressed in these. Every face and the chrome derive their tints from them.</div>
+      <div class="ag-menu-swatches">
+        ${swatch('bg', 'Page', look.bg)}
+        ${swatch('ink', 'Ink', look.ink)}
+        ${swatch('accent', 'Accent', look.accent)}
+        ${swatch('board.0', 'Board', look.board[0])}
+        ${swatch('board.1', 'Board alt', look.board[1])}
+      </div>
+      <label class="ag-menu-row">Type
+        <select data-look="font">
+          <option value="serif"${look.font === 'serif' ? ' selected' : ''}>Book face (EB Garamond)</option>
+          <option value="display"${look.font === 'display' ? ' selected' : ''}>Display face (Amatic SC)</option>
+        </select>
+      </label>
+      <label class="ag-menu-check"><input type="checkbox" data-look="tilt"${look.tilt ? ' checked' : ''} /> Pinned — every tile leans a little</label>
+      <div class="ag-menu-note">Saved to <code>${LOOK_PATH}</code> when you publish.</div>
+    `, null);
+    menu.addEventListener('input', onLookInput);
+    menu.addEventListener('change', onLookInput);
+  }
+  function onLookInput(e) {
+    const t = e.target.closest('[data-look]');
+    if (!t) return;
+    const key = t.dataset.look;
+    const patch = {};
+    if (key.startsWith('board.')) {
+      const board = [...look.board]; board[+key.slice(6)] = t.value; patch.board = board;
+    } else if (key === 'tilt') patch.tilt = t.checked;
+    else patch[key] = t.value;
+    setLook(patch);
+  }
+
+  /* ---- publishing ---- */
+
   function openPublish() {
-    const a = active();
-    if (!a) return;
+    const waiting = gather();
+    if (!waiting.length) return toast('Nothing has changed');
     let saved = '';
     try { saved = localStorage.getItem(TOKEN_KEY) || ''; } catch { /* ignore */ }
-    const waiting = a.getPending?.().size ?? 0;
-    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 170, `
-      <div class="ag-menu-title">Publish ${activeName}</div>
+    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 190, `
+      <div class="ag-menu-title">Publish</div>
       <div class="ag-menu-note">
-        Commits <code>${pathFor(activeName)}</code>${waiting ? ` and ${waiting} image${waiting > 1 ? 's' : ''}` : ''}
-        to <b>${TARGET.owner}/${TARGET.repo}</b> on <b>${TARGET.branch}</b> as a
-        single commit, which rebuilds the public site. Takes about a minute.
+        One commit to <b>${TARGET.owner}/${TARGET.repo}</b> on <b>${TARGET.branch}</b>, which
+        rebuilds the public site in about a minute:
+        <ul class="ag-menu-list">${waiting.map((f) => `<li><code>${escapeAttr(f.path)}</code></li>`).join('')}</ul>
       </div>
       <label class="ag-menu-field">Commit message
-        <input data-pub="message" type="text" placeholder="Rearrange ${activeName}" />
+        <input data-pub="message" type="text" placeholder="Arrange the site" />
       </label>
       <label class="ag-menu-field">GitHub token
         <input data-pub="token" type="password" autocomplete="off"
@@ -882,7 +1170,6 @@ function buildChrome() {
         ${saved ? '<button class="ag-menu-btn" data-pub="forget">Forget token</button>' : ''}
       </div>
     `, null);
-
     menu.querySelector('[data-pub="message"]')?.focus();
     menu.addEventListener('click', onPublishClick);
   }
@@ -901,9 +1188,35 @@ function buildChrome() {
     const message = menu.querySelector('[data-pub="message"]').value.trim();
     const remember = menu.querySelector('[data-pub="remember"]').checked;
     if (!token) return toast('A token is needed to publish');
-    const a = active();
     closeMenu();
-    a?.publish({ token, message, remember });
+    doPublish({ token, message, remember });
+  }
+
+  async function doPublish({ token, message, remember }) {
+    for (const [n, e] of editors) {
+      const problems = validateLayout(e.getLayout(), n);
+      if (problems.length) { toast(`${n} is invalid — fix it before publishing`); console.error(problems.join('\n')); return; }
+    }
+    const waiting = gather();
+    if (!waiting.length) return toast('Nothing has changed');
+    busy(true);
+    try {
+      const { url } = await publishFiles({
+        token, files: waiting,
+        message: message || `Arrange the site from the in-page editor (${waiting.length} file${waiting.length > 1 ? 's' : ''})`,
+      });
+      if (remember) { try { localStorage.setItem(TOKEN_KEY, token); } catch { /* ignore */ } }
+      for (const e of editors.values()) e.afterPublish?.();
+      files.clear();
+      publishedLook = normalizeLook(look);
+      try { localStorage.removeItem(LOOK_KEY); } catch { /* ignore */ }
+      published(url);
+    } catch (err) {
+      // Never log the error object wholesale — the request carried the token.
+      toast(err.message || 'Publish failed');
+    } finally {
+      busy(false);
+    }
   }
 
   function busy(on) {
@@ -913,7 +1226,7 @@ function buildChrome() {
 
   function published(url) {
     toast('Published — the site rebuilds in about a minute');
-    render();                                  // the pending count is zero now
+    render();
     if (!url) return;
     const link = document.createElement('a');
     link.className = 'ag-commit';
@@ -926,22 +1239,22 @@ function buildChrome() {
   bar.addEventListener('click', async (e) => {
     const g = e.target.closest('[data-grid]');
     if (g) return setActive(g.dataset.grid);
+    const act = e.target.closest('[data-bar]')?.dataset.bar;
+    if (act === 'lock') return setLocked(!isLocked);
+    if (act === 'look') return openLook();
+    if (act === 'publish') return openPublish();
     const a = active();
     if (!a) return;
     const dev = e.target.closest('[data-dev]');
     if (dev) return a.setDevice(dev.dataset.dev);
-    const act = e.target.closest('[data-bar]')?.dataset.bar;
     if (act === 'undo') return a.undo();
-    if (act === 'image') return a.pickImage();
-    if (act === 'publish') return openPublish();
+    if (act === 'image') return isLocked ? toast('Unlock first') : a.pickImage();
     if (act === 'copy') {
       const json = JSON.stringify(a.getLayout(), null, 2);
       try {
         await navigator.clipboard.writeText(json);
         toast(`${activeName} JSON copied — paste it into src/data/layouts/`);
       } catch {
-        // Clipboard needs a secure context and permission; neither is
-        // guaranteed. Show the text so the work is never trapped in the page.
         window.prompt('Copy this into src/data/layouts/', json);
       }
     }
@@ -951,18 +1264,17 @@ function buildChrome() {
   function openMenu(x, y, html, handler) {
     menu.innerHTML = html;
     menu.hidden = false;
-    // Keep it on screen.
     const r = menu.getBoundingClientRect();
-    menu.style.left = Math.min(x, window.innerWidth - r.width - 8) + 'px';
-    menu.style.top = Math.min(y, window.innerHeight - r.height - 8) + 'px';
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
     onPick = handler;
   }
   const closeMenu = () => {
     menu.hidden = true;
     onPick = null;
-    // The publish form binds its own handler; without this it would stack up
-    // another copy every time the form is opened.
     menu.removeEventListener('click', onPublishClick);
+    menu.removeEventListener('input', onLookInput);
+    menu.removeEventListener('change', onLookInput);
   };
 
   menu.addEventListener('click', (e) => {
@@ -985,16 +1297,21 @@ function buildChrome() {
     if (!menu.hidden && !menu.contains(e.target)) closeMenu();
   });
 
-  // A picked image lives in this tab until Publish. Leaving with one unsaved
-  // loses the file itself, not just its position, so it is worth a question.
+  // A picked image or a new page lives in this tab until Publish. Leaving with
+  // one unsaved loses the file itself, not just a position, so it is worth a
+  // question.
   window.addEventListener('beforeunload', (e) => {
-    if (pendingTotal() > 0) { e.preventDefault(); e.returnValue = ''; }
+    const unsaved = [...editors.values()].some((x) => x.getPending().size) || files.size;
+    if (unsaved) { e.preventDefault(); e.returnValue = ''; }
   });
 
   render();
   return {
     register, unregister, setActive, render, toast, busy, published,
     activeName: () => activeName,
+    locked: () => isLocked, setLocked,
+    look: () => look, setLook,
+    addFile,
     menu: openMenu, closeMenu,
   };
 }
