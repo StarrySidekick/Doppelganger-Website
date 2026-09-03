@@ -357,7 +357,10 @@ Interaction follows bureau:
 - **the gear** is the look: colours, type, pinned
 - **Board** is this grid's own geometry: how many columns across (which is how
   big one piece is), the gap, a fixed height in cells, and floating or set.
-  **Tidy** repacks it top to bottom
+  **Tidy** repacks it top to bottom. **The header and footer are sized here** —
+  pick them from the grid tabs first. A change recompiles the grid's inline CSS
+  under its existing scope class so you see it immediately, rather than waiting
+  for the site to rebuild
 - **Pages** is the working list of every page there is. Bureau's *desks* do not
   come over — a website has pages, and how a visitor gets between them is
   whatever you build out of objects and menus

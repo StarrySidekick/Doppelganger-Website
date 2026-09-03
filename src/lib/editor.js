@@ -32,7 +32,7 @@
  */
 import {
   resolveDevice, boxOk, freeSpot, columnsFor, normalizeLayout, validateLayout,
-  packLayout, FLOWS,
+  packLayout, compileCSS, FLOWS,
 } from './adaptive-grid.js';
 import {
   KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf, clickOf,
@@ -158,7 +158,7 @@ export const slugify = (s) =>
  * ------------------------------------------------------------------ */
 
 export function mountEditor({
-  root, layout: initial, published, name, assets = {}, base = '/', look, pages = [], onChange,
+  root, layout: initial, published, name, scope, assets = {}, base = '/', look, pages = [], onChange,
 }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
@@ -184,6 +184,30 @@ export function mountEditor({
   const chrome = sharedChrome(look, pages);
   const toast = chrome.toast;
   const locked = () => chrome.locked();
+
+  /**
+   * The compiled grid CSS for this board, so a geometry change can be SEEN.
+   *
+   * AdaptiveGrid emits it as an inline <style> at build time. Changing the
+   * column count or the height only changes the data, so without this the
+   * board looked exactly the same until the site had rebuilt — which is a poor
+   * way to offer a size control. Recompiling under the SAME scope class keeps
+   * every existing rule pointing at the same tiles; the build will hash a new
+   * scope of its own, and that is internal.
+   */
+  const styleEl = scope
+    ? [...document.querySelectorAll('style')].find((n) => n.textContent.includes(`.${scope} .ag-grid`))
+    : null;
+  function recompile() {
+    if (!styleEl || !scope) return false;
+    try {
+      styleEl.textContent = compileCSS(layout, scope);
+      return true;
+    } catch (err) {
+      console.error('[editor] could not recompile the grid', err);
+      return false;
+    }
+  }
 
   /* ---- previewing an object's inside ---- */
 
@@ -270,7 +294,13 @@ export function mountEditor({
     if (locked()) return;
     const cols = columnsFor(layout, device);
     const last = placed().reduce((m, r) => Math.max(m, r._row + r._rowSpan - 1), 0);
-    const rows = Math.max(last + 5, 8);
+    /* A board with a stated height is exactly that tall, and the checkerboard
+       must not pretend otherwise: drawing spare rows past the end creates
+       implicit tracks, and a 2-cell header rendered 8 cells deep in edit mode
+       is not the header you are arranging. Only a board free to grow gets the
+       few extra rows that make room to put something new. */
+    const fixed = device === 'narrow' ? (layout.narrowRows ?? layout.rows) : layout.rows;
+    const rows = fixed ?? Math.max(last + 5, 8);
     const frag = document.createDocumentFragment();
     for (let r = 1; r <= rows; r++) {
       for (let c = 1; c <= cols; c++) {
@@ -311,6 +341,11 @@ export function mountEditor({
       toast('That would make the layout invalid — not saved');
       return false;
     }
+    // The compiled rules are keyed by id and carry every box, so they have to
+    // be rebuilt whenever a box changes — otherwise paint()'s inline styles and
+    // the stylesheet disagree, and the disagreement shows the moment an inline
+    // style is cleared.
+    recompile();
     paint();
     onChange?.(layout);
     return true;
@@ -974,11 +1009,9 @@ export function mountEditor({
         return toast(problems[0].replace(/^[^:]+: /, ''));
       }
       if (repacked) toast(`${repacked} object${repacked > 1 ? 's' : ''} moved to fit the new grid`);
-      // The compiled CSS is built at build time, so a column change cannot be
-      // previewed live without recompiling the whole grid. Say so plainly
-      // rather than let the board look wrong until a rebuild.
       commit();
-      toast('Board changed — publish to see it, the grid CSS is built');
+      const px = Math.round(root.querySelector('.ag-grid')?.getBoundingClientRect().width / layout.columns);
+      toast(`Board changed — ${layout.columns} across, about ${px}px a piece`);
     },
     tidy: () => {
       const boxes = packLayout(layout, device);
