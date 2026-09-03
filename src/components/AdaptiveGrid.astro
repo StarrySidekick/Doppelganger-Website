@@ -29,6 +29,10 @@ const css = compileCSS(layout, scope);
  */
 const ctx = {
   image(c) {
+    // A file committed by the editor. Already downscaled on the way in, so no
+    // srcset — the CDN's ?format= trick does not apply to our own files.
+    if (c.src?.startsWith('media:')) return { src: url('media/' + c.src.slice(6)) };
+
     const key = c.src?.startsWith('asset:') && c.src.slice(6);
     const src = key ? asset[key] : c.src;
     // A layout naming an asset that doesn't exist is a typo in data, and the

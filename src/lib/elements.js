@@ -59,6 +59,28 @@ export function unsafeHtml(html) {
   return null;
 }
 
+/**
+ * Send every site-relative href in a block of HTML through the caller's link
+ * resolver.
+ *
+ * Hard rule 2: an internal link has to go through url(), or it breaks on the
+ * deploy subpath. That is easy to honour for an image, whose href is a field —
+ * but a footer's navigation is a run of text with anchors inside it, and a bare
+ * href="/writing" written there would sail past every check and 404 in
+ * production. So the links are rewritten at render, and the stored content can
+ * keep saying what it means.
+ *
+ * Only a single leading slash counts. "//example.com" is protocol-relative and
+ * belongs to someone else.
+ */
+export function rewriteLinks(html, link) {
+  if (typeof link !== 'function') return String(html ?? '');
+  return String(html ?? '').replace(
+    /href="(\/(?!\/)[^"]*)"/g,
+    (_, href) => `href="${escapeHtml(link(href))}"`
+  );
+}
+
 /* ------------------------------------------------------------------ *
  * The types
  * ------------------------------------------------------------------ */
@@ -102,7 +124,7 @@ export const ELEMENTS = {
     label: 'Text',
     inline: true,
     fields: [],
-    render: (c) => c?.html ?? '',
+    render: (c, ctx = {}) => rewriteLinks(c?.html, ctx.link),
     check: (c) => {
       if (typeof c?.html !== 'string') return ['content.html must be a string'];
       const why = unsafeHtml(c.html);
@@ -172,7 +194,7 @@ export const ELEMENTS = {
     label: 'HTML block',
     inline: false,
     fields: [{ key: 'html', label: 'Markup', kind: 'area' }],
-    render: (c) => c?.html ?? '',
+    render: (c, ctx = {}) => rewriteLinks(c?.html, ctx.link),
     check: (c) => {
       if (typeof c?.html !== 'string') return ['content.html must be a string'];
       const why = unsafeHtml(c.html);

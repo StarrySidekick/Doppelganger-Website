@@ -29,6 +29,7 @@ import {
   resolveDevice, boxOk, columnsFor, normalizeLayout, validateLayout, FLOWS,
 } from './adaptive-grid.js';
 import { specOf, isInline, isTyped, renderElement, unsafeHtml } from './elements.js';
+import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishLayout, TARGET, pathFor } from './publish.js';
 
 const TOKEN_KEY = 'doppelganger.ghToken';
@@ -141,7 +142,7 @@ export function cleanRichText(html) {
  * Editor
  * ------------------------------------------------------------------ */
 
-export function mountEditor({ root, layout: initial, name, assets = {}, onChange }) {
+export function mountEditor({ root, layout: initial, name, assets = {}, base = '/', onChange }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
 
@@ -161,8 +162,78 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
    * right here and is served responsively once published.
    */
   const previewCtx = {
-    image: (c) => ({ src: c.src?.startsWith('asset:') ? assets[c.src.slice(6)] ?? c.src : c.src }),
+    image: (c) => ({ src: resolvePreview(c.src) }),
     link: (href) => href,
+  };
+  function resolvePreview(src) {
+    if (src?.startsWith('asset:')) return assets[src.slice(6)] ?? src;
+    if (src?.startsWith('media:')) {
+      const file = src.slice(6);
+      // A picked image is only in this browser until Publish, so show the local
+      // copy; one that has already been committed is served from the site.
+      return pending.get(file)?.previewUrl ?? `${base}/media/${file}`.replace(/\/{2,}/g, '/');
+    }
+    return src;
+  }
+
+  /* ---- images picked in the browser, not yet in the repo ---- */
+
+  /** name -> {path, base64, previewUrl}. Published with the layout, in one commit. */
+  const pending = new Map();
+
+  /**
+   * Take a picked file, prepare it, and point an element at it.
+   *
+   * Nothing is uploaded here. The bytes sit in this tab until Publish, so the
+   * layout and the images it references reach the repo as a single commit —
+   * see publish.js. Which also means an unpublished image is lost on reload,
+   * and the bar says so rather than pretending otherwise.
+   */
+  async function addImage(id, file) {
+    const item = find(id);
+    if (!item) return;
+    if (isTyped(item) && specOf(item) !== specOf({ type: 'image' })) {
+      return toast(`${id} is not an image element`);
+    }
+    try {
+      toast('Preparing…');
+      const m = await prepareImage(file);
+      pending.set(m.name, {
+        path: mediaPath(m.name), base64: await blobToBase64(m.blob), previewUrl: m.previewUrl,
+      });
+      const next = { ...(item.content ?? {}), src: mediaRef(m.name) };
+      // Stale dimensions from the image being replaced would set the wrong box.
+      if (m.width) { next.width = m.width; next.height = m.height; } else { delete next.width; delete next.height; }
+      delete next.widths; delete next.sizes;   // the CDN sizing does not apply to a local file
+      setContent(id, next);
+      toast(`${m.name} · ${m.note} · ${Math.round(m.bytes / 1024)}KB — Publish to commit it`);
+    } catch (err) {
+      toast(err.message || 'Could not use that image');
+    }
+  }
+
+  /** Dropping a file on a tile is the shortest path there is to replacing it. */
+  function onDrop(e) {
+    const node = e.target.closest('.ag-editable');
+    const file = e.dataTransfer?.files?.[0];
+    markDrop(null);
+    if (!node || !grid.contains(node) || !file) return;
+    e.preventDefault();
+    addImage(node.id, file);
+  }
+  let dropTarget = null;
+  const markDrop = (node) => {
+    if (dropTarget === node) return;
+    dropTarget?.classList.remove('ag-drop');
+    dropTarget = node;
+    dropTarget?.classList.add('ag-drop');
+  };
+  const allowDrop = (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    const node = e.target.closest('.ag-editable');
+    if (!node || !grid.contains(node)) return markDrop(null);
+    e.preventDefault();
+    markDrop(node);
   };
   function repaintContent(id) {
     const item = find(id);
@@ -194,7 +265,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
       if (!node.querySelector('.ag-grip')) addGrips(node);
     }
     root.dataset.agDevice = device;
-    chrome.render();
+    if (chrome.activeName() === name) chrome.render();
   }
 
   function addGrips(node) {
@@ -464,6 +535,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
   function openSettings(id, x, y) {
     const item = find(id);
     if (!item) return;
+    selected = id;
     const hasOwn = device === 'narrow' && !!item.narrow;
     const spec = specOf(item);
     // Fields are declared by the type, not listed here, so a new element type
@@ -477,6 +549,10 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
     chrome.menu(x, y, `
       <div class="ag-menu-title">${id} <span class="ag-menu-kind">${spec.label}</span></div>
       ${fields ? `${fields}<div class="ag-menu-actions"><button class="ag-menu-btn" data-act="fields">Apply</button></div>` : ''}
+      ${spec === specOf({ type: 'image' })
+        ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>'
+          + '<div class="ag-menu-note">Or drop a file straight onto the tile. It is resized, kept see-through if it was, and committed when you Publish.</div>'
+        : ''}
       ${spec.inline ? '<div class="ag-menu-note">Double-click it in the page to edit the words.</div>' : ''}
       <label class="ag-menu-row">Reflow seed
         <select data-act="flow">
@@ -492,6 +568,7 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
       if (act === 'flow') { item.flow = value; commit(); }
       if (act === 'lock') { item.locked = !item.locked; commit(); }
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
+      if (act === 'pick') { pickFileFor(id); return; }
       if (act === 'fields') {
         const next = { ...(item.content ?? {}) };
         for (const f of spec.fields) {
@@ -547,15 +624,37 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
 
   /* ---- chrome ---- */
 
-  const chrome = buildChrome({
+  const chrome = sharedChrome();
+  const toast = chrome.toast;
+  chrome.register(name, {
+    root,
     getDevice: () => device,
     setDevice,
     getLayout: () => layout,
+    getPending: () => pending,
     undo: undoLast,
-    name,
     publish: doPublish,
+    pickImage: () => pickFileFor(selected ?? firstImageId()),
+    focus: () => root.scrollIntoView({ block: 'nearest' }),
   });
-  const toast = chrome.toast;
+
+  /** The tile the settings panel was last opened on — what "add an image" acts on. */
+  let selected = null;
+  const firstImageId = () =>
+    layout.elements.find((e) => isTyped(e) && specOf(e) === specOf({ type: 'image' }))?.id ?? null;
+
+  /** One hidden <input type=file>, reused. The file arrives on its change event. */
+  function pickFileFor(id) {
+    if (!id) return toast('Right-click an image first, then Add image');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = ACCEPT;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (file) addImage(id, file);
+    }, { once: true });
+    input.click();
+  }
 
   /* ---- publishing ---- */
 
@@ -568,7 +667,11 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
     }
     chrome.busy(true);
     try {
-      const { url } = await publishLayout({ token, name, layout, message });
+      const media = [...pending.values()].map(({ path, base64 }) => ({ path, base64 }));
+      const { url } = await publishLayout({ token, name, layout, message, media });
+      // They are in the repo now, so the local copies stop being the truth.
+      for (const { previewUrl } of pending.values()) URL.revokeObjectURL(previewUrl);
+      pending.clear();
       if (remember) {
         try { localStorage.setItem(TOKEN_KEY, token); } catch { /* quota, private mode */ }
       }
@@ -591,6 +694,12 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
   grid.addEventListener('contextmenu', onContext);
   grid.addEventListener('dblclick', onDblClick);
   grid.addEventListener('paste', onPaste);
+  grid.addEventListener('dragover', allowDrop);
+  grid.addEventListener('drop', onDrop);
+  grid.addEventListener('dragleave', (e) => { if (!grid.contains(e.relatedTarget)) markDrop(null); });
+  // With a header, a page and a footer all on one screen there are three grids
+  // and one bar. Touching a grid is what makes it the one the bar acts on.
+  grid.addEventListener('pointerdown', () => chrome.setActive(name), true);
   // Clicking anywhere outside the tile being written in keeps the change — the
   // same bargain as a spreadsheet cell, and the reason there is no Save button.
   document.addEventListener('pointerdown', (e) => {
@@ -622,17 +731,31 @@ export function mountEditor({ root, layout: initial, name, assets = {}, onChange
       grid.removeEventListener('contextmenu', onContext);
       grid.removeEventListener('dblclick', onDblClick);
       grid.removeEventListener('paste', onPaste);
+      grid.removeEventListener('dragover', allowDrop);
+      grid.removeEventListener('drop', onDrop);
       window.removeEventListener('keydown', onKey);
-      chrome.destroy();
+      chrome.unregister(name);
     },
   };
 }
 
 /* ------------------------------------------------------------------ *
- * Chrome: device tabs, save state, menu, toast
+ * Chrome: one bar for every grid on the page
  * ------------------------------------------------------------------ */
 
-function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
+/**
+ * There is one bar, not one per grid.
+ *
+ * A page has a header, a body and a footer, and each is its own grid running
+ * its own editor. Three bars stacked at the bottom of the screen would be
+ * absurd, and worse, ambiguous — "Publish" would need to say which grid it
+ * meant. So the chrome is a singleton every editor registers with, and the
+ * grid you last touched is the one it acts on.
+ */
+let CHROME = null;
+export const sharedChrome = () => (CHROME ??= buildChrome());
+
+function buildChrome() {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -647,22 +770,77 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
   toastEl.hidden = true;
   document.body.appendChild(toastEl);
 
+  /** name -> the editor's api. Insertion order is the order they mounted in. */
+  const editors = new Map();
+  let activeName = null;
+
   let toastTimer = null;
   const toast = (msg) => {
     toastEl.textContent = msg;
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 2400);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
   };
 
+  const active = () => editors.get(activeName);
+
+  function register(name, api) {
+    editors.set(name, api);
+    activeName ??= name;
+    render();
+  }
+  function unregister(name) {
+    editors.delete(name);
+    if (activeName === name) activeName = editors.keys().next().value ?? null;
+    render();
+  }
+  function setActive(name) {
+    if (name === activeName || !editors.has(name)) return;
+    activeName = name;
+    closeMenu();
+    render();
+  }
+
+  /** Images picked but not yet committed, across every grid on the page. */
+  const pendingTotal = () =>
+    [...editors.values()].reduce((n, e) => n + (e.getPending?.().size ?? 0), 0);
+
+  /**
+   * Grid names in the order they appear on the page, not the order they
+   * mounted in. A page's own grid registers before the header does — its script
+   * is earlier in the document — so registration order reads "links, header,
+   * footer", which is not what anyone is looking at.
+   */
+  function orderedNames() {
+    return [...editors.entries()]
+      .sort(([, a], [, b]) => {
+        if (!a.root || !b.root) return 0;
+        const rel = a.root.compareDocumentPosition(b.root);
+        if (rel & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+        if (rel & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+        return 0;
+      })
+      .map(([n]) => n);
+  }
+
   function render() {
-    const d = getDevice();
+    const a = active();
+    bar.hidden = !a;
+    if (!a) return;
+    const d = a.getDevice();
+    const names = orderedNames();
+    const waiting = pendingTotal();
     bar.innerHTML = `
+      ${names.length > 1 ? `<div class="ag-tabs ag-grids" role="group" aria-label="Which grid">
+        ${names.map((n) => `<button data-grid="${n}"${n === activeName ? ' aria-current="true"' : ''}>${n}</button>`).join('')}
+      </div>` : ''}
       <div class="ag-tabs" role="group" aria-label="Which layout to edit">
         <button data-dev="desk"${d === 'desk' ? ' aria-current="true"' : ''}>Desk</button>
         <button data-dev="narrow"${d === 'narrow' ? ' aria-current="true"' : ''}>Narrow</button>
       </div>
-      <span class="ag-hint">hold to pick up · corners resize · double-click text to edit · right click for settings</span>
+      <span class="ag-hint">hold to pick up · corners resize · double-click text · right click for settings</span>
+      ${waiting ? `<span class="ag-pending" title="Not committed until you publish">${waiting} image${waiting > 1 ? 's' : ''} waiting</span>` : ''}
+      <button data-bar="image">Add image…</button>
       <button data-bar="undo">Undo</button>
       <button data-bar="copy">Copy JSON</button>
       <button data-bar="publish" class="ag-publish">Publish…</button>
@@ -671,17 +849,20 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
 
   /** The publish form. Kept in the menu element so there is only one popup. */
   function openPublish() {
+    const a = active();
+    if (!a) return;
     let saved = '';
     try { saved = localStorage.getItem(TOKEN_KEY) || ''; } catch { /* ignore */ }
-    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 150, `
-      <div class="ag-menu-title">Publish ${name}</div>
+    const waiting = a.getPending?.().size ?? 0;
+    openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 170, `
+      <div class="ag-menu-title">Publish ${activeName}</div>
       <div class="ag-menu-note">
-        Commits <code>${pathFor(name)}</code> to
-        <b>${TARGET.owner}/${TARGET.repo}</b> on <b>${TARGET.branch}</b>, which
-        rebuilds the public site. Takes about a minute.
+        Commits <code>${pathFor(activeName)}</code>${waiting ? ` and ${waiting} image${waiting > 1 ? 's' : ''}` : ''}
+        to <b>${TARGET.owner}/${TARGET.repo}</b> on <b>${TARGET.branch}</b> as a
+        single commit, which rebuilds the public site. Takes about a minute.
       </div>
       <label class="ag-menu-field">Commit message
-        <input data-pub="message" type="text" placeholder="Rearrange ${name}" />
+        <input data-pub="message" type="text" placeholder="Rearrange ${activeName}" />
       </label>
       <label class="ag-menu-field">GitHub token
         <input data-pub="token" type="password" autocomplete="off"
@@ -720,8 +901,9 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
     const message = menu.querySelector('[data-pub="message"]').value.trim();
     const remember = menu.querySelector('[data-pub="remember"]').checked;
     if (!token) return toast('A token is needed to publish');
+    const a = active();
     closeMenu();
-    publish({ token, message, remember });
+    a?.publish({ token, message, remember });
   }
 
   function busy(on) {
@@ -731,6 +913,7 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
 
   function published(url) {
     toast('Published — the site rebuilds in about a minute');
+    render();                                  // the pending count is zero now
     if (!url) return;
     const link = document.createElement('a');
     link.className = 'ag-commit';
@@ -741,16 +924,21 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
   }
 
   bar.addEventListener('click', async (e) => {
+    const g = e.target.closest('[data-grid]');
+    if (g) return setActive(g.dataset.grid);
+    const a = active();
+    if (!a) return;
     const dev = e.target.closest('[data-dev]');
-    if (dev) return setDevice(dev.dataset.dev);
+    if (dev) return a.setDevice(dev.dataset.dev);
     const act = e.target.closest('[data-bar]')?.dataset.bar;
-    if (act === 'undo') return undo();
+    if (act === 'undo') return a.undo();
+    if (act === 'image') return a.pickImage();
     if (act === 'publish') return openPublish();
     if (act === 'copy') {
-      const json = JSON.stringify(getLayout(), null, 2);
+      const json = JSON.stringify(a.getLayout(), null, 2);
       try {
         await navigator.clipboard.writeText(json);
-        toast('Layout JSON copied — paste it into src/data/layouts/');
+        toast(`${activeName} JSON copied — paste it into src/data/layouts/`);
       } catch {
         // Clipboard needs a secure context and permission; neither is
         // guaranteed. Show the text so the work is never trapped in the page.
@@ -783,7 +971,9 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
     // The menu element goes with the action: a fields panel has to read its own
     // inputs, and it must do so BEFORE closeMenu() empties them.
     onPick?.(btn.dataset.act, undefined, menu);
-    closeMenu();
+    // "Choose an image…" opens a file picker; closing the menu under it would
+    // take the panel away before the file has even been chosen.
+    if (btn.dataset.act !== 'pick') closeMenu();
   });
   menu.addEventListener('change', (e) => {
     const sel = e.target.closest('select[data-act]');
@@ -795,9 +985,16 @@ function buildChrome({ getDevice, setDevice, getLayout, undo, name, publish }) {
     if (!menu.hidden && !menu.contains(e.target)) closeMenu();
   });
 
+  // A picked image lives in this tab until Publish. Leaving with one unsaved
+  // loses the file itself, not just its position, so it is worth a question.
+  window.addEventListener('beforeunload', (e) => {
+    if (pendingTotal() > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   render();
   return {
-    render, toast, menu: openMenu, closeMenu, busy, published,
-    destroy() { bar.remove(); menu.remove(); toastEl.remove(); },
+    register, unregister, setActive, render, toast, busy, published,
+    activeName: () => activeName,
+    menu: openMenu, closeMenu,
   };
 }

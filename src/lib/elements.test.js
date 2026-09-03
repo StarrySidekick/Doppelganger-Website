@@ -99,3 +99,27 @@ test('every declared type can be rendered and checked without throwing', () => {
     assert.ok(specOf({ type }).label, `${type} has a label for the settings panel`);
   }
 });
+
+test('site-relative links in text go through the resolver, external ones do not', () => {
+  const link = (h) => '/Doppelganger-Website' + h;
+  const html = renderElement({
+    type: 'text',
+    content: {
+      html: '<a href="/writing">Writing</a> · <a href="https://itch.io/x">Games</a>'
+        + ' · <a href="mailto:a@b.c">Mail</a> · <a href="//cdn.example/x">Protocol-relative</a>',
+    },
+  }, { ...ctx, link });
+
+  // Hard rule 2: without this a footer link 404s on the deploy subpath, and
+  // nothing about the stored content looks wrong.
+  assert.match(html, /href="\/Doppelganger-Website\/writing"/);
+  // Everything with a scheme, or belonging to another origin, is left alone.
+  assert.match(html, /href="https:\/\/itch\.io\/x"/);
+  assert.match(html, /href="mailto:a@b\.c"/);
+  assert.match(html, /href="\/\/cdn\.example\/x"/, 'protocol-relative is not ours to rewrite');
+});
+
+test('a text element with no resolver renders unchanged', () => {
+  const html = renderElement({ type: 'text', content: { html: '<a href="/x">x</a>' } }, {});
+  assert.equal(html, '<a href="/x">x</a>');
+});

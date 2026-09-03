@@ -15,6 +15,9 @@ const { name, layout, scope } = Astro.props;
 // the values over instead. Sixteen short strings, on the two pages that mount
 // an editor at all.
 const assets = asset;
+
+// The deploy subpath, so the editor can preview an already-committed image.
+const base = import.meta.env.BASE_URL;
 ---
 
 {/* The layout travels as data, not as define:vars — a define:vars script is
@@ -23,7 +26,7 @@ const assets = asset;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope, assets })}
+  set:html={JSON.stringify({ name, layout, scope, assets, base })}
 />
 
 <script>
@@ -31,7 +34,7 @@ const assets = asset;
   // splits it into its own chunk and a visitor never downloads it.
   if (new URLSearchParams(location.search).has('edit')) {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope, assets } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets, base } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -52,7 +55,7 @@ const assets = asset;
       import('../lib/editor.js')
         .then(({ mountEditor }) => {
           mountEditor({
-            root, name, layout: start, assets,
+            root, name, layout: start, assets, base,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -144,6 +147,20 @@ const assets = asset;
   .ag-bar button:hover { background: rgba(255,255,255,.12); }
   .ag-bar button[aria-current] { background: #fff; color: #000; border-color: #fff; }
   .ag-tabs { display: flex; gap: 4px; }
+  /* Which grid the bar is acting on. Only shown when there is more than one,
+     which on a normal page means header, body and footer. */
+  .ag-grids { border-right: 1px solid rgba(255,255,255,.2); padding-right: 10px; }
+  .ag-grids button { text-transform: lowercase; }
+  /* A picked image is in this tab only until Publish. Saying so is the whole
+     point of the badge — losing one to a reload should never be a surprise. */
+  .ag-pending {
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(255,196,107,.18);
+    color: #FFD79A;
+    border: 1px solid rgba(255,196,107,.4);
+  }
+  /* A tile being dragged over is about to have its picture replaced. */
+  .ag-editing .ag-editable.ag-drop::after { outline: 2px solid rgba(140,255,180,.9); }
   .ag-hint { opacity: .5; }
   /* The hint is the first thing worth losing when the bar runs out of room. */
   @media (max-width: 860px) { .ag-hint { display: none; } }

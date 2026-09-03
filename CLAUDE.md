@@ -66,6 +66,7 @@ Tests, the build and the box geometry all passed. Only the screenshot showed it.
 ```
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
 src/lib/elements.js        the element type registry — what a tile IS and how it renders
+src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
 src/lib/editor.js          the in-page editor, loaded only for ?edit=1
 src/lib/publish.js         commits a layout to GitHub from the browser
@@ -74,7 +75,7 @@ src/lib/assets.js          every remote asset + the url() helper
 src/components/AdaptiveGrid.astro
 src/components/LayoutEditor.astro
 src/components/FlipCard.astro
-src/components/SiteChrome.astro    fixed home icon + sun
+src/components/SiteChrome.astro    header + footer, both real layouts
 src/layouts/Base.astro     SEO, fonts, global tokens
 src/pages/                 one file per route
 src/pages/editor.astro     standalone layout editor (replaces the prototype)
@@ -186,6 +187,55 @@ the id collision hard rule 0 is about.
 **`scopeFor()` hashes geometry only.** Folding content into it would mean fixing
 a typo renamed every rule in the compiled CSS.
 
+### Header and footer are layouts too
+
+`header.json` and `footer.json` are ordinary layouts, rendered by the same
+engine and edited by the same editor. `Base.astro` puts them around every page,
+so a page no longer opts in. **This is the lesson from Bureau — everything sits
+on the grid, and chrome is not a special case with its own rules.** The payoff
+is that the header can be rearranged and the footer reworded without touching
+code, and neither needed a line of new engine code to get there.
+
+Consequences worth knowing:
+
+- **Ids are global across the whole document**, not per grid. Header, page and
+  footer all render into one page, so `site-*` prefixes keep them apart. A test
+  asserts the three layouts have no id in common.
+- `/links` no longer carries `nav-home`/`nav-sun`; the header owns them.
+- **A site-relative link inside `text` content is rewritten at render** through
+  `ctx.link`, so hard rule 2 still holds for a footer nav that is a run of HTML
+  rather than a field. A bare `href="/writing"` stored in content is correct and
+  becomes `/Doppelganger-Website/writing` on the way out.
+
+### One editor bar, however many grids
+
+Three grids on a page would have meant three floating bars, and an ambiguous
+"Publish". So the chrome is a singleton (`sharedChrome()`) that every editor
+registers with; the grid you last touched is the one the bar acts on, and the
+tabs list grids in **document order**, not the order they mounted in — a page's
+own grid registers before the header, so mount order reads wrong.
+
+### Adding an image from the editor
+
+Right-click an image element and choose one, or drop a file straight onto the
+tile. The pipeline is Bureau's, ported from `web/js/persist.js` (its decisions
+71 and 86), because it had already got the non-obvious parts right:
+
+- **Downscale on import** — 1600px on the long edge.
+- **Keep alpha only when there is alpha**, sampled ~20k pixels. Saving a cut-out
+  PNG as JPEG puts a box behind it.
+- **Never rasterise an SVG.** The source file is the asset.
+- **A GIF goes in whole or not at all** — a canvas holds only its first frame,
+  and this site is mostly animated GIFs.
+- **Refuse loudly, with a number.**
+
+Where it departs from Bureau: Bureau keeps bytes in IndexedDB for one device
+with a 60 MB ceiling. This commits them to git, which every clone carries
+forever, so the ceiling is **4 MB** and audio and video are not offered at all.
+
+A picked image sits in the tab until Publish, and the bar says so. Publishing
+commits the layout and its images as **one commit** — see below.
+
 ### Editing a layout in the page
 
 `/links?edit=1` mounts the editor onto the real page. It is behind the query
@@ -207,9 +257,12 @@ never pick a tile up. Interaction follows bureau:
 
 Saving has three levels. **localStorage** holds work in progress and survives a
 reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
-**Publish** commits it straight to `main` through the GitHub contents API, which
-rebuilds and redeploys — about a minute — and is what makes the public view
-change.
+**Publish** commits it straight to `main` and rebuilds the site — about a
+minute. It uses the **git data API** (blob, tree, commit, move the ref) rather
+than the contents API, because a layout and the images it references have to
+arrive together: one commit, one rebuild, and never a published JSON pointing at
+an image that is not there yet. The ref move is not forced, so a push that
+landed while you were editing refuses the update instead of being overwritten.
 
 Publishing needs a token, and it is a real credential:
 
@@ -269,10 +322,12 @@ What's already done, so it isn't rediscovered:
   settings panel — but only on `/links`, which is the one page converted to the
   typed model. Converting another page is the same shape of work, one element
   at a time.
+- **Header, footer and image upload are done.** Chrome is two layouts on every
+  page; images are picked or dropped in the editor and committed with the
+  layout.
 - The remaining work to replace Squarespace is: convert `/`, `/writing`,
-  `/music` to grids and to typed content; header and footer as editable chrome;
-  uploading an image from the editor; build the six blog collections; pull the
-  assets local.
+  `/music` to grids and to typed content; build the six blog collections; pull
+  the assets local.
 - **The asset dependency is no longer urgent.** Every image still comes from
   Squarespace's CDN, and the `?format=` resizing that took the homepage from
   15.3 MB to 0.7 MB depends on it. While the subscription continues that is

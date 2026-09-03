@@ -1,23 +1,71 @@
 ---
-import { asset, url } from '../lib/assets.js';
-const { home = true } = Astro.props;
----
-{home && (
-  <a class="chrome chrome-home" href={url('')} aria-label="Home">
-    <img src={asset.home} alt="" />
-  </a>
-)}
-<img class="chrome chrome-sun" src={asset.sun} alt="" aria-hidden="true" />
+/**
+ * The site's header and footer.
+ *
+ * Both are ordinary layouts — `src/data/layouts/header.json` and `footer.json`
+ * — rendered by the same grid engine as any page, and editable by the same
+ * editor. That is deliberate and it is the lesson from Bureau: everything sits
+ * on the grid, and chrome is not a special case with its own rules. The
+ * practical payoff is that the header is arrangeable, its wording is editable,
+ * and neither needed a line of new engine code.
+ *
+ * It replaces a fixed-position home icon and sun. Those were markup, so the
+ * only way to move them was to edit CSS.
+ */
+import AdaptiveGrid from './AdaptiveGrid.astro';
+import { getLayout } from '../lib/layouts.js';
 
-<style>
-  .chrome { position: fixed; z-index: 50; }
-  .chrome-home { top: 18px; left: 20px; width: clamp(44px, 5vw, 82px); }
-  .chrome-sun  { top: 18px; right: 20px; width: clamp(44px, 5vw, 82px); pointer-events: none; }
-  /* Only the img INSIDE the home anchor fills its box. Targeting the sun here
-     too (img.chrome-sun) out-specifies its own clamp and blows it up to 100vw. */
-  .chrome img { width: 100%; height: auto; }
-  img.chrome-sun { height: auto; }
-  @media (max-width: 640px) {
-    .chrome-home, .chrome-sun { width: 54px; top: 12px; }
+const { part } = Astro.props;   // 'header' | 'footer'
+const layout = getLayout(part);
+const Tag = part === 'header' ? 'header' : 'footer';
+---
+<Tag class={`site-${part}`}>
+  <AdaptiveGrid layout={layout} name={part} class={`${part}-grid`} />
+</Tag>
+
+<style is:global>
+  /* Scoped by the grid's own class rather than by bare ids — these render
+     inside AdaptiveGrid, out of reach of a scoped <style>, and an unscoped
+     `#site-nav` is the global-id collision hard rule 0 is about. */
+  .site-header, .site-footer {
+    width: 100%;
+    padding-inline: clamp(12px, 3vw, 40px);
+  }
+  .site-header { padding-block: clamp(10px, 2vw, 22px); }
+  .site-footer {
+    padding-block: clamp(20px, 4vw, 44px) clamp(28px, 5vw, 60px);
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .header-grid #site-home,
+  .header-grid #site-sun,
+  .header-grid #site-wordmark {
+    display: flex; align-items: center;
+  }
+  .header-grid #site-home { justify-content: flex-start; }
+  .header-grid #site-sun { justify-content: flex-end; }
+  .header-grid #site-wordmark { justify-content: center; }
+
+  .header-grid #site-home img,
+  .header-grid #site-sun img { width: clamp(38px, 5cqi, 78px); height: auto; }
+  .header-grid #site-wordmark img { width: 100%; max-width: 380px; height: auto; }
+
+  /* align-self, not display:flex — flex would make each word and link its own
+     flex item and collapse the spaces between them. That exact bug ate the
+     space in "Email: …" on /links; see hard rule 5. */
+  .footer-grid #site-nav,
+  .footer-grid #site-colophon {
+    align-self: center;
+    font-size: clamp(.8rem, 1.5cqi, .95rem);
+    line-height: 1.7;
+    opacity: .78;
+  }
+  .footer-grid #site-colophon { text-align: right; }
+  .footer-grid a { color: inherit; text-underline-offset: 3px; }
+  .footer-grid a:hover { opacity: 1; }
+
+  @container (max-width: 699px) {
+    .footer-grid #site-colophon { text-align: left; }
   }
 </style>

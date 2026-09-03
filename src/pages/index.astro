@@ -1,6 +1,5 @@
 ---
 import Base from '../layouts/Base.astro';
-import SiteChrome from '../components/SiteChrome.astro';
 import { asset, url, srcset, sized, GAMES_URL } from '../lib/assets.js';
 
 // `sizes` mirrors the CSS below so the browser can pick the right file. Without
@@ -16,7 +15,6 @@ const sections = [
 ---
 
 <Base title="Home" path="">
-  <SiteChrome home={false} />
 
   <main class="stage">
     <h1 class="wordmark">

@@ -1,5 +1,6 @@
 ---
 import { PROD_ORIGIN, asset, sized, url } from '../lib/assets.js';
+import SiteChrome from '../components/SiteChrome.astro';
 
 const {
   title,
@@ -53,8 +54,13 @@ const ogImage = sized(asset.wordmark, 1000);
     rel="stylesheet"
   />
 </head>
-<body>
+<body class="has-chrome">
+  <!-- Header and footer are layouts, not markup, so they can be arranged and
+       reworded in the editor like anything else. Every page gets them; pages no
+       longer opt in one at a time. -->
+  <SiteChrome part="header" />
   <slot />
+  <SiteChrome part="footer" />
 </body>
 </html>
 

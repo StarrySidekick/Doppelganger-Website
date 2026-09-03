@@ -13,7 +13,14 @@ import {
   normalizeLayout, overlaps, boxOk, freeSpot, columnsFor, deviceFor,
 } from './adaptive-grid.js';
 
-/** The /links layout in v1 shape — one box per element, narrow derived. */
+/**
+ * A synthetic layout in v1 shape — one box per element, narrow derived.
+ *
+ * It started as a copy of /links and is now its own thing, kept because it
+ * exercises all four flows including `pin`, which the shipped layouts no longer
+ * do at page level (the header owns the corner navigation now). Its job is the
+ * engine's geometry; the shipped files are asserted separately, below.
+ */
 const v1 = {
   columns: 24, rowHeight: 26, gap: 8, reflowBelow: 700,
   elements: [
@@ -191,24 +198,46 @@ test('freeSpot finds somewhere legal', () => {
 
 /* ---------------- data + compile ---------------- */
 
-test('the shipped layout data is valid and keeps this fixture geometry', () => {
-  const onDisk = normalizeLayout(JSON.parse(
-    readFileSync(new URL('../data/layouts/links.json', import.meta.url), 'utf8')
-  ));
-  assert.deepEqual(validateLayout(onDisk, 'links'), []);
+const shipped = (name) => normalizeLayout(JSON.parse(
+  readFileSync(new URL(`../data/layouts/${name}.json`, import.meta.url), 'utf8')
+));
 
-  // Geometry only. The shipped file also carries content now, which this
-  // fixture deliberately does not — the fixture is the geometry contract, and
-  // folding the copy into it would mean every typo fix broke a layout test.
-  const geometry = (l) => l.elements.map((e) => [e.id, e.flow, e.desk, e.narrow]);
-  assert.deepEqual(geometry(onDisk), geometry(layout));
+test('every shipped layout is valid', () => {
+  // The build throws on an invalid layout, but only for layouts a page uses.
+  // This covers the files themselves, so one that nothing renders yet cannot
+  // rot unnoticed.
+  for (const name of ['links', 'header', 'footer']) {
+    assert.deepEqual(validateLayout(shipped(name), name), [], name);
+  }
+});
+
+test('the shipped /links geometry is what we think it is', () => {
+  const onDisk = shipped('links');
+  assert.deepEqual(
+    onDisk.elements.map((e) => [e.id, e.flow]),
+    [['card', 'full'], ['email', 'stack'], ['phone', 'stack'], ['socials', 'full'], ['qr', 'keep']]
+  );
+  // The corner navigation moved into the header layout. If it comes back here
+  // as well, the page has two home icons and nobody notices until it ships.
+  assert.equal(onDisk.elements.some((e) => e.id.startsWith('nav-')), false);
+});
+
+test('the chrome layouts hold the site navigation', () => {
+  const header = shipped('header');
+  const footer = shipped('footer');
+  assert.deepEqual(header.elements.map((e) => e.id), ['site-home', 'site-wordmark', 'site-sun']);
+  // Header and footer ids must not collide with each other or with a page's:
+  // they end up in one document, where an id is a global name.
+  const all = [...header.elements, ...footer.elements, ...shipped('links').elements].map((e) => e.id);
+  assert.equal(new Set(all).size, all.length, 'ids are unique across the whole page');
+
+  // Hard rule 2: these are site-relative and only work because the text
+  // renderer sends them through url(). Stored bare on purpose.
+  assert.match(footer.elements.find((e) => e.id === 'site-nav').content.html, /href="\/writing"/);
 });
 
 test('the shipped layout carries its own content, not the page markup', () => {
-  const onDisk = normalizeLayout(JSON.parse(
-    readFileSync(new URL('../data/layouts/links.json', import.meta.url), 'utf8')
-  ));
-  const e = byId(onDisk.elements);
+  const e = byId(shipped('links').elements);
 
   // The point of v3: these two were unreachable markup inside links.astro and
   // are now editable data. If this regresses, the editor silently goes back to
