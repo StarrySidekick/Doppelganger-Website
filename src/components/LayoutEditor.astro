@@ -9,7 +9,7 @@
 import { asset } from '../lib/assets.js';
 import lookData from '../data/look.json';
 import { layouts } from '../lib/layouts.js';
-const { name, layout, scope } = Astro.props;
+const { name, layout, scope, chrome = false } = Astro.props;
 
 // The working page list: every layout that is a page. Chrome is not a page,
 // and neither is anything the site has no route for.
@@ -35,7 +35,7 @@ const base = import.meta.env.BASE_URL;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData, pages })}
+  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData, pages, chrome })}
 />
 
 <script>
@@ -43,7 +43,7 @@ const base = import.meta.env.BASE_URL;
   // splits it into its own chunk and a visitor never downloads it.
   if (new URLSearchParams(location.search).has('edit')) {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope, assets, base, look, pages } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets, base, look, pages, chrome } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -66,7 +66,7 @@ const base = import.meta.env.BASE_URL;
           mountEditor({
             // `published` is what the build rendered; `layout` may be a draft
             // from this browser. The difference is what Publish has to send.
-            root, name, scope, layout: start, published: layout, assets, base, look, pages,
+            root, name, scope, chrome, layout: start, published: layout, assets, base, look, pages,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -89,6 +89,62 @@ const base = import.meta.env.BASE_URL;
      .ag-unlocked: you are arranging. Locked is the site exactly as a visitor
      sees it, bar aside — Bureau's one lock for every board (its decision 74). */
   .ag-editing .ob { position: relative; }
+
+  /* ---------------- touch, while arranging ----------------
+     A phone gets three things wrong here by default, and all three are the
+     browser being helpful about something else.
+
+     1. A one-finger drag on the page scrolls it, so a tile can never be
+        picked up. `touch-action: pinch-zoom` gives the single finger to the
+        drag and keeps TWO fingers for scrolling, which is the trade a canvas
+        has to make. It applies only while unlocked; locked, the site scrolls
+        exactly as a visitor expects.
+     2. Tapping anything paints a blue highlight box over it.
+     3. Holding anything starts a text selection, and iOS puts a callout
+        menu on top of that — both of which fight a hold-to-drag. */
+  .ag-unlocked .ag-grid { touch-action: pinch-zoom; }
+  .ag-unlocked .ag-grid,
+  .ag-unlocked .ag-grid * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* …except the words being written in, which must select normally. */
+  .ag-unlocked [contenteditable="true"],
+  .ag-unlocked [contenteditable="true"] * {
+    user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;
+    touch-action: auto;
+  }
+  /* The bar and its panels are chrome: taps there should be instant and
+     ordinary, and a long list of settings must still scroll with one finger. */
+  .ag-bar, .ag-menu { touch-action: manipulation; }
+  .ag-menu { touch-action: pan-y; }
+
+  /* ---------------- which board am I on ----------------
+     Three grids up one page look like one page until you go to move
+     something. Each says its own name while unlocked, and the one the bar is
+     acting on is the one lit. */
+  .ag-label { display: none; }
+  .ag-unlocked .ag-root { position: relative; }
+  .ag-unlocked .ag-label {
+    display: block;
+    position: absolute; top: -9px; left: 0; z-index: 20;
+    padding: 2px 8px;
+    font: 10px/1.6 ui-monospace, monospace;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.55);
+    background: rgba(20,20,20,.92);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .ag-unlocked .ag-root.ag-active > .ag-label {
+    color: #0b0b0b; background: #FFD27A; border-color: #FFD27A;
+  }
+  /* and the active board's edge, so the whole area reads as the live one */
+  .ag-unlocked .ag-root { outline: 1px solid transparent; outline-offset: 4px; }
+  .ag-unlocked .ag-root.ag-active { outline-color: rgba(255,210,122,.4); }
   .ag-unlocked .ag-editable { position: relative; cursor: grab; }
   .ag-unlocked .ag-editable::after {
     content: '';
@@ -98,7 +154,18 @@ const base = import.meta.env.BASE_URL;
     pointer-events: none;
   }
   .ag-unlocked .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
-  .ag-unlocked .ag-lifted { z-index: 40; }
+  /* Lifted: the checkerboard is busy and a thin outline disappeared into it,
+     so a tile in your hand lifts off the board with a shadow and a ring that
+     do not read as "another square". */
+  .ag-unlocked .ag-lifted {
+    z-index: 40;
+    box-shadow: 0 14px 34px -10px rgba(0,0,0,.95);
+  }
+  .ag-unlocked .ag-lifted::after {
+    outline: 2px solid #FFD27A !important;
+    outline-offset: 3px !important;
+    background: rgba(255,210,122,.14);
+  }
 
   /* A tile whose words can be edited says so, and differently from a tile that
      can only be moved — otherwise the only way to discover it is to guess. */
@@ -134,6 +201,9 @@ const base = import.meta.env.BASE_URL;
   }
   .ag-unlocked .ag-cell.ag-cell-b { background: var(--board-2, #171717); }
   .ag-unlocked .ag-cell:hover { outline: 1px solid rgba(255,255,255,.35); outline-offset: -1px; }
+  /* The board is whatever colour the look says, so the grid lines cannot be a
+     fixed grey — they are drawn as a translucent seam that reads on both. */
+  .ag-unlocked .ag-cell { box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
   .ag-unlocked .ag-grid > .ob, .ag-unlocked .ag-grid > [id] { z-index: 1; }
 
   .ag-grip {
@@ -149,10 +219,11 @@ const base = import.meta.env.BASE_URL;
   .ag-grip-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
 
   .ag-ghost {
-    border: 1px solid rgba(255,255,255,.55);
-    background: rgba(255,255,255,.07);
+    border: 2px solid #FFD27A;
+    background: rgba(255,210,122,.16);
     border-radius: 4px;
     pointer-events: none;
+    z-index: 5;
   }
   .ag-ghost.ag-bad {
     border-color: rgba(255,107,107,.9);
@@ -179,11 +250,13 @@ const base = import.meta.env.BASE_URL;
     font: inherit; color: inherit; cursor: pointer;
     background: transparent;
     border: 1px solid rgba(255,255,255,.28);
-    border-radius: 4px; padding: 4px 9px;
+    border-radius: 4px;
+    /* A 24px button is a miss on a phone. 34 is the smallest that is not. */
+    padding: 8px 11px; min-height: 34px;
   }
   .ag-bar button:hover { background: rgba(255,255,255,.12); }
   .ag-bar button[aria-current] { background: #fff; color: #000; border-color: #fff; }
-  .ag-lock { font-size: 14px; line-height: 1; padding: 3px 8px !important; }
+  .ag-lock { font-size: 17px; line-height: 1; padding: 6px 10px !important; }
   .ag-lock.on { color: #FFD27A; border-color: rgba(255,210,122,.6) !important; }
   .ag-menu-swatches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
   .ag-menu-swatches label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -203,8 +276,13 @@ const base = import.meta.env.BASE_URL;
   .ag-tabs { display: flex; gap: 4px; }
   /* Which grid the bar is acting on. Only shown when there is more than one,
      which on a normal page means header, body and footer. */
-  .ag-grids { border-right: 1px solid rgba(255,255,255,.2); padding-right: 10px; }
-  .ag-grids button { text-transform: lowercase; }
+  /* Where you are, rather than a pair of toggles asking where you want to be. */
+  .ag-where {
+    padding: 3px 9px; border-radius: 4px;
+    background: rgba(255,210,122,.16); color: #FFD27A;
+    border: 1px solid rgba(255,210,122,.35);
+    letter-spacing: .06em;
+  }
   /* A picked image is in this tab only until Publish. Saying so is the whole
      point of the badge — losing one to a reload should never be a surprise. */
   .ag-pending {
@@ -218,6 +296,18 @@ const base = import.meta.env.BASE_URL;
   .ag-hint { opacity: .5; }
   /* The hint is the first thing worth losing when the bar runs out of room. */
   @media (max-width: 860px) { .ag-hint { display: none; } }
+  /* On a phone the bar is the only chrome there is, so it gets the full width
+     and sits flat against the bottom rather than floating in from it. */
+  @media (max-width: 640px) {
+    .ag-bar {
+      left: 0; right: 0; bottom: 0;
+      width: auto; margin: 0;
+      border-radius: 0; border-left: 0; border-right: 0; border-bottom: 0;
+      padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      gap: 8px;
+    }
+    .ag-menu { max-width: calc(100vw - 16px); max-height: 76vh; overflow-y: auto; }
+  }
 
   /* display:flex would out-rank the browser's own [hidden]{display:none}, so
      hiding the menu by setting .hidden would set the attribute and change

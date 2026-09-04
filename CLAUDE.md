@@ -290,6 +290,31 @@ Consequences worth knowing:
   rather than a field. A bare `href="/writing"` stored in content is correct and
   becomes `/Doppelganger-Website/writing` on the way out.
 
+### A phone is the hard case
+
+Three defaults fight an editor on a touch screen, and all three are the browser
+being helpful about something else:
+
+- **A one-finger drag scrolls the page**, so a tile can never be picked up.
+  `touch-action: pinch-zoom` on the grid gives the single finger to the drag and
+  keeps **two fingers for scrolling** — the trade any canvas has to make. It
+  applies only while unlocked; locked, the site scrolls exactly as a visitor
+  expects, and a test asserts that.
+- **Tapping paints a blue highlight box** — `-webkit-tap-highlight-color`.
+- **Holding starts a text selection** and iOS adds a callout menu on top, both
+  of which fight hold-to-drag. `user-select` and `-webkit-touch-callout` off,
+  except inside a live `contenteditable`, which must select normally.
+
+Also: **the bar is the only chrome a phone has.** It goes full-width along the
+bottom with a safe-area inset, every button is at least 34px tall, and it lost
+six controls (two device tabs, three grid tabs, Add image) to fit. A 24px
+button is a miss.
+
+**All three boards share one gutter**, `--site-gutter` on `:root`. Header, page
+and footer are separate grids and only read as one board if they are the same
+width — otherwise their columns do not line up and their cells are different
+sizes, which was most of "the grid looks weird on mobile".
+
 ### One editor bar, however many grids
 
 Three grids on a page would have meant three floating bars, and an ambiguous
@@ -346,6 +371,8 @@ Interaction follows bureau:
 - **drag across bare cells** to sketch a box; the new object takes that size
 - **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
+- **keep holding without moving** and it becomes the settings panel instead —
+  a phone has no right button, and Bureau makes the same bargain
 - **corner grips** resize; there are no edge handles
 - **double click** the words and they become a field where they sit — the
   body or the title, never the whole tile, because a drawer front has a picture
@@ -355,6 +382,10 @@ Interaction follows bureau:
   declare, its face, flow seed, lock, delete, and on narrow "reset to derived
   position"
 - **the gear** is the look: colours, type, pinned
+- **There are no grid tabs either.** Each board wears its own name while
+  unlocked — HEADER, FOOTER, the page — and the one you last touched is lit and
+  is the one the bar acts on. A page beats chrome as the default, so opening a
+  page puts you on the page
 - **Board** is this grid's own geometry: how many columns across (which is how
   big one piece is), the gap, a fixed height in cells, and floating or set.
   **Tidy** repacks it top to bottom. **The header and footer are sized here** —
@@ -364,8 +395,11 @@ Interaction follows bureau:
 - **Pages** is the working list of every page there is. Bureau's *desks* do not
   come over — a website has pages, and how a visitor gets between them is
   whatever you build out of objects and menus
-- **Desk / Narrow** tabs switch which layout you are editing; narrow constrains
-  the container, which is the real thing because the grid is container-queried
+- **There is no device toggle.** Which of the two stored layouts you are
+  arranging is decided by the width on screen — narrow the window and you are
+  editing narrow, because that is the board in front of you. A ResizeObserver
+  watches the container, the grid being container-queried makes it the real
+  thing, and the bar says which you are in rather than asking
 - **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack
 
 Saving has three levels. **localStorage** holds work in progress and survives a

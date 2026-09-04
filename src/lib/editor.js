@@ -12,13 +12,22 @@
  * Interaction, after Bureau:
  *   padlock       lock or unlock everything (or press L)
  *   hold 200ms    pick a tile up
+ *   hold still    the settings panel — a phone has no right button
  *   drag          move; ghost shows where it lands, red when refused
  *   corner grip   resize, live, like dragging a window edge
  *   double click  the words become a field where they sit
  *   click a cell  the picker — what you pick lands on that cell
  *   right click   settings for that object: its fields, its face, delete
- *   device tabs   switch between the desk and narrow layouts
  *   gear          the site's look: colours, tilt, type
+ *
+ * There is no device toggle. Which layout you are editing is decided by the
+ * width you are actually looking at — narrow the window and you are editing
+ * narrow, because that is the layout that is on screen. Two layouts are still
+ * stored; what is gone is being asked to say which one you meant.
+ *
+ * There are no grid tabs either. A page has a header, a body and a footer, and
+ * the one you touched is the one the bar acts on — each board says its own name
+ * while you are arranging, so there is nothing to look up.
  *
  * Two things differ from Bureau, both forced by this grid:
  *
@@ -51,6 +60,7 @@ const LOOK_PATH = 'src/data/look.json';
 const escapeAttr = escapeHtml;
 
 const HOLD_MS = 200;
+const MENU_MS = 620;   // hold this long WITHOUT moving and it is the menu
 const NUDGE = 5; // px of movement before a drag counts as a drag
 
 /* ------------------------------------------------------------------ *
@@ -158,7 +168,8 @@ export const slugify = (s) =>
  * ------------------------------------------------------------------ */
 
 export function mountEditor({
-  root, layout: initial, published, name, scope, assets = {}, base = '/', look, pages = [], onChange,
+  root, layout: initial, published, name, scope, chrome: isChrome = false,
+  assets = {}, base = '/', look, pages = [], onChange,
 }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
@@ -166,10 +177,16 @@ export function mountEditor({
   let layout = normalizeLayout(structuredClone(initial));
   // What the build rendered. Publish sends this layout only when it differs.
   let baselineJson = JSON.stringify(normalizeLayout(published ?? initial));
-  let device = 'desk';
+  /** Which stored layout is on screen. Observed from the width, never chosen. */
+  const deviceNow = () => {
+    const w = root.getBoundingClientRect().width;
+    return w && w < layout.reflowBelow ? 'narrow' : 'desk';
+  };
+  let device = deviceNow();
   let undo = [];
   let G = null;          // the gesture in flight
   let holdTimer = null;
+  let menuTimer = null;
   let editing = null;    // {id, field, node, tile, before} while words are being edited
   let selected = null;   // the tile the settings panel was last opened on
 
@@ -184,6 +201,15 @@ export function mountEditor({
   const chrome = sharedChrome(look, pages);
   const toast = chrome.toast;
   const locked = () => chrome.locked();
+
+  /* Which board is which. Three grids stacked up a page look like one page
+     until you go to move something, and then it matters a great deal whether
+     you are in the header or the body. The label only exists while unlocked. */
+  const label = document.createElement('span');
+  label.className = 'ag-label';
+  label.textContent = name;
+  root.appendChild(label);
+  root.dataset.agName = name;
 
   /**
    * The compiled grid CSS for this board, so a geometry change can be SEEN.
@@ -623,7 +649,6 @@ export function mountEditor({
     }, { once: true });
     input.click();
   }
-  const firstImageId = () => layout.elements.find((e) => has(e, 'media'))?.id ?? null;
 
   let dropTarget = null;
   const markDrop = (node) => {
@@ -711,9 +736,24 @@ export function mountEditor({
         navigator.vibrate?.(6);
       }, HOLD_MS);
     }
+    /* Keep holding without moving and it becomes the menu instead. A phone has
+       no right button, and Bureau makes the same bargain: hold and move is the
+       drag, hold still is the menu. */
+    const mine = G;
+    menuTimer = setTimeout(() => {
+      menuTimer = null;
+      if (G !== mine || G.moved) return;
+      const { id: at, sx, sy } = G;
+      onCancel();
+      navigator.vibrate?.(12);
+      openSettings(at, sx, sy);
+    }, MENU_MS);
   }
 
   function onMove(e) {
+    if (menuTimer && G && (Math.abs(e.clientX - G.sx) > 6 || Math.abs(e.clientY - G.sy) > 6)) {
+      clearTimeout(menuTimer); menuTimer = null;
+    }
     if (holdTimer) {
       // Any real movement means it was not a press-and-hold.
       if (Math.abs(e.clientX - G.sx) > 6 || Math.abs(e.clientY - G.sy) > 6) {
@@ -755,6 +795,7 @@ export function mountEditor({
 
   function onUp() {
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
     if (!G) return;
     const g = G; G = null;
     g.node.classList.remove('ag-lifted', 'ag-dragging', 'ag-invalid');
@@ -774,6 +815,7 @@ export function mountEditor({
 
   function onCancel() {
     if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
     if (!G) return;
     G.node.classList.remove('ag-lifted', 'ag-dragging', 'ag-invalid');
     G.node.style.transform = '';
@@ -950,25 +992,32 @@ export function mountEditor({
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
-    if (e.key === 'd' || e.key === 'D') setDevice(device === 'desk' ? 'narrow' : 'desk');
     if (e.key === 'l' || e.key === 'L') chrome.setLocked(!locked());
   }
 
-  function setDevice(next) {
+  /**
+   * Follow the width. The grid is container-queried, so the board on screen
+   * IS one of the two stored layouts — and the one on screen is the one an
+   * edit should land in. A window dragged across the breakpoint switches which
+   * layout you are arranging, which is the whole of the old toggle.
+   */
+  function syncDevice() {
+    const next = deviceNow();
+    if (next === device) return false;
     device = next;
-    // Previewing narrow means constraining the container, not the viewport —
-    // the grid is driven by container queries, so this is the real thing.
-    root.style.maxWidth = next === 'narrow' ? `${layout.reflowBelow - 40}px` : '';
-    root.style.marginInline = next === 'narrow' ? 'auto' : '';
-    paint();
+    toast(`Now arranging the ${device === 'narrow' ? 'narrow' : 'wide'} layout`);
+    return true;
   }
+  const ro = new ResizeObserver(() => { if (syncDevice()) paint(); else paintChecker(); });
+  ro.observe(root);
 
   /* ---- chrome ---- */
 
   chrome.register(name, {
     root,
+    isChrome,
     getDevice: () => device,
-    setDevice,
+    markActive: (on) => root.classList.toggle('ag-active', on),
     getLayout: () => layout,
     getPending: () => pending,
     isDirty: () => JSON.stringify(layout) !== baselineJson,
@@ -1025,8 +1074,8 @@ export function mountEditor({
       commit();
       toast(moved ? `Tidied ${moved} object${moved > 1 ? 's' : ''} on ${device}` : 'Already tidy');
     },
-    pickImage: () => pickFileFor(selected && has(find(selected) ?? {}, 'media') ? selected : firstImageId()),
     onLock: () => { if (editing) endEdit(true); paint(); },
+    resync: () => { syncDevice(); paint(); },
     afterPublish: () => {
       for (const { previewUrl } of pending.values()) URL.revokeObjectURL(previewUrl);
       pending.clear();
@@ -1072,8 +1121,8 @@ export function mountEditor({
 
   return {
     get layout() { return layout; },
-    setDevice,
     destroy() {
+      ro.disconnect();
       grid.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -1157,6 +1206,7 @@ function buildChrome(lookInitial, pages = []) {
     applyLock();
     closeMenu();
     for (const e of editors.values()) e.onLock?.(isLocked);
+    markBoards();
     render();
     toast(isLocked ? 'Locked — this is the site as a visitor sees it' : 'Unlocked — arrange, write, add');
   }
@@ -1193,9 +1243,18 @@ function buildChrome(lookInitial, pages = []) {
 
   function register(name, api) {
     editors.set(name, api);
-    activeName ??= name;
+    /* The page wins by default, not whichever grid's script happened to run
+       first. You opened a page to work on it; the header and the footer are
+       around it. Registration order used to decide this and it moved when the
+       markup did, which is no way to pick. */
+    if (!activeName || (editors.get(activeName)?.isChrome && !api.isChrome)) activeName = name;
+    markBoards();
     render();
   }
+  /** The active board wears the highlight, because there is no tab to wear it. */
+  const markBoards = () => {
+    for (const [n, e] of editors) e.markActive?.(n === activeName);
+  };
   function unregister(name) {
     editors.delete(name);
     if (activeName === name) activeName = editors.keys().next().value ?? null;
@@ -1205,6 +1264,7 @@ function buildChrome(lookInitial, pages = []) {
     if (name === activeName || !editors.has(name)) return;
     activeName = name;
     closeMenu();
+    markBoards();
     render();
   }
 
@@ -1246,14 +1306,10 @@ function buildChrome(lookInitial, pages = []) {
       <button class="ag-lock${isLocked ? ' on' : ''}" data-bar="lock"
         title="${isLocked ? 'Locked — the site as a visitor sees it. Press to arrange.' : 'Unlocked — arranging. Press to see the site as it is.'}"
         aria-pressed="${isLocked}">${isLocked ? '🔒' : '🔓'}</button>
-      ${names.length > 1 ? `<div class="ag-tabs ag-grids" role="group" aria-label="Which grid">
-        ${names.map((n) => `<button data-grid="${n}"${n === activeName ? ' aria-current="true"' : ''}>${n}</button>`).join('')}
-      </div>` : ''}
-      <div class="ag-tabs" role="group" aria-label="Which layout to edit">
-        <button data-dev="desk"${d === 'desk' ? ' aria-current="true"' : ''}>Desk</button>
-        <button data-dev="narrow"${d === 'narrow' ? ' aria-current="true"' : ''}>Narrow</button>
-      </div>
-      <span class="ag-hint">${isLocked ? 'locked · press the padlock or L to arrange' : 'click a cell to add · hold to pick up · corners resize · double-click words · right click for settings'}</span>
+      <span class="ag-where">${escapeAttr(activeName)}${d === 'narrow' ? ' · narrow' : ''}</span>
+      <span class="ag-hint">${isLocked
+        ? 'locked · press the padlock to arrange'
+        : 'tap a cell to add · hold to pick up · hold still for settings · two fingers to scroll'}</span>
       ${waiting.length ? `<span class="ag-pending" title="Not committed until you publish">${[
         layouts ? `${layouts} layout${layouts > 1 ? 's' : ''}` : '',
         images ? `${images} image${images > 1 ? 's' : ''}` : '',
@@ -1261,10 +1317,8 @@ function buildChrome(lookInitial, pages = []) {
       ].filter(Boolean).join(' · ')} waiting</span>` : ''}
       <button data-bar="pages" title="Every page on the site">Pages</button>
       <button data-bar="board" title="This board's grid">Board</button>
-      <button data-bar="image">Add image…</button>
-      <button data-bar="look" title="The site's look">⚙</button>
+      <button data-bar="look" title="The site's look">Look</button>
       <button data-bar="undo">Undo</button>
-      <button data-bar="copy">Copy JSON</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
     `;
   }
@@ -1491,8 +1545,6 @@ function buildChrome(lookInitial, pages = []) {
   }
 
   bar.addEventListener('click', async (e) => {
-    const g = e.target.closest('[data-grid]');
-    if (g) return setActive(g.dataset.grid);
     const act = e.target.closest('[data-bar]')?.dataset.bar;
     if (act === 'lock') return setLocked(!isLocked);
     if (act === 'look') return openLook();
@@ -1501,19 +1553,7 @@ function buildChrome(lookInitial, pages = []) {
     if (act === 'publish') return openPublish();
     const a = active();
     if (!a) return;
-    const dev = e.target.closest('[data-dev]');
-    if (dev) return a.setDevice(dev.dataset.dev);
     if (act === 'undo') return a.undo();
-    if (act === 'image') return isLocked ? toast('Unlock first') : a.pickImage();
-    if (act === 'copy') {
-      const json = JSON.stringify(a.getLayout(), null, 2);
-      try {
-        await navigator.clipboard.writeText(json);
-        toast(`${activeName} JSON copied — paste it into src/data/layouts/`);
-      } catch {
-        window.prompt('Copy this into src/data/layouts/', json);
-      }
-    }
   });
 
   let onPick = null;

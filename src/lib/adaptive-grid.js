@@ -167,28 +167,46 @@ export function deriveNarrow(layout) {
   );
   const out = new Map();
 
-  const pinned = ordered.filter((e) => e.flow === 'pin');
+  /* A seed has to go around what is already there.
+   *
+   * Boxes placed by hand on narrow are immovable, and the flow rules alone do
+   * not know about them — so an object added to a board whose siblings HAVE
+   * been arranged by hand used to be seeded straight on top of one, the layout
+   * failed validation, and the creation was refused with an overlap message.
+   * Which is precisely the case that matters: adding to a page you have
+   * already tuned for a phone. The seed now picks the column its flow asks for
+   * and then takes the first row where that box actually fits.
+   */
+  const taken = elements.filter((e) => e.narrow).map((e) => e.narrow);
+  const firstFree = (col, span, height, from) => {
+    for (let row = Math.max(1, from); row < 1000; row++) {
+      const box = { col: [col, span], row: [row, height] };
+      if (!taken.some((t) => overlaps(t, box))) return box;
+    }
+    return { col: [col, span], row: [Math.max(1, from), height] };
+  };
+
   let cursor = 1;
-  if (pinned.length) {
-    let pinRow = 1;
-    for (const e of pinned) {
-      const span = Math.min(
+  for (const e of ordered) {
+    // Already placed by hand: nothing to seed, and it is one of the obstacles.
+    if (e.narrow) continue;
+    const height = e.desk.row[1];
+    let col, span;
+
+    if (e.flow === 'pin') {
+      // Holds its edge and stays at the top; it never joins the stack.
+      span = Math.min(
         Math.max(2, Math.round(e.desk.col[1] * 1.2)),
         Math.max(2, Math.floor(columns / 3))
       );
       const onRight = e.desk.col[0] + e.desk.col[1] / 2 > layout.columns / 2;
-      out.set(e.id, {
-        col: [onRight ? columns - span + 1 : 1, span],
-        row: [1, e.desk.row[1]],
-      });
-      pinRow = Math.max(pinRow, e.desk.row[1]);
+      col = onRight ? columns - span + 1 : 1;
+      const box = firstFree(col, span, height, 1);
+      taken.push(box);
+      out.set(e.id, box);
+      continue;
     }
-    cursor = pinRow + 2;
-  }
 
-  for (const e of ordered) {
-    if (e.flow === 'pin') continue;
-    let col, span;
     if (e.flow === 'keep') {
       span = Math.min(
         Math.max(Math.round(columns / 3), Math.round(e.desk.col[1] * 1.4)),
@@ -200,8 +218,11 @@ export function deriveNarrow(layout) {
     } else {
       col = 2; span = Math.max(1, columns - 2);
     }
-    out.set(e.id, { col: [col, span], row: [cursor, e.desk.row[1]] });
-    cursor += e.desk.row[1] + 1;
+
+    const box = firstFree(col, span, height, cursor);
+    taken.push(box);
+    out.set(e.id, box);
+    cursor = box.row[0] + height + 1;
   }
 
   return out;

@@ -69,7 +69,7 @@ const ogImage = sized(asset.wordmark, 1000);
        reworded in the editor like anything else. Every page gets them; pages no
        longer opt in one at a time. -->
   <SiteChrome part="header" />
-  <slot />
+  <main class="site-main"><slot /></main>
   <SiteChrome part="footer" />
   <script>
     // A fold and an accordion are live for every visitor, not only in the
@@ -94,6 +94,13 @@ const ogImage = sized(asset.wordmark, 1000);
     margin: -1px; padding: 0; border: 0;
     clip-path: inset(50%); overflow: hidden; white-space: nowrap;
   }
+  /* One gutter for the whole site. The header, the page and the footer are
+     three separate grids, and they only read as ONE board if they are the same
+     width — otherwise their columns do not line up and their cells are
+     different sizes, which is most of what "the grid looks weird" was. */
+  :root { --site-gutter: clamp(12px, 3vw, 40px); }
+  .site-main { padding-inline: var(--site-gutter); }
+
   body {
     margin: 0;
     background: var(--paper, var(--bg));

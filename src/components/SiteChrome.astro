@@ -25,7 +25,7 @@ const Tag = part === 'header' ? 'header' : 'footer';
 const sticky = layout.sticky === true;
 ---
 <Tag class:list={[`site-${part}`, sticky && 'is-sticky']}>
-  <AdaptiveGrid layout={layout} name={part} class={`${part}-grid`} />
+  <AdaptiveGrid layout={layout} name={part} chrome class={`${part}-grid`} />
 </Tag>
 
 <style is:global>
@@ -34,7 +34,7 @@ const sticky = layout.sticky === true;
      `#site-nav` is the global-id collision hard rule 0 is about. */
   .site-header, .site-footer {
     width: 100%;
-    padding-inline: clamp(12px, 3vw, 40px);
+    padding-inline: var(--site-gutter);
   }
   .site-header { padding-block: clamp(10px, 2vw, 22px); }
   /* Floating rather than set: it follows you down the page. position:sticky,

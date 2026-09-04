@@ -454,9 +454,39 @@ test('a layout with no pinned elements starts at the first row', () => {
   assert.equal(resolveDevice(plain, 'narrow')[0]._row, 1);
 });
 
-test('deriveNarrow covers every element', () => {
+test('deriveNarrow covers every element that has not been placed by hand', () => {
   const seeds = deriveNarrow(layout);
-  assert.equal(seeds.size, layout.elements.length);
+  assert.equal(seeds.size, layout.elements.length, 'none of the fixture is hand-placed');
+
+  // An element WITH a narrow box needs no seed and is not given one.
+  const half = normalizeLayout({
+    ...v1,
+    elements: v1.elements.map((e) => (e.id === 'card' ? { ...e, narrow: { col: [1, 24], row: [1, 8] } } : e)),
+  });
+  const some = deriveNarrow(half);
+  assert.equal(some.has('card'), false, 'placed by hand, so nothing to derive');
+  assert.equal(some.size, v1.elements.length - 1);
+});
+
+test('a seed goes AROUND boxes already placed by hand on narrow', () => {
+  /* The regression: adding an object to a page whose phone layout had been
+     tuned put the newcomer straight on top of something, the layout failed
+     validation and the creation was refused. Which is exactly the page you are
+     most likely to be adding to. */
+  const tuned = normalizeLayout({
+    columns: 24, gap: 8, reflowBelow: 700, narrowColumns: 8,
+    elements: [
+      { id: 'placed', flow: 'stack', desk: { col: [1, 6], row: [1, 2] }, narrow: { col: [1, 8], row: [1, 4] } },
+      { id: 'fresh', flow: 'stack', desk: { col: [1, 6], row: [3, 2] } },
+    ],
+  });
+  const seed = deriveNarrow(tuned).get('fresh');
+  assert.ok(seed, 'the newcomer still gets a position');
+  assert.equal(overlaps(seed, tuned.elements[0].narrow), false, 'and it is not on top of the hand-placed one');
+  assert.ok(seed.row[0] >= 5, `it went below what was there — got row ${seed.row[0]}`);
+
+  // Which is the whole point: the layout it produces is legal.
+  assert.deepEqual(validateLayout(tuned, 'tuned'), []);
 });
 
 test('normalizeElement carries an unlisted field through, whatever it is', () => {

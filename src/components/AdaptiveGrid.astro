@@ -10,7 +10,7 @@ import LayoutEditor from './LayoutEditor.astro';
 // render inside THIS component, so a page's scoped <style> can no longer reach
 // them — and bare `#email` in a global block is the id collision hard rule 0 is
 // about. A class on the root gives the page somewhere safe to hang its rules.
-const { layout: raw, name, class: className } = Astro.props;
+const { layout: raw, name, chrome = false, class: className } = Astro.props;
 const layout = normalizeLayout(raw);
 
 // A scope class derived from the layout. The compiled rules are keyed by
@@ -80,4 +80,4 @@ const typed = layout.elements
   </div>
 </div>
 <style is:inline set:html={css}></style>
-{name && <LayoutEditor name={name} layout={layout} scope={scope} />}
+{name && <LayoutEditor name={name} layout={layout} scope={scope} chrome={chrome} />}
