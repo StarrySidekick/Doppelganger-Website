@@ -75,6 +75,11 @@ const ogImage = sized(asset.wordmark, 1000);
     // A fold and an accordion are live for every visitor, not only in the
     // editor, so this is the one script a published page carries.
     import('../lib/interact.js').then(({ wireInteractions }) => wireInteractions());
+    // And the way into edit mode: a target in the bottom-left corner, invisible
+    // to anyone who has never used it. It is on every page because edit mode
+    // has to be reachable from every page — the parameter in the URL was lost
+    // the moment you followed a link. See src/lib/edit-mode.js.
+    import('../lib/edit-mode.js').then(({ wireEditEntry }) => wireEditEntry());
   </script>
 </body>
 </html>

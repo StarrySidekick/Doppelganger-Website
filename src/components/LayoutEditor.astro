@@ -1,7 +1,9 @@
 ---
 /**
- * Mounts the layout editor onto an AdaptiveGrid, but only when the URL carries
- * ?edit=1. A visitor never downloads the editor and can never pick a tile up.
+ * Mounts the layout editor onto an AdaptiveGrid, but only for someone who has
+ * asked to edit — `?edit=1`, or this browser already being in edit mode, or the
+ * corner target being pressed while the page is open. A visitor never downloads
+ * the editor and can never pick a tile up. `src/lib/edit-mode.js` is the door.
  *
  * Saving has three levels: localStorage while you work, "Copy JSON" to hand the
  * file over, and Publish to commit it straight to main.
@@ -39,9 +41,11 @@ const base = import.meta.env.BASE_URL;
 />
 
 <script>
+  import { editingNow, ENTER_EVENT } from '../lib/edit-mode.js';
+
   // Bundled, but tiny: the editor itself is behind a dynamic import, so Vite
   // splits it into its own chunk and a visitor never downloads it.
-  if (new URLSearchParams(location.search).has('edit')) {
+  function mountAll() {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
       const { name, layout, scope, assets, base, look, pages, chrome } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
@@ -82,6 +86,12 @@ const base = import.meta.env.BASE_URL;
         .catch((err) => console.error('[editor] failed to load', err));
     }
   }
+
+  // Either you arrived editing, or you press the corner and start editing where
+  // you stand — no reload, because the page in front of you is already the
+  // board. Once, because mounting twice would give every grid two editors.
+  if (editingNow()) mountAll();
+  else window.addEventListener(ENTER_EVENT, mountAll, { once: true });
 </script>
 
 <style is:global>
@@ -347,6 +357,10 @@ const base = import.meta.env.BASE_URL;
   .ag-menu-actions .ag-menu-btn { flex: 1; text-align: center; }
   .ag-menu { max-width: min(340px, calc(100vw - 24px)); }
   .ag-publish { border-color: rgba(255,255,255,.55) !important; }
+  /* The way out, and the only button that ends the session — set apart from
+     Publish so the two are never pressed for each other. */
+  .ag-leave { opacity: .7; }
+  .ag-leave:hover { opacity: 1; }
   .ag-commit { color: inherit; opacity: .8; text-underline-offset: 2px; }
 
   /* Above, not below: the bar wraps to two lines on a narrow window and a toast

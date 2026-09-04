@@ -1,8 +1,9 @@
 /**
  * In-page editor.
  *
- * Loaded only when the URL carries ?edit=1, so a visitor never pays for it and
- * can never pick a tile up. Once it is mounted there is ONE switch that decides
+ * Loaded only for someone who has asked to edit — see src/lib/edit-mode.js for
+ * the ways in and the one way out — so a visitor never pays for it and can
+ * never pick a tile up. Once it is mounted there is ONE switch that decides
  * what the page is: **locked** is the site exactly as a visitor sees it, with
  * a bar along the bottom; **unlocked** is the board — a checkerboard under
  * everything, outlines on what can move, and every gesture below live. That
@@ -11,6 +12,7 @@
  *
  * Interaction, after Bureau:
  *   padlock       lock or unlock everything (or press L)
+ *   Done          leave edit mode altogether and reload as a visitor
  *   hold 200ms    pick a tile up
  *   hold still    the settings panel — a phone has no right button
  *   drag          move; ghost shows where it lands, red when refused
@@ -50,6 +52,7 @@ import {
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
 import { tokensFor, normalizeLook, validateLook } from './look.js';
+import { leaveEdit } from './edit-mode.js';
 
 const TOKEN_KEY = 'doppelganger.ghToken';
 const LOCK_KEY = 'doppelganger.locked';
@@ -1320,6 +1323,7 @@ function buildChrome(lookInitial, pages = []) {
       <button data-bar="look" title="The site's look">Look</button>
       <button data-bar="undo">Undo</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
+      <button data-bar="leave" class="ag-leave" title="Leave edit mode and see the site as a visitor does">Done</button>
     `;
   }
 
@@ -1551,6 +1555,10 @@ function buildChrome(lookInitial, pages = []) {
     if (act === 'pages') return openPages();
     if (act === 'board') return openBoard();
     if (act === 'publish') return openPublish();
+    // The way out. Anything not yet published is still in this browser and is
+    // still here the next time you come in — the beforeunload guard below is
+    // for a picked image, which is the one thing that only lives in this tab.
+    if (act === 'leave') return leaveEdit();
     const a = active();
     if (!a) return;
     if (act === 'undo') return a.undo();

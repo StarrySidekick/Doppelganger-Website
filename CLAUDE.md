@@ -80,7 +80,8 @@ src/styles/faces.css       how each face draws — all of it CSS behind one clas
 src/data/look.json         the look itself: five colours, the type, pinned or flat
 src/pages/[...slug].astro  any layout with no hand-written page is a page anyway
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
-src/lib/editor.js          the in-page editor, loaded only for ?edit=1
+src/lib/edit-mode.js       the way in and out of edit mode — the corner, the flag, Done
+src/lib/editor.js          the in-page editor, loaded only for someone editing
 src/lib/publish.js         commits a layout to GitHub from the browser
 src/data/layouts/*.json    the layouts themselves — data, so they can be edited
 src/lib/assets.js          every remote asset + the url() helper
@@ -350,6 +351,32 @@ commits the layout and its images as **one commit** — see below.
 parameter, and behind a dynamic import, so a visitor never downloads it and can
 never pick a tile up.
 
+**Edit mode is a mode this browser is in, not a property of one URL.** `?edit=1`
+still means edit and still works, but it was also the bug: follow any link — the
+home icon, the footer nav — and the next page's address had no `edit` in it, the
+editor never mounted, and the bar vanished with no way back short of retyping
+the address. So:
+
+- **A target in the bottom-left corner of every page** is the way in. It is
+  invisible and takes a **double press** until you have been in edit mode once
+  in this browser; after that it is a faint dot and one press. A visitor sees
+  nothing and it is not announced to a screen reader. `⌘⇧E` / `Ctrl-Shift-E`
+  does the same on a desk.
+- **Pressing it mounts the editor where you stand**, with no reload — the page
+  in front of you is already the board.
+- **`?edit=1` turns the mode ON** as well as opening the editor, so it survives
+  the next link. `?edit=0` turns it off.
+- **Done in the bar is the way out**: it clears the mode, strips the parameter
+  and reloads as a visitor. A reload rather than an unmount, deliberately — the
+  editor has put a checkerboard, grips, labels and draft tiles into the page,
+  and asking the browser for the page again is the honest way to be sure none of
+  it is left over. Nothing is lost; drafts live in localStorage.
+
+None of this is access control and none of it is meant to be, exactly as
+`?edit=1` was not. A stranger who finds the corner can rearrange tiles in their
+own browser and change nothing for anyone, because publishing needs a token that
+only ever exists in Timothy's.
+
 **There is one lock, and it is which mode you are in.** Bureau's decision 74,
 taken whole: **locked** is the site exactly as a visitor sees it with a bar
 along the bottom — links work, nothing has an outline, double-click does
@@ -401,6 +428,8 @@ Interaction follows bureau:
   watches the container, the grid being container-queried makes it the real
   thing, and the bar says which you are in rather than asking
 - **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack
+- **Done** leaves edit mode altogether, which is a different thing from the
+  padlock: locked is still the editor, with a bar; Done is the site
 
 Saving has three levels. **localStorage** holds work in progress and survives a
 reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
@@ -437,10 +466,11 @@ because content couldn't be edited; that is the thing now being fixed. See
 - Everything except large media can be built **on GitHub Pages as it stands**.
   No server, no auth, no hosting move. So the migration is deferred and the
   editor comes first.
-- `?edit=1` is the "admin mode", and it is deliberately not access control. It
-  is a URL anyone can type, and that is fine because **saving needs a token that
-  only ever exists in Timothy's browser** — a stranger can rearrange tiles in
-  their own session and change nothing for anyone.
+- Edit mode is the "admin mode", and it is deliberately not access control. The
+  corner target and `?edit=1` are both things anyone can find, and that is fine
+  because **saving needs a token that only ever exists in Timothy's browser** —
+  a stranger can rearrange tiles in their own session and change nothing for
+  anyone.
 - Media splits: images can be committed to the repo, **audio and video cannot**.
   Git history is append-only, so a few dozen songs committed once is a few dozen
   songs in every clone forever. They keep being embedded (SoundCloud, YouTube)
