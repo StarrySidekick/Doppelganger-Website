@@ -29,6 +29,14 @@
  * itself, and talks to the page through one event.
  */
 
+/**
+ * TEMPORARY: show the corner to everyone, not only to a browser that has been
+ * in edit mode before, so it can be found the first time. Flip this to `false`
+ * to go back to invisible-until-used — the corner then takes a double press
+ * until you have been in once, and a visitor sees nothing at all.
+ */
+export const SHOW_CORNER = true;
+
 /** This browser is in edit mode. */
 export const EDIT_FLAG = 'doppelganger.editing';
 /** This browser has been in edit mode before, so the corner can show itself. */
@@ -104,12 +112,13 @@ const STYLE = `
 }
 .ag-enter::after {
   content: ''; display: block;
-  width: 7px; height: 7px; margin: 10px;
+  width: 8px; height: 8px; margin: 10px;
   border-radius: 50%; background: currentColor;
 }
-/* Invisible until you have been in edit mode in this browser. A visitor sees
-   nothing at all; a double press in the corner is the way in the first time. */
-.ag-enter.is-known { opacity: .2; cursor: pointer; }
+/* Invisible until you have been in edit mode in this browser — unless
+   SHOW_CORNER is on, which gives every page the visible dot. A visitor
+   otherwise sees nothing at all, and a double press is the way in. */
+.ag-enter.is-known { opacity: .38; cursor: pointer; }
 .ag-enter.is-known:hover, .ag-enter:focus-visible { opacity: .75; }
 /* Once the editor is mounted the bar has Done, so the corner steps out. */
 .ag-editing .ag-enter { display: none; }
@@ -133,7 +142,9 @@ export function wireEditEntry() {
   style.textContent = STYLE;
   document.head.appendChild(style);
 
-  const known = isKnown();
+  // `known` is really "does this press count on its own" — a corner you can see
+  // is a corner you press once. While SHOW_CORNER is on, that is everyone.
+  const known = isKnown() || SHOW_CORNER;
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = `ag-enter${known ? ' is-known' : ''}`;

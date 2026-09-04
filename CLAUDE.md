@@ -357,11 +357,13 @@ home icon, the footer nav — and the next page's address had no `edit` in it, t
 editor never mounted, and the bar vanished with no way back short of retyping
 the address. So:
 
-- **A target in the bottom-left corner of every page** is the way in. It is
-  invisible and takes a **double press** until you have been in edit mode once
-  in this browser; after that it is a faint dot and one press. A visitor sees
-  nothing and it is not announced to a screen reader. `⌘⇧E` / `Ctrl-Shift-E`
-  does the same on a desk.
+- **A target in the bottom-left corner of every page** is the way in. `⌘⇧E` /
+  `Ctrl-Shift-E` does the same on a desk. **`SHOW_CORNER` in `edit-mode.js` is
+  currently `true`, so it is a visible dot on every page**, one press, for
+  anyone — that is temporary, so it can be found. Set it to `false` and it goes
+  back to invisible and a **double press** until you have been in edit mode once
+  in this browser, after which it is a faint dot and one press; a visitor then
+  sees nothing and it is not announced to a screen reader.
 - **Pressing it mounts the editor where you stand**, with no reload — the page
   in front of you is already the board.
 - **`?edit=1` turns the mode ON** as well as opening the editor, so it survives

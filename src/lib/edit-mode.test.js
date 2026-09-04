@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { editingNow, isKnown, enterEdit, leaveEdit, wireEditEntry, EDIT_FLAG, KNOWN_FLAG } from './edit-mode.js';
+import { editingNow, isKnown, enterEdit, leaveEdit, wireEditEntry, EDIT_FLAG, KNOWN_FLAG, SHOW_CORNER } from './edit-mode.js';
 
 /** A browser, cut down to the four things this file touches. */
 function browser(search = '', store = {}) {
@@ -140,16 +140,28 @@ test('the corner is on an ordinary page, and never where the bar already is', ()
   assert.equal(editing.added.length, 0, 'a page already editing has Done in the bar instead');
 });
 
-test('the corner is invisible, and not announced, until it has been used', () => {
+test('a browser that has been in edit mode gets the visible, one-press corner', () => {
+  const warm = browser('', { [KNOWN_FLAG]: 'true' });
+  wireEditEntry();
+  const known = warm.added.find((n) => n.tag === 'button');
+  assert.ok(known.className.includes('is-known'));
+  assert.equal(known.attrs['aria-label'], 'Edit this site');
+});
+
+// The two halves of SHOW_CORNER. Both are asserted whichever way it is set, so
+// flipping it back cannot quietly change what the corner does to a visitor.
+test('SHOW_CORNER on: every page shows the dot, so it can be found', { skip: !SHOW_CORNER }, () => {
+  const first = browser('');
+  wireEditEntry();
+  const cold = first.added.find((n) => n.tag === 'button');
+  assert.ok(cold.className.includes('is-known'), 'visible from the first page load');
+  assert.equal(cold.attrs['aria-label'], 'Edit this site');
+});
+
+test('SHOW_CORNER off: invisible and unannounced until it has been used', { skip: SHOW_CORNER }, () => {
   const first = browser('');
   wireEditEntry();
   const cold = first.added.find((n) => n.tag === 'button');
   assert.ok(!cold.className.includes('is-known'));
   assert.equal(cold.attrs['aria-hidden'], 'true', 'a visitor is not offered a control they cannot use');
-
-  const warm = browser('', { [KNOWN_FLAG]: 'true' });
-  wireEditEntry();
-  const known = warm.added.find((n) => n.tag === 'button');
-  assert.ok(known.className.includes('is-known'), 'once used it shows itself');
-  assert.equal(known.attrs['aria-label'], 'Edit this site');
 });
