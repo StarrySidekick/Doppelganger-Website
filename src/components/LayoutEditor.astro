@@ -8,17 +8,57 @@
  * Saving has three levels: localStorage while you work, "Copy JSON" to hand the
  * file over, and Publish to commit it straight to main.
  */
-import { asset } from '../lib/assets.js';
+import { asset, url } from '../lib/assets.js';
 import lookData from '../data/look.json';
 import { layouts } from '../lib/layouts.js';
 const { name, layout, scope, chrome = false } = Astro.props;
 
-// The working page list: every layout that is a page. Chrome is not a page,
-// and neither is anything the site has no route for.
-const pages = Object.entries(layouts)
-  .filter(([n]) => !['header', 'footer'].includes(n))
-  .map(([n, l]) => ({ name: n, href: n === 'index' ? '/' : `/${n}`, title: l.title ?? n }))
-  .sort((a, b) => a.title.localeCompare(b.title));
+/**
+ * The working page list.
+ *
+ * This used to be built from the layout files alone, and that was wrong twice
+ * over. There is only ONE layout file that is a page — `links` — so the list
+ * showed a single row and looked broken; and every hand-written page (`/`,
+ * `/writing`, `/music`, `/contact`) was missing even though those are most of
+ * the site. A page is a ROUTE, and a route comes from either a file in
+ * src/pages or a layout the dynamic route turns into one.
+ *
+ * And the href went out bare, so on the deploy subpath `/links?edit=1` was a
+ * 404 — hard rule 2, in the one place the editor could not fix for itself.
+ * `url()` cannot be imported by src/lib (hard rule 4), so the resolved href
+ * travels to the editor as data, exactly like the asset map below.
+ */
+const CHROME_LAYOUTS = ['header', 'footer'];
+// Routes Astro generates that are not pages you would go and arrange.
+const NOT_A_PAGE = new Set(['404', '[...slug]']);
+
+const written = Object.keys(import.meta.glob('../pages/*.astro'))
+  .map((p) => p.replace(/^.*\/|\.astro$/g, ''))
+  .filter((n) => !NOT_A_PAGE.has(n));
+
+// A layout file with no page of its own is still a page — [...slug].astro
+// builds it. That is what makes a drawer a page.
+const fromLayouts = Object.keys(layouts)
+  .filter((n) => !CHROME_LAYOUTS.includes(n) && !written.includes(n));
+
+const NAMED = { index: 'Home', editor: 'Layout editor', 'contact-1': 'Contact (old slug)' };
+const titleOf = (n) =>
+  NAMED[n] ?? layouts[n]?.title ?? n.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+const pages = [...written, ...fromLayouts]
+  .map((n) => ({
+    name: n,
+    // The address as a visitor types it, for showing; and the real href, base
+    // and all, for going there.
+    path: n === 'index' ? '/' : `/${n}`,
+    href: url(n === 'index' ? '' : n),
+    title: titleOf(n),
+    // Does this page have a board of its own, or is it markup with the header
+    // and footer around it? Both can be opened in edit mode; only the first is
+    // a page you can arrange.
+    grid: !!layouts[n],
+  }))
+  .sort((a, b) => (a.path === '/' ? -1 : b.path === '/' ? 1 : a.title.localeCompare(b.title)));
 
 // The asset map travels as data so the editor can preview an image the moment
 // its source changes. editor.js may not import assets.js — the engine and the
@@ -156,14 +196,24 @@ const base = import.meta.env.BASE_URL;
   .ag-unlocked .ag-root { outline: 1px solid transparent; outline-offset: 4px; }
   .ag-unlocked .ag-root.ag-active { outline-color: rgba(255,210,122,.4); }
   .ag-unlocked .ag-editable { position: relative; cursor: grab; }
+  /* Drawn just INSIDE the box, not 2px outside it. A board's cells touch by
+     default now, so an outline offset outward crossed into the neighbouring
+     tile and two adjacent objects shared one doubled line. Inside, an outline
+     is exactly the box it belongs to at any gap, including none. */
   .ag-unlocked .ag-editable::after {
     content: '';
     position: absolute; inset: 0;
     outline: 1px dashed rgba(255,255,255,.22);
-    outline-offset: 2px;
+    outline-offset: -1px;
     pointer-events: none;
   }
   .ag-unlocked .ag-editable.ag-derived::after { outline-color: rgba(255,196,107,.45); }
+  /* The one you last pressed, which the arrow keys act on. Solid rather than
+     dashed, because "selected" and "movable" are different things to say. */
+  .ag-unlocked .ag-editable.ag-selected::after {
+    outline: 2px solid var(--accent, #FFD27A);
+    outline-offset: -2px;
+  }
   /* Lifted: the checkerboard is busy and a thin outline disappeared into it,
      so a tile in your hand lifts off the board with a shadow and a ring that
      do not read as "another square". */
@@ -199,10 +249,11 @@ const base = import.meta.env.BASE_URL;
   }
 
   /* The checkerboard: one cell per coordinate, placed in the grid itself, so it
-     aligns to the real tracks. Rows here are minmax(…, auto) and grow with
-     their content, so a background gradient sized to a cell would drift off
-     the truth within a few rows — Bureau can use one because its cells are
-     square and uniform. Only ever drawn when unlocked. */
+     aligns to the real tracks. Cells are square and uniform, so a background
+     gradient WOULD line up now, the way Bureau's does — but a cell is also a
+     TARGET. One element per coordinate is what makes clicking bare board mean
+     "here" and dragging across it mean "this big". A gradient cannot be
+     pressed. Only ever drawn when unlocked. */
   .ag-cell { display: none; }
   .ag-unlocked .ag-cell {
     display: block; z-index: 0;
@@ -275,10 +326,26 @@ const base = import.meta.env.BASE_URL;
   .ag-menu-kinds .ag-menu-btn { display: flex; flex-direction: column; gap: 2px; }
   .ag-menu-kinds small { opacity: .55; font-weight: 400; }
   .ag-menu-pages { grid-template-columns: 1fr; }
+  /* Same two-line shape as a row in the list above it, since it belongs to
+     that list rather than to the buttons at the bottom of a panel. */
+  .ag-menu-new { display: flex; flex-direction: column; gap: 2px; }
+  .ag-menu-new small { opacity: .55; }
+  .ag-menu-pages [aria-disabled] { opacity: .45; cursor: default; }
   .ag-menu-pages a { text-decoration: none; color: inherit; }
   .ag-menu-pages a[aria-current] { border-color: rgba(255,255,255,.6); }
   /* the sketched box, while you are dragging out a size on bare grid */
   .ag-sketch { border-style: dashed; }
+  /* What a holder holds: one row per thing, four fields and a way to drop it.
+     Narrow columns, because the panel is 340px at most and four fields on one
+     line is what makes a list of five readable at all. */
+  .ag-items { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow-y: auto; }
+  .ag-item-row { display: grid; grid-template-columns: .9fr 1.2fr 1.2fr .9fr auto; gap: 3px; }
+  .ag-item-row input {
+    font: 11px/1.3 ui-monospace, monospace; min-width: 0;
+    background: #111; color: #fff;
+    border: 1px solid rgba(255,255,255,.24); border-radius: 3px; padding: 3px 4px;
+  }
+  .ag-item-x { padding: 2px 6px !important; line-height: 1; }
   .ag-menu-danger { border-color: rgba(255,107,107,.5) !important; color: #FFB4B4; }
   .ag-menu-danger:hover { background: rgba(255,107,107,.15) !important; }
   .ag-menu-list { margin: 6px 0 0; padding-left: 16px; }
@@ -304,8 +371,10 @@ const base = import.meta.env.BASE_URL;
   /* A tile being dragged over is about to have its picture replaced. */
   .ag-unlocked .ag-editable.ag-drop::after { outline: 2px solid rgba(140,255,180,.9); }
   .ag-hint { opacity: .5; }
-  /* The hint is the first thing worth losing when the bar runs out of room. */
-  @media (max-width: 860px) { .ag-hint { display: none; } }
+  /* The hint is the first thing worth losing when the bar runs out of room.
+     1100, not 860: the bar wrapped to two lines on a 1200px window, and a
+     two-line bar covers the bottom of the board you are arranging. */
+  @media (max-width: 1100px) { .ag-hint { display: none; } }
   /* On a phone the bar is the only chrome there is, so it gets the full width
      and sits flat against the bottom rather than floating in from it. */
   @media (max-width: 640px) {

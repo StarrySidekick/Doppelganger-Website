@@ -519,3 +519,34 @@ test('normalizeElement carries an unlisted field through, whatever it is', () =>
   round(source).items[0].title = 'changed';
   assert.equal(source.items[0].title, 'T');
 });
+
+/* ------------------------------------------------------------------ *
+ * The gap
+ * ------------------------------------------------------------------ */
+
+test('a board with no gap between its cells is legal, and is the default', () => {
+  /* The gap was checked with the same `> 0` rule as the column count, so zero
+     — the one value a plain continuous grid needs — failed validation and the
+     Board panel silently refused the change. A board is a grid; the space
+     between its pieces is dressing one board may ask for. */
+  const l = { columns: 12, gap: 0, reflowBelow: 700, elements: [] };
+  assert.deepEqual(validateLayout(l), []);
+  assert.equal(normalizeLayout({ columns: 12, reflowBelow: 700, elements: [] }).gap, 0);
+  assert.deepEqual(validateLayout({ columns: 12, reflowBelow: 700, elements: [] }), []);
+});
+
+test('a negative gap is still refused', () => {
+  const problems = validateLayout({ columns: 12, gap: -4, reflowBelow: 700, elements: [] });
+  assert.match(problems.join(' '), /gap must be zero or a positive number/);
+});
+
+test('compiled CSS for a gapless board has cells that fill the width', () => {
+  const layout = {
+    columns: 4, gap: 0, reflowBelow: 700,
+    elements: [{ id: 'a', flow: 'stack', desk: { col: [1, 2], row: [1, 2] } }],
+  };
+  const css = compileCSS(layout, 'ag-test');
+  assert.match(css, /--ag-gap:0px/);
+  assert.match(css, /--ag-cell:calc\(\(100cqi - 0px\) \/ 4\)/);
+  assert.match(css, /gap:0px/);
+});

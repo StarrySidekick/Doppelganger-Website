@@ -7,12 +7,21 @@
  * editor as the live pages, so it cannot drift from them — which is the whole
  * reason the prototype needed folding in.
  *
- * Every element renders as a labelled placeholder, so a layout can be built
- * before the page that uses it exists. /uiux is the case this is for.
+ * An element the PAGE would draw — a `slot` — renders here as a labelled
+ * placeholder, so a layout can be built before the page that uses it exists.
+ * /uiux is the case this is for.
+ *
+ * A typed object is NOT given a placeholder, and that is a fix rather than a
+ * refinement: AdaptiveGrid already renders those from the layout data, so
+ * emitting a placeholder for them too put two elements carrying the same id
+ * into one document. The footer's nav and its colophon were drawn twice, on
+ * top of each other, and an id is a global name — hard rule 0, arrived at from
+ * the other direction.
  */
 import Base from '../layouts/Base.astro';
 import AdaptiveGrid from '../components/AdaptiveGrid.astro';
 import { layouts } from '../lib/layouts.js';
+import { isTyped } from '../lib/elements.js';
 import { url } from '../lib/assets.js';
 
 const names = Object.keys(layouts).sort();
@@ -33,15 +42,16 @@ const current = names[0];
     </nav>
 
     <p class="lede">
-      Every element is a placeholder — this is for arranging a layout, not for
-      seeing the real page. Open a real page with <code>?edit=1</code> to
-      arrange it in place. Changes save to this browser; Publish commits them.
+      For arranging a layout without the page around it. Anything the page
+      itself would draw shows as a labelled placeholder; an object the layout
+      carries is drawn as it really is. Open a real page with <code>?edit=1</code>
+      to arrange it in place. Changes save to this browser; Publish commits them.
     </p>
 
     {names.map((name) => (
       <section class="board" data-board={name} hidden={name !== current}>
         <AdaptiveGrid layout={layouts[name]} name={name}>
-          {layouts[name].elements.map((e) => (
+          {layouts[name].elements.filter((e) => !isTyped(e)).map((e) => (
             <div id={e.id} class="slot" data-flow={e.flow}>
               <span class="slot-id">{e.id}</span>
               <span class="slot-flow">{e.flow}</span>

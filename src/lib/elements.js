@@ -240,6 +240,27 @@ export const foldSpan = (o) => ({
 export const itemsOf = (o) => (Array.isArray(o?.items) ? o.items : []);
 
 /**
+ * One held thing, built from the words someone typed for it.
+ *
+ * An item is an ordinary object, so it needs a real kind — a `slot` draws
+ * nothing from data and carrying fields makes it fail its own check. It gets
+ * `note` and an explicit attribute list, which is the model working exactly as
+ * intended: what this thing can do is decided by what it was given, not by a
+ * name chosen for it.
+ */
+export function makeItem({ title = '', body = '', link = '', src = '' } = {}) {
+  const attrs = ['text'];
+  if (link) attrs.push('link');
+  if (src) attrs.push('media');
+  const it = { kind: 'note', attrs, face: 'none' };
+  if (title) it.title = title;
+  if (body) it.body = body;
+  if (link) it.link = link;
+  if (src) it.media = { src };
+  return it;
+}
+
+/**
  * The fields the settings panel offers, derived from the attributes rather
  * than listed per kind — so an invented combination gets its panel for free.
  */
@@ -262,6 +283,12 @@ export function fieldsOf(o) {
   }
   if (has(o, 'holds')) {
     out.push({ key: 'arrange', label: 'Lays them out', kind: 'select', options: ARRANGES });
+    /* What it holds is a field like any other. It had none, which meant a
+       holder could be made from the picker and then never filled — the
+       accordion and the gallery were both unreachable from the editor, and the
+       only way to put anything in one was to write the JSON by hand. `holds`
+       declared `items` as its field all along; this is the field. */
+    out.push({ key: 'items', label: 'What it holds', kind: 'items' });
   }
   // What a click does is a field like any other, so an invented combination
   // gets it too. Bureau's clickOf(), asked as a question in the panel.
@@ -327,6 +354,23 @@ function inner(o, ctx, { linked = false, depth = 0 } = {}) {
   return parts.join('');
 }
 
+/**
+ * Wrap an object's inside in the anchor that makes it go somewhere.
+ *
+ * One definition, because two things need it: an object on the board, and a
+ * thing inside a holder. A held item that carried a link used to render as
+ * plain words — so "a row of links", one of the three things a holder exists
+ * for, quietly was not one.
+ */
+function linkWrap(o, ctx, guts) {
+  const href = ctx.link?.(o.link) ?? o.link;
+  const label = o.media?.alt || o.title;
+  const aria = label ? ` aria-label="${escapeHtml(label)}"` : '';
+  // An external address opens in its own tab; an internal one is navigation.
+  const ext = clickOf(o) === 'url' ? ' target="_blank" rel="noopener"' : '';
+  return `<a class="ob-link" href="${escapeHtml(href)}"${aria}${ext}>${guts}</a>`;
+}
+
 /** What a holder holds, laid out by its rule. One level deep only. */
 function renderHolder(o, ctx, depth) {
   const items = itemsOf(o);
@@ -336,13 +380,24 @@ function renderHolder(o, ctx, depth) {
   // is the layout engine. An item that holds is drawn as its title alone.
   const drawn = items.map((it, i) => {
     const face = faceOf(it);
-    if (arrange === 'accordion') {
-      return `<div class="ob-item fc-${face}" data-item="${i}">
-        <button class="ob-tab" type="button" data-acc="${i}" aria-expanded="false">${escapeHtml(it.title ?? `Item ${i + 1}`)}</button>
-        <div class="ob-panel" hidden>${depth > 0 ? '' : inner(it, ctx, { depth: depth + 1 })}</div>
-      </div>`;
+    const linked = depth === 0 && goesSomewhere(it);
+    // A held thing carrying nothing but a title still has to say something,
+    // and its title is the only words it has. That is the whole of "a row of
+    // links": a label and somewhere to go.
+    const guts = depth > 0
+      ? escapeHtml(it.title ?? '')
+      : (inner(it, ctx, { linked, depth: depth + 1 })
+         || `<div class="ob-body">${escapeHtml(it.title ?? '')}</div>`);
+    const drawnItem = linked ? linkWrap(it, ctx, guts) : guts;
+    if (arrange !== 'accordion') {
+      return `<div class="ob-item fc-${face}" data-item="${i}">${drawnItem}</div>`;
     }
-    return `<div class="ob-item fc-${face}" data-item="${i}">${depth > 0 ? escapeHtml(it.title ?? '') : inner(it, ctx, { depth: depth + 1 })}</div>`;
+    // In an accordion the title is the control that opens the panel, so what
+    // the item holds — its words, its picture, its link — is what is inside.
+    return `<div class="ob-item fc-${face}" data-item="${i}">
+      <button class="ob-tab" type="button" data-acc="${i}" aria-expanded="false">${escapeHtml(it.title ?? `Item ${i + 1}`)}</button>
+      <div class="ob-panel" hidden>${depth > 0 ? '' : drawnItem}</div>
+    </div>`;
   }).join('');
   return `<div class="ob-holds ar-${arrange}" data-arrange="${arrange}">${drawn}</div>`;
 }
@@ -377,14 +432,7 @@ export function renderElement(o, ctx = {}) {
 
   const linked = goesSomewhere(o);
   const guts = inner(o, ctx, { linked });
-  if (!linked) return guts;
-
-  const href = ctx.link?.(o.link) ?? o.link;
-  const label = o.media?.alt || o.title;
-  const aria = label ? ` aria-label="${escapeHtml(label)}"` : '';
-  // An external address opens in its own tab; an internal one is navigation.
-  const ext = clickOf(o) === 'url' ? ' target="_blank" rel="noopener"' : '';
-  return `<a class="ob-link" href="${escapeHtml(href)}"${aria}${ext}>${guts}</a>`;
+  return linked ? linkWrap(o, ctx, guts) : guts;
 }
 
 /** Problems with one object's kind, attributes and fields. Empty means fine. */

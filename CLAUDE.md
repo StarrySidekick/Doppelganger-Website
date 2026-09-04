@@ -20,8 +20,8 @@ npm install
 npm run dev      # localhost:4321, hot reload
 npm run build    # → dist/
 npm run preview  # serve the built output
-npm test         # layout engine, element registry, publish, widget build
-                 # (node --test, no deps)
+npm test         # layout engine, element registry, publish, widget build, and
+                 # the site's own facts (scripts/site.test.mjs). node --test, no deps
 npm run widgets  # build Squarespace code blocks → widgets/dist/
 ```
 
@@ -46,8 +46,13 @@ shake, float, rotate, grow, blink, scroll, wobble, flip, zoom, wiggle, shimmer,
 glow, drift, sparkle.
 
 **2. All internal links must use `url()` from `src/lib/assets.js`.** The site
-deploys to a subpath (`/doppelganger`), so a bare `href="/links"` silently breaks
-navigation. This has already caused one bug.
+deploys to a subpath (`/Doppelganger-Website`), so a bare `href="/links"`
+silently breaks navigation. This has already caused two bugs, and the second
+one was *inside `url()`*: `trailingSlash: 'never'` means the home page is
+`/Doppelganger-Website` and `/Doppelganger-Website/` is a 404, but joining an
+empty path left the base's own slash on the end — so the header's home icon and
+the footer's "Home" link were both broken on the live site. `joinBase()` is the
+pure half, exported so the rule can be tested without a bundler.
 
 **3. Never change a URL path.** Slugs match Squarespace exactly so that when the
 real domain moves across, nothing needs redirecting. `trailingSlash: 'never'` and
@@ -131,13 +136,26 @@ same) — dragging with a thumb across 24 columns is miserable.
   not media queries, so a layout works inside any container. That is also what
   lets the editor show a true narrow preview in a pane rather than an iframe.
 
-**The board is RIGID and the cell is SQUARE.** A cell is one column wide and
-exactly as tall, derived from the container's own width in `cqi`:
+**The board is RIGID, the cell is SQUARE, and by default the cells TOUCH.** A
+cell is one column wide and exactly as tall, derived from the container's own
+width in `cqi`:
 
 ```css
 --ag-cell: calc((100cqi - (cols - 1) * gap) / cols);
 grid-auto-rows: var(--ag-cell);
 ```
+
+**`gap` defaults to 0 and every shipped board is 0.** A board is a plain
+continuous grid, the way Bureau's is; the space between pieces is dressing one
+board may ask for, in the Board panel, not something a layout has to state. It
+used to be 8 everywhere, which read on screen as a field of separated squares
+rather than a grid. Two things had to change together: the default, and
+`validateLayout()`, which checked `gap` with the same `> 0` rule as the column
+count — so **zero, the one value that matters, failed validation and the Board
+panel silently refused the change.** Gap is now `>= 0`, `normalizeLayout()`
+defaults it, and a negative gap is still refused. A tile outline is drawn
+*inside* its box (`outline-offset: -1px`) for the same reason: offset outward,
+two touching tiles shared one doubled line.
 
 Rows used to be `minmax(clamp(...), auto)` and grew with their content. That is
 gone, deliberately and at Timothy's call: it made every row a different height,
@@ -217,7 +235,18 @@ neighbours, and on a rigid board nothing moves unless you move it.
 
 **A holder is the one fluid thing, fenced into one tile.** `arrange` is `stack`,
 `row`, `grid` or `accordion`, and its `items` are ordinary objects rendered by
-the same code. The board is rigid; a holder is a box whose *contents* flow,
+the same code. **`items` is a field in the settings panel** — a row per thing,
+with a title, its words, somewhere to go and a picture, added and dropped in
+the panel and committed on Apply. Before that a holder could be made from the
+picker and never filled, so the accordion and the gallery were both
+unreachable from the editor and the only way in was to write the JSON by hand.
+`makeItem()` builds one from what it was handed: attributes follow the fields
+given, and an item carries a real `kind`, because a `slot` draws nothing from
+data and one holding fields fails its own check. **A held thing that goes
+somewhere is a real link**, through `ctx.link` like any other — that is what
+makes "a row of links" one of the three things a holder is for, and it was
+rendering as plain words until the anchor was lifted out of `renderElement()`
+into `linkWrap()` and shared. The board is rigid; a holder is a box whose *contents* flow,
 which is what an accordion, a row of links and a wrapping gallery all are.
 `src/lib/interact.js` is the only script a published page carries — one
 delegated listener for folds and accordions, so a visitor gets them too.
@@ -283,8 +312,11 @@ code, and neither needed a line of new engine code to get there.
 Consequences worth knowing:
 
 - **Ids are global across the whole document**, not per grid. Header, page and
-  footer all render into one page, so `site-*` prefixes keep them apart. A test
-  asserts the three layouts have no id in common.
+  footer all render into one page, so `site-*` prefixes keep them apart.
+  `scripts/site.test.mjs` asserts no two shipped layouts share an id — that
+  test was claimed here for a while before it existed, and the same hazard from
+  the other direction had `/editor` drawing a placeholder *and* the real object
+  under one id, so the footer's nav rendered twice on top of itself.
 - `/links` no longer carries `nav-home`/`nav-sun`; the header owns them.
 - **A site-relative link inside `text` content is rewritten at render** through
   `ctx.link`, so hard rule 2 still holds for a footer nav that is a run of HTML
@@ -398,6 +430,11 @@ Interaction follows bureau:
 - **click a bare cell** for the picker — and what you pick lands on that cell
   at its kind's size, or in the first free room
 - **drag across bare cells** to sketch a box; the new object takes that size
+- **press a tile** to select it — the one the keys act on, ringed in the accent
+- **arrow keys** move the selected tile one cell, **shift+arrows** resize it by
+  one, **⌘D** copies it, **Delete** removes it. A drag is right for "roughly
+  there" and wrong for "one cell left", which on a 24-column board is a few
+  pixels of pointer travel
 - **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
 - **keep holding without moving** and it becomes the settings panel instead —
@@ -410,20 +447,34 @@ Interaction follows bureau:
 - **right click** opens that object's settings — the fields its attributes
   declare, its face, flow seed, lock, delete, and on narrow "reset to derived
   position"
-- **the gear** is the look: colours, type, pinned
+- **Look** is the site's dressing: colours, type, pinned
 - **There are no grid tabs either.** Each board wears its own name while
   unlocked — HEADER, FOOTER, the page — and the one you last touched is lit and
   is the one the bar acts on. A page beats chrome as the default, so opening a
   page puts you on the page
 - **Board** is this grid's own geometry: how many columns across (which is how
-  big one piece is), the gap, a fixed height in cells, and floating or set.
-  **Tidy** repacks it top to bottom. **The header and footer are sized here** —
-  pick them from the grid tabs first. A change recompiles the grid's inline CSS
-  under its existing scope class so you see it immediately, rather than waiting
-  for the site to rebuild
-- **Pages** is the working list of every page there is. Bureau's *desks* do not
-  come over — a website has pages, and how a visitor gets between them is
-  whatever you build out of objects and menus
+  big one piece is), **the gap between cells**, a fixed height in cells, and
+  floating or set. **The height is the one for the board you are looking at** —
+  it wrote `rows` even on a phone, so the narrow height it was showing you
+  could not be set at all. **Tidy** repacks it top to bottom, **Copy JSON**
+  puts this board's file on the clipboard. **The header and footer are sized
+  here** — touch one first, since it is the board you last touched that the bar
+  acts on. A change recompiles the grid's inline CSS under its existing scope
+  class so you see it immediately, rather than waiting for the site to rebuild
+- **Pages** is the working list of every page there is, and **a page is a
+  ROUTE** — a file in `src/pages` or a layout the dynamic route turns into one.
+  It used to be built from the layout files alone, which meant it listed
+  exactly one page (`/links`) and every hand-written page was missing; and the
+  href went out bare, so on the deploy subpath it was a 404. **Hrefs are
+  resolved through `url()` in `LayoutEditor.astro` and travel to the editor as
+  data**, because `src/lib` may not import `assets.js` (hard rule 4). A row
+  says whether the page is a board or written by hand. **New page…** writes an
+  empty layout file, pending until Publish, so a page no longer has to be born
+  behind a drawer. Bureau's *desks* do not come over — a website has pages, and
+  how a visitor gets between them is whatever you build out of objects and menus
+- **Anywhere you say where something goes, the pages are offered** — a
+  `<datalist>` on every `link` field, including a holder's rows. A mistyped
+  path is a 404 nothing catches until a visitor finds it
 - **There is no device toggle.** Which of the two stored layouts you are
   arranging is decided by the width on screen — narrow the window and you are
   editing narrow, because that is the board in front of you. A ResizeObserver
@@ -434,7 +485,8 @@ Interaction follows bureau:
   padlock: locked is still the editor, with a bar; Done is the site
 
 Saving has three levels. **localStorage** holds work in progress and survives a
-reload. **Copy JSON** gives you the file to paste into `src/data/layouts/`.
+reload. **Copy JSON**, in the Board panel, gives you the file to paste into
+`src/data/layouts/` or to hand over for review.
 **Publish sends everything at once** — every grid on the page that changed,
 every picked image, any page a new drawer made, and the look if it changed — as
 **one commit** to `main`, and the site rebuilds in about a minute. It uses the
@@ -510,6 +562,12 @@ What's already done, so it isn't rediscovered:
   a picker that makes notes, images, buttons and drawers, faces, and a look
   panel. A drawer makes a page. This is the point at which the thing under
   `src/lib/` stopped being "the editor for this site" and became the tool.
+- **The board is a plain grid, a holder can be filled, and a page can be made
+  without a drawer.** September 2026: the gap defaults to 0 and is per-board;
+  `items` is a field; Pages lists every route and its links work; selection and
+  the arrow keys; Duplicate; Copy JSON is back; the height field follows the
+  device. Two live bugs went with them — `url('')` pointing at a 404, and
+  `/editor` emitting duplicate ids.
 - The remaining work to replace Squarespace is: convert `/`, `/writing`,
   `/music` to grids and to typed content; build the six blog collections; pull
   the assets local.

@@ -32,8 +32,27 @@ export const SOUNDCLOUD = 'https://soundcloud.com/user-682162199';
 /** The real domain. Single source of truth — SEO tags read this, not a literal. */
 export const PROD_ORIGIN = 'https://timothyvlangas.com';
 
+/**
+ * Join a path onto the deploy base.
+ *
+ * Pure, and exported on its own, so the one rule below can be tested without a
+ * bundler: `import.meta.env` does not exist outside Vite.
+ *
+ * **The site root has no trailing slash.** `astro.config.mjs` sets
+ * `trailingSlash: 'never'` and `build.format: 'file'`, so the home page is
+ * `/Doppelganger-Website` and `/Doppelganger-Website/` is a 404 — which is
+ * exactly what the header's home icon and the footer's "Home" link were
+ * pointing at, because joining an empty path left the base's own slash on the
+ * end. Hard rule 2 lives in this function; this was hard rule 2 failing inside
+ * the helper written to enforce it.
+ */
+export const joinBase = (base, p) => {
+  const joined = ((base ?? '/') + '/' + (p ?? '')).replace(/\/{2,}/g, '/');
+  return joined.length > 1 ? joined.replace(/\/+$/, '') : joined;
+};
+
 /** Prefix an internal path with the deploy base. Required on project Pages. */
-export const url = (p) => (import.meta.env.BASE_URL + '/' + p).replace(/\/{2,}/g, '/');
+export const url = (p) => joinBase(import.meta.env.BASE_URL, p);
 
 /**
  * Asset sizing.

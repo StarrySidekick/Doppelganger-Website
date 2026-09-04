@@ -2,7 +2,7 @@
   "version": 5,
   "columns": 24,
   "narrowColumns": 8,
-  "gap": 8,
+  "gap": 0,
   "reflowBelow": 700,
   "title": "Links",
   "elements": [

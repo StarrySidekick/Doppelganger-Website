@@ -47,7 +47,8 @@ import {
 } from './adaptive-grid.js';
 import {
   KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf, clickOf,
-  fieldsOf, getField, setField, renderElement, unsafeHtml, tiltFor, escapeHtml,
+  fieldsOf, getField, setField, itemsOf, makeItem, renderElement, unsafeHtml,
+  tiltFor, escapeHtml,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
@@ -166,6 +167,18 @@ export function cleanRichText(html) {
 export const slugify = (s) =>
   String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
 
+/**
+ * An empty board, for a page that does not exist yet.
+ *
+ * One definition, because a page can now be born two ways — behind a drawer,
+ * or straight from the Pages panel — and two copies of these numbers would
+ * drift. The gap is 0: a board's cells touch unless that board is told to
+ * space them, which is the Board panel's business and not a new page's.
+ */
+export const newLayout = (title) => ({
+  version: 5, columns: 24, narrowColumns: 8, gap: 0, reflowBelow: 700, title, elements: [],
+});
+
 /* ------------------------------------------------------------------ *
  * Editor
  * ------------------------------------------------------------------ */
@@ -277,6 +290,8 @@ export function mountEditor({
   /* ---- applying a layout to the live DOM ---- */
 
   function paint() {
+    // Undo can take the selected object away underneath the selection.
+    if (selected && !find(selected)) selected = null;
     for (const r of placed()) {
       /* An object made in the editor and kept in localStorage has no tile in
          the built page, so on a reload it would be in the layout, in the undo
@@ -532,9 +547,7 @@ export function mountEditor({
     if (!slug) return toast('That name has no letters in it');
     const made = create('drawer', col, row, { title, link: `/${slug}`, onclick: 'page' }, size);
     if (!made) return;
-    chrome.addFile(pathFor(slug), JSON.stringify({
-      version: 5, columns: 24, narrowColumns: 8, gap: 8, reflowBelow: 700, title, elements: [],
-    }, null, 2) + '\n');
+    chrome.addFile(pathFor(slug), JSON.stringify(newLayout(title), null, 2) + '\n');
     toast(`"${title}" opens /${slug} once published`);
   }
 
@@ -571,6 +584,7 @@ export function mountEditor({
     const cell = e.target.closest('.ag-cell');
     if (!cell || !grid.contains(cell)) return;
     if (editing) endEdit(true);
+    select(null);                              // pressing the board means "not that one"
     sketch = {
       col: +cell.dataset.col, row: +cell.dataset.row,
       toCol: +cell.dataset.col, toRow: +cell.dataset.row,
@@ -805,7 +819,8 @@ export function mountEditor({
     g.node.style.transform = '';
     g.ghost?.remove();
 
-    if (!g.moved) return;                     // it was a click
+    // A press that went nowhere is not a move; it is you saying which one.
+    if (!g.moved) return select(g.id);
     if (g.cand && g.ok) {
       const first = device === 'narrow' && !find(g.id).narrow;
       setBox(g.id, g.cand);
@@ -907,7 +922,7 @@ export function mountEditor({
   function openSettings(id, x, y) {
     const item = find(id);
     if (!item) return;
-    selected = id;
+    select(id);
     const hasOwn = device === 'narrow' && !!item.narrow;
     const typed = isTyped(item);
     /* A field draws itself from what it declares, so a new attribute's fields
@@ -916,11 +931,16 @@ export function mountEditor({
       const v = getField(item, f.key);
       if (f.kind === 'area') return `<textarea data-field="${f.key}" rows="4">${escapeAttr(v ?? '')}</textarea>`;
       if (f.kind === 'number') return `<input data-field="${f.key}" type="number" min="1" value="${escapeAttr(v ?? '')}" />`;
+      if (f.kind === 'items') return itemsControl(item);
       if (f.kind === 'select') {
         return `<select data-field="${f.key}">${Object.entries(f.options).map(([k, label]) =>
           `<option value="${escapeAttr(k)}"${String(v ?? '') === k ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}</select>`;
       }
-      return `<input data-field="${f.key}" type="text" value="${escapeAttr(v ?? '')}" />`;
+      // Somewhere to go is nearly always a page on this site, and typing one by
+      // hand is how you get a 404 that nothing catches until a visitor finds
+      // it. The list is offered; anything else can still be typed.
+      const list = f.key === 'link' ? ' list="ag-pages"' : '';
+      return `<input data-field="${f.key}" type="text"${list} value="${escapeAttr(v ?? '')}" />`;
     };
     const fields = typed ? fieldsOf(item).map((f) => `
       <label class="ag-menu-field">${f.label}${control(f)}</label>`).join('') : '';
@@ -942,6 +962,7 @@ export function mountEditor({
           ${FLOWS.map((f) => `<option value="${f}"${f === item.flow ? ' selected' : ''}>${f}</option>`).join('')}
         </select>
       </label>
+      ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate <small>⌘D</small></button>' : ''}
       <button class="ag-menu-btn" data-act="lock">${item.locked ? 'Unlock' : 'Lock in place'}</button>
       ${device === 'narrow' ? `<button class="ag-menu-btn" data-act="reset"${hasOwn ? '' : ' disabled'}>
         ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
@@ -954,10 +975,13 @@ export function mountEditor({
       if (act === 'lock') { item.locked = !item.locked; commit(); }
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
       if (act === 'pick') { pickFileFor(id); return; }
-      if (act === 'delete') { remove(id); }
+      if (act === 'item-add') { menuEl.querySelector('[data-items]')?.insertAdjacentHTML('beforeend', itemRow()); return; }
+      if (act === 'duplicate') { duplicate(id); }
+      if (act === 'delete') { select(null); remove(id); }
       if (act === 'fields') {
         const ok = setContent(id, (o) => {
           for (const f of fieldsOf(o)) {
+            if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
             const input = menuEl.querySelector(`[data-field="${f.key}"]`);
             if (!input) continue;
             const raw = input.value.trim();
@@ -971,6 +995,42 @@ export function mountEditor({
     });
   }
 
+  /**
+   * The rows of a holder, edited in the panel.
+   *
+   * Rows are read out of the DOM on Apply, in the order they are in, so adding
+   * and removing one is a DOM change and nothing is committed until you say so
+   * — the same bargain as every other field here.
+   */
+  function itemsControl(o) {
+    const rows = itemsOf(o).map((it) => itemRow(it)).join('');
+    return `<div class="ag-items" data-items>${rows}</div>
+      <button class="ag-menu-btn" data-act="item-add">Add one</button>
+      <div class="ag-menu-note">A title shows on its own only in an accordion;
+        elsewhere the words are what you see. Leave a row blank to drop it.</div>`;
+  }
+  function itemRow(it = {}) {
+    const cell = (k, place, v) =>
+      `<input data-item="${k}" type="text" placeholder="${place}"${k === 'link' ? ' list="ag-pages"' : ''} value="${escapeAttr(v ?? '')}" />`;
+    return `<div class="ag-item-row" data-item-row>
+      ${cell('title', 'Title', it.title)}
+      ${cell('body', 'Words', it.body)}
+      ${cell('link', 'Goes to', it.link)}
+      ${cell('src', 'Picture', it.media?.src)}
+      <button class="ag-menu-btn ag-menu-danger ag-item-x" data-act="item-del" type="button">×</button>
+    </div>`;
+  }
+  /** Every row on screen, as objects. Blank rows are how you delete one. */
+  function readItems(menuEl) {
+    return [...menuEl.querySelectorAll('[data-item-row]')]
+      .map((row) => {
+        const val = (k) => row.querySelector(`[data-item="${k}"]`)?.value.trim() ?? '';
+        return { title: val('title'), body: val('body'), link: val('link'), src: val('src') };
+      })
+      .filter((r) => r.title || r.body || r.link || r.src)
+      .map(makeItem);
+  }
+
   const describe = (item) =>
     device === 'narrow'
       ? (item.narrow
@@ -978,7 +1038,80 @@ export function mountEditor({
           : `Derived from its <b>${item.flow}</b> rule. Move it to place it by hand.`)
       : `Desk position. Its <b>${item.flow}</b> rule seeds narrow.`;
 
+  /* ---- selection, and the keyboard as a second pair of hands ---- */
+
+  /**
+   * A tile you have pressed is the selected one.
+   *
+   * The board had no selection at all: a gesture was the only way to say which
+   * object you meant, so every adjustment had to be a drag. A drag is right for
+   * "roughly there" and wrong for "one cell left", which on a 24-column board
+   * is a few pixels of pointer travel. Pressing a tile now selects it, and the
+   * arrow keys do the exact version of what the drag does approximately.
+   */
+  function select(id) {
+    if (selected === id) return;
+    if (selected) el(selected)?.classList.remove('ag-selected');
+    selected = id;
+    if (id) el(id)?.classList.add('ag-selected');
+  }
+
+  /** Move or resize the selected tile by one cell. Refused the same way a drag is. */
+  function nudge(dcol, drow, resize) {
+    if (!selected) return;
+    const e = find(selected);
+    if (!e) return select(null);
+    if (e.locked) return toast(`${selected} is locked in place`);
+    const b = boxFor(selected);
+    const box = resize
+      ? { col: [b.col[0], Math.max(1, b.col[1] + dcol)], row: [b.row[0], Math.max(1, b.row[1] + drow)] }
+      : { col: [b.col[0] + dcol, b.col[1]], row: [b.row[0] + drow, b.row[1]] };
+    if (!boxOk(layout, selected, box, device)) return toast('No room there');
+    const first = device === 'narrow' && !e.narrow;
+    setBox(selected, box);
+    if (first) toast(`${selected} now has its own narrow position`);
+  }
+
+  /**
+   * A copy of an object, in the first free room.
+   *
+   * Five plaques that differ by two words is the ordinary case on this site,
+   * and building each from the picker and retyping it is the slow way to say
+   * it. Only a typed object can be copied — a `slot` IS the page's markup, and
+   * a second copy of it would refer to markup that does not exist.
+   */
+  function duplicate(id) {
+    const e = find(id);
+    if (!e) return;
+    if (!isTyped(e)) return toast('That one is drawn by the page itself, so there is nothing to copy');
+    const b = boxFor(id);
+    const copy = structuredClone(e);
+    copy.id = uniqueId(e.kind ?? 'copy');
+    delete copy.desk; delete copy.narrow;
+    if (device === 'narrow') {
+      copy.narrow = freeSpot(layout, [b.col[1], b.row[1]], 'narrow', copy.id);
+      copy.desk = freeSpot(layout, [e.desk.col[1], e.desk.row[1]], 'desk', copy.id);
+    } else {
+      copy.desk = freeSpot(layout, [b.col[1], b.row[1]], 'desk', copy.id);
+    }
+    layout.elements.push(copy);
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      layout.elements.pop();
+      return toast(problems[0].replace(/^[^:]+: /, ''));
+    }
+    pushUndo({ kind: 'add', id: copy.id });
+    mountTile(copy);
+    commit();
+    select(copy.id);
+    toast(`${copy.id} — a copy of ${id}`);
+  }
+
   /* ---- keyboard ---- */
+
+  const ARROWS = {
+    ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+  };
 
   function onKey(e) {
     if (chrome.activeName() !== name) return;
@@ -995,7 +1128,22 @@ export function mountEditor({
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
-    if (e.key === 'l' || e.key === 'L') chrome.setLocked(!locked());
+    if (e.key === 'l' || e.key === 'L') { chrome.setLocked(!locked()); return; }
+    if (locked() || !selected) return;
+
+    /* The exact versions of the gestures. Shift resizes rather than moves,
+       which is the same pairing every drawing program makes. */
+    const step = ARROWS[e.key];
+    if (step) { e.preventDefault(); return nudge(step[0], step[1], e.shiftKey); }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault(); return duplicate(selected);
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      const gone = selected;
+      select(null);
+      return remove(gone);
+    }
   }
 
   /**
@@ -1176,6 +1324,16 @@ function buildChrome(lookInitial, pages = []) {
   toastEl.hidden = true;
   document.body.appendChild(toastEl);
 
+  /* Every page there is, offered to every field that asks where to go. A
+     drawer's page and a button's destination are nearly always a page on this
+     site, and a mistyped one is a 404 nothing catches until a visitor does. */
+  const pageOptions = document.createElement('datalist');
+  pageOptions.id = 'ag-pages';
+  pageOptions.innerHTML = (pages ?? [])
+    .map((p) => `<option value="${escapeAttr(p.path)}">${escapeAttr(p.title)}</option>`)
+    .join('');
+  document.body.appendChild(pageOptions);
+
   /** Every layout file there is, for the working page list. */
   const pageList = pages;
 
@@ -1312,7 +1470,7 @@ function buildChrome(lookInitial, pages = []) {
       <span class="ag-where">${escapeAttr(activeName)}${d === 'narrow' ? ' · narrow' : ''}</span>
       <span class="ag-hint">${isLocked
         ? 'locked · press the padlock to arrange'
-        : 'tap a cell to add · hold to pick up · hold still for settings · two fingers to scroll'}</span>
+        : 'tap a cell to add · hold to pick up · arrows nudge · hold still for settings'}</span>
       ${waiting.length ? `<span class="ag-pending" title="Not committed until you publish">${[
         layouts ? `${layouts} layout${layouts > 1 ? 's' : ''}` : '',
         images ? `${images} image${images > 1 ? 's' : ''}` : '',
@@ -1377,28 +1535,38 @@ function buildChrome(lookInitial, pages = []) {
     const a = active();
     if (!a) return;
     const b = a.board();
+    /* A board's height is stored per device, and this panel only ever offered
+       the desk one — so on a phone the field said `rows`, wrote `rows`, and
+       the narrow height it was showing you could not be set at all. It edits
+       whichever height belongs to the board in front of you. */
+    const narrow = a.getDevice() === 'narrow';
+    const heightKey = narrow ? 'narrowRows' : 'rows';
+    const where = narrow ? 'narrow' : 'desk';
     const px = (cols) => {
       const g = a.root.querySelector('.ag-grid');
       const w = g ? g.getBoundingClientRect().width : 0;
       return w ? Math.round((w - (cols - 1) * b.gap) / cols) : 0;
     };
+    // How big a piece is depends on which board is on screen, so the figure
+    // has to follow the device rather than always quoting the desk one.
+    const piece = px(narrow ? b.narrowColumns : b.columns);
     openMenu(window.innerWidth / 2 - 170, window.innerHeight / 2 - 200, `
       <div class="ag-menu-title">Board · ${activeName}</div>
       <div class="ag-menu-note">
         The grid is rigid and its cells are square. It fills the width it is
         given, so the column count is how big one piece is.
       </div>
-      <label class="ag-menu-field">Columns across (desk) — ${px(b.columns)}px a piece
+      <label class="ag-menu-field">Columns across (desk)${narrow ? '' : ` — ${piece}px a piece`}
         <input data-board="columns" type="number" min="3" max="60" value="${b.columns}" />
       </label>
-      <label class="ag-menu-field">Columns across (narrow)
+      <label class="ag-menu-field">Columns across (narrow)${narrow ? ` — ${piece}px a piece` : ''}
         <input data-board="narrowColumns" type="number" min="3" max="30" value="${b.narrowColumns}" />
       </label>
-      <label class="ag-menu-field">Gap between cells (px)
+      <label class="ag-menu-field">Gap between cells (px) — 0 is a plain grid
         <input data-board="gap" type="number" min="0" max="40" value="${b.gap}" />
       </label>
-      <label class="ag-menu-field">Height in cells — blank means as tall as it needs
-        <input data-board="rows" type="number" min="1" max="40" value="${b.rows ?? ''}" />
+      <label class="ag-menu-field">Height in cells (${where}) — blank means as tall as it needs
+        <input data-board="${heightKey}" type="number" min="1" max="40" value="${b[heightKey] ?? ''}" />
       </label>
       <label class="ag-menu-check">
         <input data-board="sticky" type="checkbox"${b.sticky ? ' checked' : ''} />
@@ -1407,23 +1575,49 @@ function buildChrome(lookInitial, pages = []) {
       <div class="ag-menu-actions">
         <button class="ag-menu-btn" data-act="board-apply">Apply</button>
         <button class="ag-menu-btn" data-act="tidy">Tidy</button>
+        <button class="ag-menu-btn" data-act="copy">Copy JSON</button>
       </div>
       <div class="ag-menu-note">
         <b>Tidy</b> repacks this board top to bottom in reading order, growing
         downward. Nothing moves on its own — this is the deliberate version.
+        <b>Copy JSON</b> puts this board's file on the clipboard, which is the
+        middle of the three ways to save: this browser, the clipboard, Publish.
       </div>
     `, (act, _v, menuEl) => {
       if (act === 'tidy') return a.tidy();
+      if (act === 'copy') return copyJson(a);
       if (act !== 'board-apply') return;
       const num = (k) => {
-        const raw = menuEl.querySelector(`[data-board="${k}"]`).value.trim();
+        const el = menuEl.querySelector(`[data-board="${k}"]`);
+        const raw = el ? el.value.trim() : '';
         return raw === '' ? null : Number(raw);
       };
       a.setBoard({
         columns: num('columns'), narrowColumns: num('narrowColumns'), gap: num('gap'),
-        rows: num('rows'), sticky: menuEl.querySelector('[data-board="sticky"]').checked,
+        [heightKey]: num(heightKey),
+        sticky: menuEl.querySelector('[data-board="sticky"]').checked,
       });
     });
+  }
+
+  /**
+   * The middle of the three ways to save: the file itself, on the clipboard.
+   *
+   * localStorage keeps work in progress, Publish commits it, and this is what
+   * you use when the change should be looked at before it goes anywhere — it
+   * is the file exactly as Publish would write it.
+   */
+  async function copyJson(a) {
+    const text = JSON.stringify(a.getLayout(), null, 2) + '\n';
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`${pathFor(activeName)} copied — paste it wherever it needs looking at`);
+    } catch {
+      // A clipboard write needs permission and a secure origin, and neither is
+      // guaranteed. Falling back to the console beats losing the file.
+      console.info(text);
+      toast('Could not reach the clipboard — the JSON is in the console');
+    }
   }
 
   /* ---- the pages: a working list, not the site's navigation ---- */
@@ -1435,16 +1629,55 @@ function buildChrome(lookInitial, pages = []) {
    * and edit one without hunting for its URL.
    */
   function openPages() {
-    const here = location.pathname;
+    const here = location.pathname.replace(/\/$/, '');
     const rows = pageList.map((p) => {
-      const at = p.href === here || `${p.href}/` === here;
-      return `<a class="ag-menu-btn" href="${escapeAttr(p.href)}?edit=1"${at ? ' aria-current="true"' : ''}>${escapeAttr(p.title)}<small>${escapeAttr(p.href)}</small></a>`;
+      const at = p.href.replace(/\/$/, '') === here;
+      // `href` arrives already resolved through url() — see LayoutEditor.astro.
+      // A bare "/links" here is the deploy-subpath 404 that made this panel
+      // look empty and broken, and it is hard rule 2.
+      const sep = p.href.includes('?') ? '&' : '?';
+      return `<a class="ag-menu-btn" href="${escapeAttr(p.href)}${sep}edit=1"${at ? ' aria-current="true"' : ''}>${escapeAttr(p.title)}
+        <small>${escapeAttr(p.path)}${p.grid ? ' · a board' : ' · written by hand'}${at ? ' · you are here' : ''}</small></a>`;
     }).join('');
-    openMenu(window.innerWidth / 2 - 150, 90, `
+    /* A page made in this session is not on the site until it is published, so
+       it is listed but not offered as a link — following it would 404, which is
+       exactly the complaint this panel started with. */
+    const waiting = [...files.keys()]
+      .map((path) => path.match(/^src\/data\/layouts\/(.+)\.json$/)?.[1])
+      .filter(Boolean)
+      .map((n) => `<div class="ag-menu-btn" aria-disabled="true">${escapeAttr(n)}<small>/${escapeAttr(n)} · after you publish</small></div>`)
+      .join('');
+    openMenu(window.innerWidth / 2 - 170, 80, `
       <div class="ag-menu-title">Pages</div>
-      <div class="ag-menu-kinds ag-menu-pages">${rows || '<div class="ag-menu-note">No layouts found.</div>'}</div>
-      <div class="ag-menu-note">A working list. What a visitor navigates by is whatever you put on the boards.</div>
-    `, null);
+      <div class="ag-menu-kinds ag-menu-pages">${rows || '<div class="ag-menu-note">No pages found.</div>'}${waiting}</div>
+      <button class="ag-menu-btn ag-menu-new" data-act="new-page">New page…<small>Writes a layout file; the next build makes the page</small></button>
+      <div class="ag-menu-note">
+        Every page there is, editing carried with you. A <b>board</b> is a page
+        made of objects; the rest are written by hand and still have their
+        header and footer to arrange. What a visitor navigates by is whatever
+        you put on the boards.
+      </div>
+    `, (act) => { if (act === 'new-page') newPage(); });
+  }
+
+  /**
+   * Make a page that is not behind a drawer.
+   *
+   * A drawer makes a page, and that was the ONLY way to make one — which is
+   * backwards: a drawer is a way *to* a page, not the only reason to have one.
+   * This writes the same empty layout file, pending until Publish, and leaves
+   * you to put a way there on whichever board should carry it.
+   */
+  function newPage() {
+    const title = window.prompt('Name the page — it becomes an address:', '');
+    if (!title) return;
+    const slug = slugify(title);
+    if (!slug) return toast('That name has no letters in it');
+    if (pageList.some((p) => p.name === slug) || files.has(pathFor(slug))) {
+      return toast(`There is already a page at /${slug}`);
+    }
+    addFile(pathFor(slug), JSON.stringify(newLayout(title), null, 2) + '\n');
+    toast(`/${slug} exists once you publish — put something on it then`);
   }
 
   /* ---- publishing ---- */
@@ -1581,15 +1814,20 @@ function buildChrome(lookInitial, pages = []) {
     menu.removeEventListener('change', onLookInput);
   };
 
+  /* Actions that manage the panel themselves and must not have it shut under
+     them: "Choose an image…" opens a file picker, and the two that add or drop
+     a row of a holder are editing the panel in place. */
+  const KEEP_OPEN = new Set(['pick', 'item-add', 'item-del']);
   menu.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.tagName === 'SELECT') return;
+    // A row's × is bookkeeping inside the panel, not a change to the object —
+    // nothing a holder holds is committed until Apply.
+    if (btn.dataset.act === 'item-del') { btn.closest('[data-item-row]')?.remove(); return; }
     // The menu element goes with the action: a fields panel has to read its own
     // inputs, and it must do so BEFORE closeMenu() empties them.
     onPick?.(btn.dataset.act, undefined, menu);
-    // "Choose an image…" opens a file picker; closing the menu under it would
-    // take the panel away before the file has even been chosen.
-    if (btn.dataset.act !== 'pick') closeMenu();
+    if (!KEEP_OPEN.has(btn.dataset.act)) closeMenu();
   });
   menu.addEventListener('change', (e) => {
     // A select that is a FIELD belongs to the Apply button, not to the menu's

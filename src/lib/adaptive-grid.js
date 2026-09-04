@@ -94,6 +94,9 @@ export function normalizeLayout(layout) {
     // thumb across 24 columns is miserable. Defaults to the same count so an
     // existing layout is unchanged.
     narrowColumns: layout.narrowColumns ?? layout.columns,
+    // The board is continuous unless it is told otherwise. A gap is a piece of
+    // dressing one board may want, not a thing every layout has to state.
+    gap: layout.gap ?? 0,
     // Pass a non-array straight through rather than throwing — validateLayout
     // is often handed junk on purpose and has to be able to report on it.
     elements: Array.isArray(layout.elements)
@@ -321,9 +324,17 @@ export function validateLayout(input, name = 'layout') {
   }
   const layout = normalizeLayout(input);
 
-  for (const key of ['columns', 'gap', 'reflowBelow']) {
+  for (const key of ['columns', 'reflowBelow']) {
     const v = layout[key];
     if (!Number.isFinite(v) || v <= 0) bad(`${key} must be a positive number, got ${JSON.stringify(v)}`);
+  }
+  /* A gap of ZERO is the default and it is legal — a board whose cells touch is
+     a plain grid, which is what Bureau's is and what this one now is. It used
+     to be checked with the same `> 0` rule as the column count, so the one
+     value worth having could not be stored: setting the gap to 0 in the Board
+     panel failed validation and the change was silently refused. */
+  if (!Number.isFinite(layout.gap) || layout.gap < 0) {
+    bad(`gap must be zero or a positive number, got ${JSON.stringify(layout.gap)}`);
   }
   // Optional. `rows` fixes a board's height in cells, which is how the header
   // and footer are sized; `sticky` makes chrome follow you down the page.

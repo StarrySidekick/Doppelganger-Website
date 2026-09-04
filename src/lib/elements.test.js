@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ATTRS, KINDS, FACES, PICKER_KINDS, has, attrsOf, kindOf, faceOf, isTyped, isInline, isContainer,
-  fieldsOf, getField, setField, renderElement, checkElement, upgradeElement, unsafeHtml, escapeHtml, tiltFor,
+  fieldsOf, getField, setField, renderElement, checkElement, upgradeElement, unsafeHtml, escapeHtml, tiltFor, makeItem, itemsOf,
 } from './elements.js';
 
 /** Stand-ins for what AdaptiveGrid.astro supplies from assets.js. */
@@ -109,7 +109,10 @@ test('the settings fields follow the attributes, not the kind name', () => {
   // Every object can be told what a click does, because that is a field like
   // any other rather than something only a link-shaped thing gets.
   assert.deepEqual(fieldsOf({ kind: 'fold' }).map((f) => f.key), ['title', 'fold.cols', 'fold.rows', 'onclick']);
-  assert.deepEqual(fieldsOf({ kind: 'list' }).map((f) => f.key), ['title', 'arrange', 'onclick']);
+  // A holder gets a field for what it holds. Without it a holder could be made
+  // from the picker and never filled, which made the accordion and the gallery
+  // unreachable from the editor.
+  assert.deepEqual(fieldsOf({ kind: 'list' }).map((f) => f.key), ['title', 'arrange', 'items', 'onclick']);
   assert.ok(fieldsOf({ kind: 'drawer' }).some((f) => f.key === 'link'));
   const o = { kind: 'image' };
   setField(o, 'media.src', 'u'); setField(o, 'media.alt', 'x');
@@ -163,4 +166,52 @@ test('a pinned tile leans the same way every render, and never much', () => {
   for (const id of ['a', 'email', 'site-home', 'drawer-12']) {
     assert.ok(Math.abs(tiltFor(id)) >= 0.6 && Math.abs(tiltFor(id)) <= 2.4, id);
   }
+});
+
+/* ------------------------------------------------------------------ *
+ * A holder, and what it holds
+ * ------------------------------------------------------------------ */
+
+test('an item is built from what it was given, not from a name', () => {
+  // The model's one rule, at the smallest scale it applies at: what this thing
+  // can do is decided by which fields it was actually handed.
+  assert.deepEqual(makeItem({ body: 'words' }).attrs, ['text']);
+  assert.deepEqual(makeItem({ body: 'words', link: '/writing' }).attrs, ['text', 'link']);
+  assert.deepEqual(makeItem({ title: 'T', src: 'asset:sun' }).attrs, ['text', 'media']);
+  // It has to carry a real kind: a `slot` draws nothing from data, and one
+  // holding fields fails its own check.
+  assert.equal(makeItem({ body: 'x' }).kind, 'note');
+  assert.deepEqual(checkElement(makeItem({ title: 'T', body: 'b', link: '/x' })), []);
+});
+
+test('a held thing that goes somewhere is a link, and goes through ctx.link', () => {
+  /* "A row of links" is one of the three things a holder is for, and a held
+     item carrying a link used to render as plain words — the anchor was only
+     ever put on an object sitting on the board. */
+  const holder = {
+    kind: 'list', arrange: 'row',
+    items: [makeItem({ title: 'Writing', link: '/writing' }), makeItem({ body: 'Away', link: 'https://example.com' })],
+  };
+  const html = renderElement(holder, { link: (h) => (h.startsWith('/') ? '/base' + h : h) });
+  assert.match(html, /href="\/base\/writing"/, 'an internal link takes the base — hard rule 2');
+  assert.match(html, /Writing/, 'a held thing with only a title still says its title');
+  assert.match(html, /href="https:\/\/example\.com" target="_blank"/, 'an outside address opens in its own tab');
+});
+
+test('an accordion puts the title on the tab and everything else inside', () => {
+  const holder = {
+    kind: 'list', arrange: 'accordion',
+    items: [makeItem({ title: 'One', body: 'The first.' })],
+  };
+  const html = renderElement(holder, {});
+  assert.match(html, /data-acc="0" aria-expanded="false">One</);
+  assert.match(html, /ob-panel" hidden>.*The first\./s);
+});
+
+test('a holder does not nest — the board is the layout engine', () => {
+  const inner = { kind: 'list', title: 'Inside', items: [makeItem({ body: 'deep' })] };
+  const outer = { kind: 'list', items: [inner] };
+  const html = renderElement(outer, {});
+  assert.doesNotMatch(html, /deep/, 'one level only');
+  assert.equal(itemsOf(outer).length, 1);
 });
