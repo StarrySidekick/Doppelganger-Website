@@ -92,10 +92,11 @@ export const ATTRS = {
   container: { label: 'Container', says: 'Opens onto a page of its own — this is what makes a drawer' },
   fold:      { label: 'Folds',     says: 'Has a folded size and an open size, and toggles between them', field: 'fold' },
   holds:     { label: 'Holds',     says: 'Holds other objects and lays them out by a rule', field: 'items' },
+  feed:      { label: 'Feed',      says: 'Shows the works the site knows about, filtered and tagged', field: 'feed' },
 };
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed'];
 
 /* ------------------------------------------------------------------ *
  * What a click does
@@ -147,6 +148,38 @@ export const ARRANGES = {
 export const arrangeOf = (o) => (ARRANGES[o?.arrange] ? o.arrange : 'stack');
 
 /* ------------------------------------------------------------------ *
+ * A feed — the works, filtered
+ * ------------------------------------------------------------------ */
+
+/**
+ * `holds` carries its own things; `feed` draws them from what the site knows
+ * it has made. That is the difference between a list you wrote and a list that
+ * is true — add a work once and every feed matching it shows it, on every page.
+ *
+ * This file still knows nothing about the site: a feed is a QUERY, and the
+ * caller answers it through `ctx.works(query)`. Hard rule 4, the same way
+ * `ctx.image` and `ctx.link` already work.
+ */
+export const SORTS = {
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  title:  'By title',
+};
+
+export const sortOf = (o) => (SORTS[o?.feed?.sort] ? o.feed.sort : 'newest');
+
+/** The query a feed object is asking. Always an object, always complete. */
+export const feedOf = (o) => ({
+  type: o?.feed?.type || '',
+  tag: o?.feed?.tag || '',
+  limit: Number.isFinite(o?.feed?.limit) && o.feed.limit > 0 ? Math.round(o.feed.limit) : 0,
+  sort: sortOf(o),
+  // Whether a visitor can narrow it further themselves. A section page wants
+  // the chips; a short "recent work" strip on the home page does not.
+  chips: o?.feed?.chips !== false,
+});
+
+/* ------------------------------------------------------------------ *
  * Kinds — named presets of attributes
  * ------------------------------------------------------------------ */
 
@@ -169,11 +202,12 @@ export const KINDS = {
   drawer: { label: 'Drawer',        says: 'Opens onto a page of its own',            attrs: ['container', 'media', 'text'], face: 'front',   size: [5, 4] },
   fold:   { label: 'Fold',          says: 'A title that opens to reveal more',       attrs: ['text', 'fold'],              face: 'card',    size: [6, 1], body: 'What it says when open.', title: 'Open me', fold: { cols: 8, rows: 4 } },
   list:   { label: 'Holder',        says: 'Holds other objects and lays them out',   attrs: ['holds', 'text'],             face: 'card',    size: [6, 5], arrange: 'stack' },
+  works:  { label: 'Works',         says: 'The things you have made, filtered by tag', attrs: ['feed', 'text'],              face: 'none',    size: [14, 10] },
   html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list'];
+export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works'];
 
 /* ------------------------------------------------------------------ *
  * Faces — how a thing draws
@@ -290,6 +324,7 @@ export function fieldsOf(o) {
        declared `items` as its field all along; this is the field. */
     out.push({ key: 'items', label: 'What it holds', kind: 'items' });
   }
+  if (has(o, 'feed')) out.push({ key: 'feed', label: 'Shows', kind: 'feed' });
   // What a click does is a field like any other, so an invented combination
   // gets it too. Bureau's clickOf(), asked as a question in the panel.
   out.push({ key: 'onclick', label: 'When clicked', kind: 'select', options: { '': `Whatever suits (${clickOf(o)})`, ...CLICKS } });
@@ -341,11 +376,12 @@ function inner(o, ctx, { linked = false, depth = 0 } = {}) {
     parts.push(`<img class="ob-img" ${attrs} />`);
   }
 
-  if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds'))) {
+  if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds') || has(o, 'feed'))) {
     parts.push(`<span class="ob-title" data-edit="title">${escapeHtml(o.title)}</span>`);
   }
 
   if (has(o, 'holds')) parts.push(renderHolder(o, ctx, depth));
+  if (has(o, 'feed')) parts.push(renderFeed(o, ctx));
 
   if (has(o, 'text') && o.body != null && !has(o, 'fold')) {
     const body = rewriteLinks(o.body, ctx.link);
@@ -369,6 +405,51 @@ function linkWrap(o, ctx, guts) {
   // An external address opens in its own tab; an internal one is navigation.
   const ext = clickOf(o) === 'url' ? ' target="_blank" rel="noopener"' : '';
   return `<a class="ob-link" href="${escapeHtml(href)}"${aria}${ext}>${guts}</a>`;
+}
+
+/**
+ * The works, drawn from whatever the caller says matches the query.
+ *
+ * `ctx.works(query)` hands back `{items, tags}` with every address already
+ * resolved — this file never learns what a work is or where one lives. The
+ * chips are plain buttons; `interact.js` makes them narrow the list, so a
+ * visitor gets the filter without downloading the editor.
+ */
+function renderFeed(o, ctx) {
+  const q = feedOf(o);
+  const got = ctx.works?.(q);
+  // No resolver — the editor's own preview, or a page that never wired one up.
+  // Say so rather than drawing a convincing empty list.
+  if (!got) return `<div class="ob-feed" data-feed><p class="ob-empty">The works are drawn in when the page is built.</p></div>`;
+
+  const items = got.items ?? [];
+  const tags = q.chips ? (got.tags ?? []) : [];
+  const chips = tags.length ? `<div class="ob-tags" role="group" aria-label="Filter by tag">
+      <button class="ob-tag" type="button" data-tag="" aria-pressed="true">All</button>
+      ${tags.map((t) => `<button class="ob-tag" type="button" data-tag="${escapeHtml(t)}" aria-pressed="false">${escapeHtml(t)}</button>`).join('')}
+    </div>` : '';
+
+  const cards = items.map((w) => {
+    const img = w.image?.src
+      ? `<img class="ob-work-img" src="${escapeHtml(w.image.src)}"${w.image.srcset ? ` srcset="${escapeHtml(w.image.srcset)}"` : ''} alt="" aria-hidden="true" />`
+      : '';
+    const meta = [w.typeLabel, w.year].filter(Boolean).join(' · ');
+    // Pipe-delimited so a filter is one substring test rather than a parse,
+    // and so a tag containing a space still matches exactly.
+    const key = `|${(w.tags ?? []).join('|')}|`;
+    const body = `${img}
+      <span class="ob-work-title">${escapeHtml(w.title ?? 'Untitled')}</span>
+      ${meta ? `<span class="ob-work-meta">${escapeHtml(meta)}</span>` : ''}
+      ${w.blurb ? `<span class="ob-work-blurb">${escapeHtml(w.blurb)}</span>` : ''}`;
+    const ext = w.href && !w.internal ? ' target="_blank" rel="noopener"' : '';
+    return w.href
+      ? `<a class="ob-work" data-work data-tags="${escapeHtml(key)}" href="${escapeHtml(w.href)}"${ext}>${body}</a>`
+      : `<div class="ob-work" data-work data-tags="${escapeHtml(key)}">${body}</div>`;
+  }).join('');
+
+  const empty = items.length ? '' :
+    `<p class="ob-empty">Nothing here yet. Works are added in the editor, or in <code>src/data/works.json</code>.</p>`;
+  return `<div class="ob-feed" data-feed>${chips}<div class="ob-works">${cards}</div>${empty}</div>`;
 }
 
 /** What a holder holds, laid out by its rule. One level deep only. */
@@ -450,7 +531,7 @@ export function checkElement(o, at = 'element') {
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content', 'items']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -481,6 +562,21 @@ export function checkElement(o, at = 'element') {
     for (const k of ['cols', 'rows']) {
       const v = o.fold[k];
       if (v != null && (!Number.isFinite(v) || v < 1)) out.push(`${at}.fold.${k} must be a positive number of cells`);
+    }
+  }
+  if (has(o, 'feed') && o.feed != null) {
+    if (typeof o.feed !== 'object' || Array.isArray(o.feed)) out.push(`${at}.feed must be an object`);
+    else {
+      for (const k of ['type', 'tag']) {
+        if (o.feed[k] != null && typeof o.feed[k] !== 'string') out.push(`${at}.feed.${k} must be a string`);
+      }
+      if (o.feed.limit != null && (!Number.isFinite(o.feed.limit) || o.feed.limit < 1)) {
+        out.push(`${at}.feed.limit must be a positive number of works`);
+      }
+      if (o.feed.sort != null && !SORTS[o.feed.sort]) {
+        out.push(`${at}.feed.sort ${JSON.stringify(o.feed.sort)} is not one of ${Object.keys(SORTS).join(', ')}`);
+      }
+      if (o.feed.chips != null && typeof o.feed.chips !== 'boolean') out.push(`${at}.feed.chips must be true or false`);
     }
   }
   if (has(o, 'holds')) {
@@ -526,6 +622,68 @@ export function upgradeElement(e) {
       out.kind = 'slot';
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Changing what a thing is
+ * ------------------------------------------------------------------ */
+
+/**
+ * Give an object a different kind, keeping its data.
+ *
+ * Bureau's rule, and the reason a kind is a preset rather than a category:
+ * changing it swaps which attributes the object has and touches nothing it
+ * holds. A note told to be a drawer keeps its words; they simply stop being
+ * drawn until something gives it `text` back. Nothing is thrown away for a
+ * choice you might undo a second later.
+ *
+ * Any hand-set attribute list goes, because that list was chosen against the
+ * old kind — keeping it would mean picking "Image" and getting a note.
+ */
+export function setKind(o, kind) {
+  if (!KINDS[kind]) return o;
+  o.kind = kind;
+  delete o.attrs;
+  // A face chosen for the old kind rarely suits the new one; the kind's own
+  // face is the honest default, and the face picker is right there.
+  delete o.face;
+  // Fill in whatever the new kind cannot do without, and only that.
+  for (const k of ['body', 'title', 'fold', 'arrange']) {
+    if (KINDS[kind][k] != null && o[k] == null) o[k] = structuredClone(KINDS[kind][k]);
+  }
+  /* Nothing is DELETED here, and that is the point of the whole function. A
+     field the new kind cannot draw simply stops being drawn; it is still there
+     when you change your mind, which is the difference between a preset and a
+     conversion. (Making a NEW object is the other case — there, an unusable
+     default body should never be written down in the first place.) */
+  return o;
+}
+
+/**
+ * Turn one attribute on or off, writing the list down on the object.
+ *
+ * The moment you say "this note also carries a picture" the object stops being
+ * describable by its kind's preset, so the list becomes its own. That is the
+ * model's whole promise kept: an invented combination works everywhere
+ * immediately, because everything asks `has()` and nothing asks the name.
+ */
+export function toggleAttr(o, attr, on) {
+  if (!ATTRS[attr]) return o;
+  const next = new Set(attrsOf(o));
+  if (on) next.add(attr); else next.delete(attr);
+  o.attrs = [...next];
+  // Back to exactly what the kind says? Then it has nothing of its own to
+  // remember, and the file should not carry a list that changes nothing.
+  const same = K(o).attrs;
+  if (o.attrs.length === same.length && o.attrs.every((a) => same.includes(a))) delete o.attrs;
+  // An attribute that is gone takes its field with it, or the object keeps
+  // failing a check for something it no longer claims to be.
+  if (!on) {
+    const field = ATTRS[attr].field;
+    if (field && field !== 'items') delete o[field];
+    if (attr === 'holds') { delete o.items; delete o.arrange; }
+  }
+  return o;
 }
 
 /** A stable small hash, for the tilt a pinned tile gets. Bureau decision 75. */

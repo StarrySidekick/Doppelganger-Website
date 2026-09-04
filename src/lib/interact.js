@@ -1,10 +1,11 @@
 /**
  * What a published page does on its own.
  *
- * Two objects have live behaviour that has nothing to do with editing, so it
+ * Three objects have live behaviour that has nothing to do with editing, so it
  * cannot live in editor.js — a visitor never downloads that. A fold opens and
- * shuts; an accordion opens one of its items at a time. Both are a class and
- * an aria state, and that is the whole file.
+ * shuts; an accordion opens one of its items at a time; a feed of works
+ * narrows to a tag when a chip is pressed. All three are a class and an aria
+ * state, and that is the whole file.
  *
  * One delegated listener on the document, the way Bureau keeps one set in
  * wire.js, so any number of folds cost one handler.
@@ -46,6 +47,25 @@ function onClick(e) {
     }
     acc.setAttribute('aria-expanded', String(!open));
     panel.toggleAttribute('hidden', open);
+    return;
+  }
+
+  // A tag chip on a feed of works. One tag at a time, and "All" clears it —
+  // a portfolio filter is a lens, not a query builder, and two tags at once
+  // reliably produces an empty page and no idea why.
+  const chip = e.target.closest('.ob-tag');
+  if (chip) {
+    const feed = chip.closest('[data-feed]');
+    if (!feed) return;
+    const want = chip.dataset.tag || '';
+    for (const other of feed.querySelectorAll('.ob-tag')) {
+      other.setAttribute('aria-pressed', String((other.dataset.tag || '') === want));
+    }
+    for (const work of feed.querySelectorAll('[data-work]')) {
+      // data-tags is pipe-delimited, so this matches a whole tag rather than a
+      // word inside one: "Score" must not match "Scorekeeper".
+      work.hidden = !!want && !(work.dataset.tags || '').includes(`|${want}|`);
+    }
     return;
   }
 

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { validateLayout, normalizeLayout } from '../src/lib/adaptive-grid.js';
+import { validateWorks, typesOf, worksOf, queryWorks } from '../src/lib/works.js';
 import { joinBase } from '../src/lib/assets.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -100,6 +101,71 @@ test('a board is continuous unless it says otherwise', () => {
   for (const [n, l] of Object.entries(layouts)) {
     assert.equal(l.gap, 0, `${n} should start with no gap between its cells`);
   }
+});
+
+/* ---------------- the catalogue ---------------- */
+
+const catalogue = JSON.parse(read('src/data/works.json'));
+
+test('the catalogue is valid', () => {
+  assert.deepEqual(validateWorks(catalogue), []);
+});
+
+test('every section with a page has one, and every page a section', () => {
+  /* A section whose path 404s is worse than a section with no page at all —
+     the footer links to it and a visitor lands on nothing. */
+  for (const t of typesOf(catalogue)) {
+    if (!t.path) continue;
+    const slug = t.path.replace(/^\//, '');
+    const built = slug === ''
+      ? true
+      : layouts[slug] !== undefined || readdirSync(join(root, 'src/pages')).includes(`${slug}.astro`);
+    assert.ok(built, `type ${t.id} points at ${t.path}, which no page builds`);
+  }
+});
+
+test('every link in the footer goes somewhere that exists', () => {
+  // The footer is the site map now, so a dead entry there is the most visible
+  // 404 the site can have.
+  const nav = layouts.footer.elements.find((e) => e.id === 'site-nav');
+  const hrefs = [...(nav.body ?? '').matchAll(/href="(\/[^"]*)"/g)].map((m) => m[1]);
+  assert.ok(hrefs.length > 1, 'the footer should carry the site map');
+  const written = readdirSync(join(root, 'src/pages')).map((f) => f.replace(/\.astro$/, ''));
+  for (const href of hrefs) {
+    const slug = href.replace(/^\//, '');
+    const ok = slug === '' || written.includes(slug) || layouts[slug] !== undefined;
+    assert.ok(ok, `the footer links to ${href}, which no page builds`);
+  }
+});
+
+test('a feed on a section page asks for that section', () => {
+  /* The page and the catalogue have to agree about the section id, and nothing
+     else checks that they do — a typo would render an empty page that looks
+     exactly like a section with nothing in it yet. */
+  const known = new Set(typesOf(catalogue).map((t) => t.id));
+  for (const [name, l] of Object.entries(layouts)) {
+    for (const e of l.elements) {
+      if (!e.feed?.type) continue;
+      assert.ok(known.has(e.feed.type), `${name}: ${e.id} feeds on "${e.feed.type}", which is not a section`);
+    }
+  }
+});
+
+test('every work the catalogue points at this site is a real page', () => {
+  for (const w of worksOf(catalogue)) {
+    if (!w.link?.startsWith('/')) continue;
+    const slug = w.link.replace(/^\//, '');
+    const written = readdirSync(join(root, 'src/pages')).map((f) => f.replace(/\.astro$/, ''));
+    assert.ok(slug === '' || written.includes(slug) || layouts[slug] !== undefined,
+      `work "${w.id}" links to ${w.link}, which no page builds`);
+  }
+});
+
+test('the everything page really shows everything', () => {
+  const feed = layouts.works.elements.find((e) => e.feed);
+  assert.ok(feed, '/works needs a feed');
+  assert.equal(feed.feed.type, undefined, 'the everything list is not narrowed to a section');
+  assert.equal(queryWorks(catalogue, feed.feed).total, worksOf(catalogue).length);
 });
 
 /* ---------------- the editor's own rules ---------------- */

@@ -46,19 +46,23 @@ import {
   packLayout, compileCSS, FLOWS,
 } from './adaptive-grid.js';
 import {
-  KINDS, PICKER_KINDS, FACES, K, has, isTyped, isInline, faceOf, clickOf,
-  fieldsOf, getField, setField, itemsOf, makeItem, renderElement, unsafeHtml,
+  KINDS, PICKER_KINDS, FACES, ATTRS, USER_ATTRS, K, has, attrsOf, kindOf,
+  isTyped, isInline, faceOf, clickOf, fieldsOf, getField, setField, setKind,
+  toggleAttr, itemsOf, makeItem, feedOf, SORTS, renderElement, unsafeHtml,
   tiltFor, escapeHtml,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
 import { tokensFor, normalizeLook, validateLook } from './look.js';
+import { queryWorks, typesOf, validateWorks, worksOf } from './works.js';
 import { leaveEdit } from './edit-mode.js';
 
 const TOKEN_KEY = 'doppelganger.ghToken';
 const LOCK_KEY = 'doppelganger.locked';
 const LOOK_KEY = 'doppelganger.look';
 const LOOK_PATH = 'src/data/look.json';
+const WORKS_KEY = 'doppelganger.works';
+const WORKS_PATH = 'src/data/works.json';
 
 /** For putting a stored value back into a form field without breaking out of it. */
 const escapeAttr = escapeHtml;
@@ -185,7 +189,7 @@ export const newLayout = (title) => ({
 
 export function mountEditor({
   root, layout: initial, published, name, scope, chrome: isChrome = false,
-  assets = {}, base = '/', look, pages = [], onChange,
+  assets = {}, base = '/', look, pages = [], works = { types: [], works: [] }, onChange,
 }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
@@ -214,7 +218,7 @@ export function mountEditor({
     return { col: [r._col, r._span], row: [r._row, r._rowSpan] };
   };
 
-  const chrome = sharedChrome(look, pages);
+  const chrome = sharedChrome(look, pages, works);
   const toast = chrome.toast;
   const locked = () => chrome.locked();
 
@@ -261,6 +265,24 @@ export function mountEditor({
   const previewCtx = {
     image: (m) => ({ src: resolvePreview(m.src) }),
     link: (href) => href,
+    /* A feed has to answer in the editor too, or a works tile is an empty box
+       until the site rebuilds — and you would be arranging something you
+       cannot see. The same query function the build uses, over the same
+       catalogue, with the editor's own resolvers for pictures and addresses. */
+    works: (query) => {
+      const { items, tags, total } = queryWorks(chrome.works(), query);
+      const types = Object.fromEntries((chrome.works().types ? typesOf(chrome.works()) : []).map((t) => [t.id, t.label]));
+      return {
+        tags, total,
+        items: items.map((w) => ({
+          title: w.title, year: w.year, blurb: w.blurb, tags: w.tags,
+          typeLabel: types[w.type] ?? w.type,
+          internal: w.link.startsWith('/'),
+          href: w.link,
+          image: w.media?.src ? { src: resolvePreview(w.media.src) } : null,
+        })),
+      };
+    },
   };
   function resolvePreview(src) {
     if (src?.startsWith('asset:')) return assets[src.slice(6)] ?? src;
@@ -763,7 +785,7 @@ export function mountEditor({
       const { id: at, sx, sy } = G;
       onCancel();
       navigator.vibrate?.(12);
-      openSettings(at, sx, sy);
+      openObjectMenu(at, sx, sy);
     }, MENU_MS);
   }
 
@@ -916,15 +938,72 @@ export function mountEditor({
     const node = e.target.closest('.ag-editable');
     if (!node || !grid.contains(node)) return;
     e.preventDefault();
-    openSettings(node.id, e.clientX, e.clientY);
+    openObjectMenu(node.id, e.clientX, e.clientY);
   }
 
-  function openSettings(id, x, y) {
+  /**
+   * Hold a tile, or right-click it, and this is what opens.
+   *
+   * Bureau's bargain, kept: a hold is the way to say "this one, and I mean to
+   * do something to it". What opens is a short list of THINGS TO DO — not a
+   * form. It used to be one panel carrying every field, every select and every
+   * action at once, which made the common case (delete this; copy that) a hunt
+   * through a settings sheet, and made the uncommon case cramped in a 340px
+   * column. The two are separate now: this menu acts, and **Edit…** opens the
+   * object editor below, which is where an object is changed.
+   */
+  function openObjectMenu(id, x, y) {
     const item = find(id);
     if (!item) return;
     select(id);
     const hasOwn = device === 'narrow' && !!item.narrow;
     const typed = isTyped(item);
+
+    chrome.menu(x, y, `
+      <div class="ag-menu-title">${escapeAttr(id)} <span class="ag-menu-kind">${K(item).label}</span></div>
+      ${typed ? '<button class="ag-menu-btn ag-menu-go" data-act="edit">Edit…<small>Its kind, what it carries, and every field</small></button>' : ''}
+      ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
+      ${isInline(item) ? '<button class="ag-menu-btn" data-act="write">Edit the words<small>Or double-click them in the page</small></button>' : ''}
+      ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate<small>⌘D</small></button>' : ''}
+      <button class="ag-menu-btn" data-act="lock">${item.locked ? 'Unlock' : 'Lock in place'}</button>
+      ${device === 'narrow' ? `<button class="ag-menu-btn" data-act="reset"${hasOwn ? '' : ' disabled'}>
+        ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
+      </button>` : ''}
+      ${typed ? '<button class="ag-menu-btn ag-menu-danger" data-act="delete">Delete<small>⌫ · ⌘Z puts it back</small></button>' : ''}
+      <div class="ag-menu-note">${describe(item)}</div>
+    `, (act) => {
+      if (act === 'edit') { openObjectEditor(id); return; }
+      if (act === 'write') { beginEdit(id); return; }
+      if (act === 'lock') { item.locked = !item.locked; commit(); }
+      if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
+      if (act === 'pick') { pickFileFor(id); return; }
+      if (act === 'duplicate') { duplicate(id); }
+      if (act === 'delete') { select(null); remove(id); }
+    });
+  }
+
+  /**
+   * The object editor: what this thing IS, and everything it carries.
+   *
+   * Three parts, in the order the model puts them. Its **kind** is a preset,
+   * so changing it swaps the attributes and keeps the data. **What it carries**
+   * is the attribute list itself, which `USER_ATTRS` has declared since the
+   * model was ported and nothing has ever shown — so a note that also carries
+   * a picture, the combination the whole design is built to allow, could not
+   * actually be made. It can now. **Its fields** are drawn from whatever the
+   * object ends up carrying, which is why a combination nobody designed still
+   * gets a complete panel.
+   *
+   * Kind and attributes apply the moment they are changed, because both are
+   * questions about identity and you want to see the answer. The fields wait
+   * for Apply, because they are words being typed.
+   */
+  function openObjectEditor(id) {
+    const item = find(id);
+    if (!item || !isTyped(item)) return;
+    select(id);
+    const carries = attrsOf(item);
+
     /* A field draws itself from what it declares, so a new attribute's fields
        appear in this panel without it being edited. */
     const control = (f) => {
@@ -932,6 +1011,7 @@ export function mountEditor({
       if (f.kind === 'area') return `<textarea data-field="${f.key}" rows="4">${escapeAttr(v ?? '')}</textarea>`;
       if (f.kind === 'number') return `<input data-field="${f.key}" type="number" min="1" value="${escapeAttr(v ?? '')}" />`;
       if (f.kind === 'items') return itemsControl(item);
+      if (f.kind === 'feed') return feedControl(item);
       if (f.kind === 'select') {
         return `<select data-field="${f.key}">${Object.entries(f.options).map(([k, label]) =>
           `<option value="${escapeAttr(k)}"${String(v ?? '') === k ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}</select>`;
@@ -942,57 +1022,145 @@ export function mountEditor({
       const list = f.key === 'link' ? ' list="ag-pages"' : '';
       return `<input data-field="${f.key}" type="text"${list} value="${escapeAttr(v ?? '')}" />`;
     };
-    const fields = typed ? fieldsOf(item).map((f) => `
-      <label class="ag-menu-field">${f.label}${control(f)}</label>`).join('') : '';
-    const faceRow = typed ? `
+
+    chrome.menu(null, null, `
+      <div class="ag-menu-title">${escapeAttr(id)} <span class="ag-menu-kind">object editor</span></div>
+
+      <label class="ag-menu-field">It is a
+        <select data-act="kind">
+          ${Object.entries(KINDS).filter(([k]) => k !== 'slot').map(([k, d]) =>
+            `<option value="${k}"${k === kindOf(item) ? ' selected' : ''}>${escapeAttr(d.label)} — ${escapeAttr(d.says)}</option>`).join('')}
+        </select>
+      </label>
+
+      <div class="ag-menu-sub">and it carries</div>
+      <div class="ag-menu-attrs">
+        ${USER_ATTRS.map((a) => `<label class="ag-menu-check" title="${escapeAttr(ATTRS[a].says)}">
+          <input type="checkbox" data-attr="${a}"${carries.includes(a) ? ' checked' : ''} />
+          ${escapeAttr(ATTRS[a].label)}</label>`).join('')}
+      </div>
+      <div class="ag-menu-note">
+        What it can do is decided by what it carries, never by what it is
+        called. Tick <b>Picture</b> on a note and it is a note with a picture —
+        nothing was designed for that, and it works anyway.
+      </div>
+
+      ${fieldsOf(item).map((f) => `<label class="ag-menu-field">${escapeAttr(f.label)}${control(f)}</label>`).join('')}
+      ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
+
       <label class="ag-menu-row">Face
         <select data-act="face">
-          ${Object.entries(FACES).map(([k, f]) => `<option value="${k}"${k === faceOf(item) ? ' selected' : ''}>${f.label}</option>`).join('')}
+          ${Object.entries(FACES).map(([k, f]) => `<option value="${k}"${k === faceOf(item) ? ' selected' : ''}>${escapeAttr(f.label)}</option>`).join('')}
         </select>
-      </label>` : '';
-
-    chrome.menu(x, y, `
-      <div class="ag-menu-title">${id} <span class="ag-menu-kind">${K(item).label}</span></div>
-      ${fields ? `${fields}<div class="ag-menu-actions"><button class="ag-menu-btn" data-act="fields">Apply</button></div>` : ''}
-      ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
-      ${isInline(item) ? '<div class="ag-menu-note">Double-click the words in the page to edit them.</div>' : ''}
-      ${faceRow}
+      </label>
       <label class="ag-menu-row">Reflow seed
         <select data-act="flow">
           ${FLOWS.map((f) => `<option value="${f}"${f === item.flow ? ' selected' : ''}>${f}</option>`).join('')}
         </select>
       </label>
-      ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate <small>⌘D</small></button>' : ''}
-      <button class="ag-menu-btn" data-act="lock">${item.locked ? 'Unlock' : 'Lock in place'}</button>
-      ${device === 'narrow' ? `<button class="ag-menu-btn" data-act="reset"${hasOwn ? '' : ' disabled'}>
-        ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
-      </button>` : ''}
-      ${typed ? '<button class="ag-menu-btn ag-menu-danger" data-act="delete">Delete</button>' : ''}
+
+      <div class="ag-menu-actions">
+        <button class="ag-menu-btn" data-act="fields">Apply</button>
+        <button class="ag-menu-btn" data-act="close">Done</button>
+      </div>
       <div class="ag-menu-note">${describe(item)}</div>
     `, (act, value, menuEl) => {
-      if (act === 'flow') { item.flow = value; commit(); }
-      if (act === 'face') { setContent(id, (o) => { o.face = value; }); }
-      if (act === 'lock') { item.locked = !item.locked; commit(); }
-      if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
+      if (act === 'close') return;
+      if (act === 'flow') { item.flow = value; commit(); return reopen(); }
+      if (act === 'face') { setContent(id, (o) => { o.face = value; }); return reopen(); }
       if (act === 'pick') { pickFileFor(id); return; }
       if (act === 'item-add') { menuEl.querySelector('[data-items]')?.insertAdjacentHTML('beforeend', itemRow()); return; }
-      if (act === 'duplicate') { duplicate(id); }
-      if (act === 'delete') { select(null); remove(id); }
+      if (act === 'kind') {
+        // Its identity, so it lands at once — and the panel has to be rebuilt,
+        // because a different kind asks for different fields.
+        setContent(id, (o) => setKind(o, value));
+        return reopen();
+      }
+      if (act === 'attr') {
+        const box = menuEl.querySelector(`[data-attr="${value}"]`);
+        setContent(id, (o) => toggleAttr(o, value, box.checked));
+        return reopen();
+      }
       if (act === 'fields') {
-        const ok = setContent(id, (o) => {
-          for (const f of fieldsOf(o)) {
-            if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
-            const input = menuEl.querySelector(`[data-field="${f.key}"]`);
-            if (!input) continue;
-            const raw = input.value.trim();
-            // A number field has to store a number: "8" would fail its own
-            // check, which asks for a positive count of cells.
-            setField(o, f.key, f.kind === 'number' && raw !== '' ? Number(raw) : raw);
-          }
-        });
+        const ok = applyFields(id, menuEl);
         if (ok) toast(`${id} updated`);
       }
+    }, { wide: true });
+
+    // Rebuilt rather than patched: the fields a panel shows are derived from
+    // what the object carries, so a change to that IS a different panel.
+    function reopen() { requestAnimationFrame(() => openObjectEditor(id)); }
+  }
+
+  /** Read every field control in a panel onto the object. */
+  function applyFields(id, menuEl) {
+    return setContent(id, (o) => {
+      for (const f of fieldsOf(o)) {
+        if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
+        if (f.kind === 'feed') { o.feed = readFeed(menuEl); continue; }
+        const input = menuEl.querySelector(`[data-field="${f.key}"]`);
+        if (!input) continue;
+        const raw = input.value.trim();
+        // A number field has to store a number: "8" would fail its own check,
+        // which asks for a positive count of cells.
+        setField(o, f.key, f.kind === 'number' && raw !== '' ? Number(raw) : raw);
+      }
     });
+  }
+
+  /**
+   * Where a feed points: a section, a tag, how many, in what order.
+   *
+   * The sections and their usual tags come from the site as data — the editor
+   * may not read src/data any more than the engine may (hard rule 4) — so the
+   * lists here are whatever `works` was handed at mount.
+   */
+  function feedControl(o) {
+    const q = feedOf(o);
+    const types = works.types ?? [];
+    const suggested = q.type
+      ? (types.find((t) => t.id === q.type)?.tags ?? [])
+      : [...new Set(types.flatMap((t) => t.tags ?? []))];
+    return `<div class="ag-feed">
+      <label class="ag-menu-field">Section
+        <select data-feed="type">
+          <option value=""${q.type ? '' : ' selected'}>Everything</option>
+          ${types.map((t) => `<option value="${escapeAttr(t.id)}"${t.id === q.type ? ' selected' : ''}>${escapeAttr(t.label)}</option>`).join('')}
+        </select>
+      </label>
+      <label class="ag-menu-field">Only this tag — blank means all of them
+        <input data-feed="tag" type="text" list="ag-work-tags" value="${escapeAttr(q.tag)}" placeholder="${escapeAttr(suggested.slice(0, 3).join(', '))}" />
+      </label>
+      <label class="ag-menu-field">Order
+        <select data-feed="sort">
+          ${Object.entries(SORTS).map(([k, label]) => `<option value="${k}"${k === q.sort ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}
+        </select>
+      </label>
+      <label class="ag-menu-field">How many at most — blank means all of them
+        <input data-feed="limit" type="number" min="1" value="${q.limit || ''}" />
+      </label>
+      <label class="ag-menu-check">
+        <input data-feed="chips" type="checkbox"${q.chips ? ' checked' : ''} />
+        Let a visitor narrow it by tag
+      </label>
+      <div class="ag-menu-note">
+        A feed is a question, not a list. Add a work once in <b>Works</b> and
+        every feed it answers shows it.
+      </div>
+    </div>`;
+  }
+  /** The query the feed controls describe. */
+  function readFeed(menuEl) {
+    const val = (k) => menuEl.querySelector(`[data-feed="${k}"]`)?.value.trim() ?? '';
+    const limit = Number(val('limit'));
+    const out = { sort: val('sort') || 'newest' };
+    if (val('type')) out.type = val('type');
+    if (val('tag')) out.tag = val('tag');
+    if (Number.isFinite(limit) && limit > 0) out.limit = Math.round(limit);
+    // Only written down when it is the unusual answer, so a layout file stays
+    // readable and a default can still change later.
+    if (!menuEl.querySelector('[data-feed="chips"]')?.checked) out.chips = false;
+    return out;
   }
 
   /**
@@ -1138,6 +1306,14 @@ export function mountEditor({
     if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
       e.preventDefault(); return duplicate(selected);
     }
+    /* The two panels, without the hold. A hold is the only way a phone has to
+       ask for them; a desk should not have to imitate one. */
+    const at = () => {
+      const r = el(selected)?.getBoundingClientRect();
+      return r ? [r.left + r.width / 2, r.top + 8] : [window.innerWidth / 2, 120];
+    };
+    if (e.key === 'Enter') { e.preventDefault(); return openObjectMenu(selected, ...at()); }
+    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); return openObjectEditor(selected); }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       const gone = selected;
@@ -1225,6 +1401,11 @@ export function mountEditor({
       commit();
       toast(moved ? `Tidied ${moved} object${moved > 1 ? 's' : ''} on ${device}` : 'Already tidy');
     },
+    /* A feed shows the catalogue, so editing the catalogue changes what is on
+       the board without anything on the board having been touched. */
+    repaintFeeds: () => {
+      for (const e of layout.elements) if (has(e, 'feed')) repaintContent(e.id);
+    },
     onLock: () => { if (editing) endEdit(true); paint(); },
     resync: () => { syncDevice(); paint(); },
     afterPublish: () => {
@@ -1307,9 +1488,9 @@ export function mountEditor({
  * changed, every picked image and any new page as ONE commit.
  */
 let CHROME = null;
-export const sharedChrome = (look, pages) => (CHROME ??= buildChrome(look, pages));
+export const sharedChrome = (look, pages, works) => (CHROME ??= buildChrome(look, pages, works));
 
-function buildChrome(lookInitial, pages = []) {
+function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works: [] }) {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -1398,6 +1579,132 @@ function buildChrome(lookInitial, pages = []) {
   }
   applyLook();
 
+  /* ---- the works: the site's catalogue, edited like the look ---- */
+
+  /**
+   * What has been made, as opposed to what is on a page.
+   *
+   * It is site-wide, like the look, so it lives here rather than on one board,
+   * and it publishes in the same commit as everything else. A draft is kept in
+   * this browser between visits for exactly the reason a layout draft is: a
+   * catalogue is typed in over several sittings.
+   */
+  let publishedWorks = worksInitial;
+  let worksNow = publishedWorks;
+  try {
+    const draft = localStorage.getItem(WORKS_KEY);
+    if (draft) {
+      const parsed = JSON.parse(draft);
+      if (!validateWorks(parsed).length) worksNow = parsed;
+    }
+  } catch { /* ignore */ }
+  const worksDirty = () => JSON.stringify(worksNow) !== JSON.stringify(publishedWorks);
+
+  function setWorks(next) {
+    const problems = validateWorks(next);
+    if (problems.length) { toast(problems[0].replace(/^[^:]+: /, '')); return false; }
+    worksNow = next;
+    try { localStorage.setItem(WORKS_KEY, JSON.stringify(worksNow)); } catch { /* ignore */ }
+    // Every feed on the page is now showing something out of date.
+    for (const e of editors.values()) e.repaintFeeds?.();
+    renderTagList();
+    render();
+    return true;
+  }
+
+  /* Suggested tags, offered to every place a tag is typed — the feed's filter
+     and a work's own row. Rebuilt whenever the catalogue changes, because a
+     tag you invented five minutes ago should be offered the next time. */
+  const tagOptions = document.createElement('datalist');
+  tagOptions.id = 'ag-work-tags';
+  document.body.appendChild(tagOptions);
+  function renderTagList() {
+    const fromTypes = typesOf(worksNow).flatMap((t) => t.tags ?? []);
+    const fromWorks = worksOf(worksNow).flatMap((w) => (Array.isArray(w.tags) ? w.tags : []));
+    const all = [...new Set([...fromTypes, ...fromWorks].map((t) => String(t).trim()).filter(Boolean))].sort();
+    tagOptions.innerHTML = all.map((t) => `<option value="${escapeAttr(t)}"></option>`).join('');
+  }
+  renderTagList();
+
+  /**
+   * The catalogue, as rows.
+   *
+   * One line per work — what it is called, which section it is in, what it is
+   * tagged, when, and where it lives. The same shape as a holder's items, for
+   * the same reason: a row you can read across is how a list of forty things
+   * stays checkable, and nothing is committed until Apply.
+   */
+  function openWorks() {
+    const types = typesOf(worksNow);
+    const rows = worksOf(worksNow).map((w) => workRow(w, types)).join('');
+    openMenu(null, null, `
+      <div class="ag-menu-title">Works <span class="ag-menu-kind">${worksOf(worksNow).length} in the catalogue</span></div>
+      <div class="ag-menu-note">
+        Everything you have made, written down once. A <b>section</b> is where
+        it lives; <b>tags</b> are everything else true about it — what you did
+        on it, what form it took. Any feed that matches a work shows it, so
+        adding it here puts it on every page it belongs on.
+      </div>
+      <div class="ag-works-rows" data-works>${rows}</div>
+      <button class="ag-menu-btn ag-menu-new" data-act="work-add">Add a work<small>Or press it and fill the row in</small></button>
+      <div class="ag-menu-actions">
+        <button class="ag-menu-btn" data-act="works-apply">Apply</button>
+        <button class="ag-menu-btn" data-act="close">Done</button>
+      </div>
+      <div class="ag-menu-note">Saved to <code>${WORKS_PATH}</code> when you publish.</div>
+    `, (act, _v, menuEl) => {
+      if (act === 'work-add') {
+        menuEl.querySelector('[data-works]')?.insertAdjacentHTML('beforeend', workRow({}, types));
+        return;
+      }
+      if (act !== 'works-apply') return;
+      const next = { ...worksNow, works: readWorks(menuEl) };
+      if (setWorks(next)) toast(`${next.works.length} work${next.works.length === 1 ? '' : 's'} — publish to commit them`);
+    }, { wide: true });
+  }
+
+  function workRow(w, types) {
+    const v = (k) => escapeAttr(w?.[k] ?? '');
+    return `<div class="ag-work-row" data-work-row>
+      <input data-w="title" type="text" placeholder="Title" value="${v('title')}" />
+      <select data-w="type">
+        ${types.map((t) => `<option value="${escapeAttr(t.id)}"${t.id === w?.type ? ' selected' : ''}>${escapeAttr(t.label)}</option>`).join('')}
+      </select>
+      <input data-w="tags" type="text" list="ag-work-tags" placeholder="Tags, comma separated"
+             value="${escapeAttr((Array.isArray(w?.tags) ? w.tags : []).join(', '))}" />
+      <input data-w="year" type="number" placeholder="Year" value="${v('year')}" />
+      <input data-w="link" type="text" list="ag-pages" placeholder="Where it lives" value="${v('link')}" />
+      <input data-w="blurb" type="text" placeholder="A line about it" value="${v('blurb')}" />
+      <input data-w="id" type="hidden" value="${v('id')}" />
+      <button class="ag-menu-btn ag-menu-danger ag-item-x" data-act="work-del" type="button" title="Remove">×</button>
+    </div>`;
+  }
+
+  /** Every row on screen, as works. A row with no title is how you delete one. */
+  function readWorks(menuEl) {
+    const taken = new Set();
+    return [...menuEl.querySelectorAll('[data-work-row]')]
+      .map((row) => {
+        const val = (k) => row.querySelector(`[data-w="${k}"]`)?.value.trim() ?? '';
+        const title = val('title');
+        if (!title) return null;
+        // An id is how a work is addressed, so it is kept once it exists — a
+        // renamed work must not become a different work.
+        let id = val('id') || slugify(title) || 'work';
+        while (taken.has(id)) id = id.replace(/-(\d+)$/, (_, n) => `-${+n + 1}`).replace(/^([^-].*[^0-9-])$/, '$1-2');
+        taken.add(id);
+        const year = Number(val('year'));
+        const out = { id, title, type: val('type') || typesOf(worksNow)[0]?.id || '' };
+        const tags = val('tags').split(',').map((t) => t.trim()).filter(Boolean);
+        if (tags.length) out.tags = tags;
+        if (Number.isInteger(year) && year > 0) out.year = year;
+        if (val('blurb')) out.blurb = val('blurb');
+        if (val('link')) out.link = val('link');
+        return out;
+      })
+      .filter(Boolean);
+  }
+
   /* ---- files waiting to be committed that are not images: new pages ---- */
   const files = new Map();   // path -> text
   const addFile = (path, text) => { files.set(path, text); render(); };
@@ -1451,6 +1758,7 @@ function buildChrome(lookInitial, pages = []) {
     }
     for (const [path, text] of files) out.push({ path, text });
     if (lookDirty()) out.push({ path: LOOK_PATH, text: JSON.stringify(look, null, 2) + '\n' });
+    if (worksDirty()) out.push({ path: WORKS_PATH, text: JSON.stringify(worksNow, null, 2) + '\n' });
     return out;
   }
 
@@ -1462,7 +1770,11 @@ function buildChrome(lookInitial, pages = []) {
     const names = orderedNames();
     const waiting = gather();
     const images = waiting.filter((f) => f.base64).length;
-    const layouts = waiting.filter((f) => f.text && f.path !== LOOK_PATH).length;
+    // The two site-wide files are counted by name, not as layouts — otherwise
+    // changing only the catalogue reported "1 layout · works waiting", which
+    // names a file that has not changed and would send you looking for it.
+    const SITE_FILES = new Set([LOOK_PATH, WORKS_PATH]);
+    const layouts = waiting.filter((f) => f.text && !SITE_FILES.has(f.path)).length;
     bar.innerHTML = `
       <button class="ag-lock${isLocked ? ' on' : ''}" data-bar="lock"
         title="${isLocked ? 'Locked — the site as a visitor sees it. Press to arrange.' : 'Unlocked — arranging. Press to see the site as it is.'}"
@@ -1470,14 +1782,16 @@ function buildChrome(lookInitial, pages = []) {
       <span class="ag-where">${escapeAttr(activeName)}${d === 'narrow' ? ' · narrow' : ''}</span>
       <span class="ag-hint">${isLocked
         ? 'locked · press the padlock to arrange'
-        : 'tap a cell to add · hold to pick up · arrows nudge · hold still for settings'}</span>
+        : 'tap a cell to add · hold for the menu · arrows nudge · E edits'}</span>
       ${waiting.length ? `<span class="ag-pending" title="Not committed until you publish">${[
         layouts ? `${layouts} layout${layouts > 1 ? 's' : ''}` : '',
         images ? `${images} image${images > 1 ? 's' : ''}` : '',
         lookDirty() ? 'look' : '',
+        worksDirty() ? 'works' : '',
       ].filter(Boolean).join(' · ')} waiting</span>` : ''}
       <button data-bar="pages" title="Every page on the site">Pages</button>
       <button data-bar="board" title="This board's grid">Board</button>
+      <button data-bar="works" title="Everything you have made">Works</button>
       <button data-bar="look" title="The site's look">Look</button>
       <button data-bar="undo">Undo</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
@@ -1754,7 +2068,9 @@ function buildChrome(lookInitial, pages = []) {
       for (const e of editors.values()) e.afterPublish?.();
       files.clear();
       publishedLook = normalizeLook(look);
+      publishedWorks = worksNow;
       try { localStorage.removeItem(LOOK_KEY); } catch { /* ignore */ }
+      try { localStorage.removeItem(WORKS_KEY); } catch { /* ignore */ }
       published(url);
     } catch (err) {
       // Never log the error object wholesale — the request carried the token.
@@ -1787,6 +2103,7 @@ function buildChrome(lookInitial, pages = []) {
     if (act === 'look') return openLook();
     if (act === 'pages') return openPages();
     if (act === 'board') return openBoard();
+    if (act === 'works') return openWorks();
     if (act === 'publish') return openPublish();
     // The way out. Anything not yet published is still in this browser and is
     // still here the next time you come in — the beforeunload guard below is
@@ -1798,12 +2115,20 @@ function buildChrome(lookInitial, pages = []) {
   });
 
   let onPick = null;
-  function openMenu(x, y, html, handler) {
+  /**
+   * @param {number|null} x  null centres it — which is what the object editor
+   *   wants: it is a panel you work in, not a menu that belongs to the pixel
+   *   you pressed.
+   */
+  function openMenu(x, y, html, handler, opts = {}) {
     menu.innerHTML = html;
+    menu.classList.toggle('ag-menu-wide', !!opts.wide);
     menu.hidden = false;
     const r = menu.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
-    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+    const wantX = x == null ? (window.innerWidth - r.width) / 2 : x;
+    const wantY = y == null ? (window.innerHeight - r.height) / 2 : y;
+    menu.style.left = Math.max(8, Math.min(wantX, window.innerWidth - r.width - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(wantY, window.innerHeight - r.height - 8)) + 'px';
     onPick = handler;
   }
   const closeMenu = () => {
@@ -1817,7 +2142,20 @@ function buildChrome(lookInitial, pages = []) {
   /* Actions that manage the panel themselves and must not have it shut under
      them: "Choose an image…" opens a file picker, and the two that add or drop
      a row of a holder are editing the panel in place. */
-  const KEEP_OPEN = new Set(['pick', 'item-add', 'item-del']);
+  const KEEP_OPEN = new Set([
+    'pick', 'item-add', 'item-del', 'work-add', 'work-del',
+    // The object editor rebuilds itself after these, because a different kind
+    // or a different attribute list is a different set of fields. Closing it
+    // first would flash the panel away and back for every tick.
+    'kind', 'attr', 'face', 'flow',
+    // These OPEN a panel of their own. Closing "the menu" afterwards would shut
+    // the very thing that was just asked for — the object editor opened and
+    // vanished in the same frame.
+    'edit',
+    // Apply is not "done": a catalogue of forty is typed in over a while, and
+    // an object usually wants a second change after the first. Done closes.
+    'fields', 'works-apply',
+  ]);
   menu.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.tagName === 'SELECT') return;
@@ -1830,12 +2168,16 @@ function buildChrome(lookInitial, pages = []) {
     if (!KEEP_OPEN.has(btn.dataset.act)) closeMenu();
   });
   menu.addEventListener('change', (e) => {
+    // Ticking what an object carries changes what it IS, so it lands at once
+    // and the panel redraws around it.
+    const box = e.target.closest('input[type="checkbox"][data-attr]');
+    if (box) return onPick?.('attr', box.dataset.attr, menu);
     // A select that is a FIELD belongs to the Apply button, not to the menu's
     // own action handler — reading it here would close the panel mid-edit.
     const sel = e.target.closest('select[data-act]:not([data-field])');
     if (!sel) return;
-    onPick?.(sel.dataset.act, sel.value);
-    closeMenu();
+    onPick?.(sel.dataset.act, sel.value, menu);
+    if (!KEEP_OPEN.has(sel.dataset.act)) closeMenu();
   });
   document.addEventListener('pointerdown', (e) => {
     if (!menu.hidden && !menu.contains(e.target)) closeMenu();
@@ -1855,6 +2197,9 @@ function buildChrome(lookInitial, pages = []) {
     activeName: () => activeName,
     locked: () => isLocked, setLocked,
     look: () => look, setLook,
+    // One catalogue for every board on the page, so a feed in the header and a
+    // feed on the page can never disagree about what has been made.
+    works: () => worksNow,
     addFile,
     menu: openMenu, closeMenu,
   };

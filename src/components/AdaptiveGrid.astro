@@ -2,7 +2,15 @@
 import { compileCSS, scopeFor, normalizeLayout } from '../lib/adaptive-grid.js';
 import { renderElement, isTyped, faceOf, tiltFor } from '../lib/elements.js';
 import { asset, url, sized, srcset } from '../lib/assets.js';
+import { queryWorks, validateWorks, typesOf } from '../lib/works.js';
+import worksData from '../data/works.json';
 import LayoutEditor from './LayoutEditor.astro';
+
+// The catalogue is data an editor writes, so a malformed entry is a real thing
+// that can reach the build. Fail here rather than shipping a broken feed.
+const worksProblems = validateWorks(worksData);
+if (worksProblems.length) throw new Error('Invalid works:\n  ' + worksProblems.join('\n  '));
+const TYPE = Object.fromEntries(typesOf(worksData).map((t) => [t.id, t]));
 
 // `name` is the layout's filename in src/data/layouts. Passing it turns on the
 // in-page editor — but only for a visitor who asks for it with ?edit=1.
@@ -57,6 +65,35 @@ const ctx = {
   // Hard rule 2: an internal link must go through url(), or it breaks on the
   // deploy subpath. Anything with a scheme (mailto:, https:) passes through.
   link: (href) => (href?.startsWith('/') ? url(href.slice(1)) : href),
+
+  /**
+   * What a `feed` object is asking for.
+   *
+   * elements.js states the QUERY and knows nothing else — not what a work is,
+   * not where the catalogue lives, not how an address becomes a URL. This is
+   * the one place those are known, exactly as with `image` and `link` above,
+   * which is what keeps the whole of src/lib liftable (hard rule 4).
+   */
+  works(query) {
+    const { items, tags, total } = queryWorks(worksData, query);
+    return {
+      tags,
+      total,
+      items: items.map((w) => ({
+        title: w.title,
+        year: w.year,
+        blurb: w.blurb,
+        tags: w.tags,
+        typeLabel: TYPE[w.type]?.label ?? w.type,
+        internal: w.link.startsWith('/'),
+        href: w.link ? ctx.link(w.link) : '',
+        // A work's picture goes through the same sizing as any other image, so
+        // a feed of forty gets the CDN's resized copies rather than forty
+        // multi-megabyte originals.
+        image: w.media?.src ? ctx.image(w.media) : null,
+      })),
+    };
+  },
 };
 
 // Typed objects render from data, each wearing its face as a class. Everything

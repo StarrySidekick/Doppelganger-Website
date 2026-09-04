@@ -78,11 +78,13 @@ Tests, the build and the box geometry all passed. Only the screenshot showed it.
 ```
 src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
 src/lib/elements.js        objects, attributes, kinds, faces — Bureau's model, cut to a website
+src/lib/works.js           the catalogue: what has been made, and the query a feed asks of it
 src/lib/look.js            the site's colours and the tokens derived from them
 src/lib/interact.js        what a published page does on its own — folds, accordions
 src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
 src/styles/faces.css       how each face draws — all of it CSS behind one class
 src/data/look.json         the look itself: five colours, the type, pinned or flat
+src/data/works.json        every work, its section and its tags — the site's content, once
 src/pages/[...slug].astro  any layout with no hand-written page is a page anyway
 src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
 src/lib/edit-mode.js       the way in and out of edit mode — the corner, the flag, Done
@@ -211,6 +213,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `container` | **opens onto a page of its own — this is what makes a drawer** | `link` is the page |
 | `fold` | a folded size and an open size, toggled live — this is the dropdown | `fold: {cols, rows}` |
 | `holds` | holds other objects and lays them out by a rule | `items`, `arrange` |
+| `feed` | **shows the works, filtered** — a list that is true rather than one you wrote | `feed: {type, tag, sort, limit, chips}` |
 
 | kind | attributes | face | made from the picker |
 |---|---|---|---|
@@ -220,6 +223,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `drawer` | container, media, text | drawer front | yes — **it makes a page** |
 | `fold` | text, fold | card | yes — **replaces a dropdown** |
 | `list` | holds, text | card | yes — **the accordion / gallery** |
+| `works` | feed, text | plain | yes — **a section page, or a strip of recent work** |
 | `html` | text (raw markup) | plain | no, a tool |
 | `slot` | — | — | no, written by code |
 
@@ -253,7 +257,59 @@ delegated listener for folds and accordions, so a visitor gets them too.
 
 Ask `has(o, 'media')`, never `o.kind === 'image'`. That rule is the whole reason
 an invented combination works everywhere immediately — a note told to carry a
-link is a note you can click, and nothing was designed for it.
+link is a note you can click, and nothing was designed for it. **And it is now
+reachable**: the object editor has a tick per attribute, so a note that also
+carries a picture can actually be made. `USER_ATTRS` declared that since the
+port and nothing ever showed it.
+
+### The works — what exists, as opposed to what is on a page
+
+`src/data/layouts/*.json` says what is on a page and where. **`src/data/works.json`
+says what EXISTS**, and it is the other half of the content model. A work — a
+film, a game, a poem, a song, a painting, a tool — is written down once and
+appears wherever it belongs.
+
+Two axes, because they answer different questions:
+
+- **`type`** is the section it lives in: `film`, `games`, `writing`, `music`,
+  `art`, `inventions`. One per work, from a closed list, because a section page
+  has to be able to say "these". A type carries a `label`, its `path`, and the
+  tags it usually uses.
+- **`tags`** is everything else true about it — what the credit was (sound
+  design, score, director), what form it took (poem, essay, painting), what it
+  was for. Any number, open-ended, because the interesting cuts are the ones you
+  have not thought of yet.
+
+So a work appears on its section page, in the everything list, and under every
+tag it carries, **without being written down more than once**. That is the whole
+point, and the reason not to keep a list per page: a list per page goes out of
+date the moment you make something.
+
+**A `feed` is a QUERY, not a list.** `{type, tag, sort, limit, chips}`, answered
+by `ctx.works(query)` — so `elements.js` never learns what a work is or where
+the catalogue lives, exactly as with `ctx.image` and `ctx.link` (hard rule 4).
+`src/lib/works.js` is the pure half: `queryWorks()`, `validateWorks()`, and no
+import of anything site-specific. `AdaptiveGrid.astro` is the one place the real
+catalogue is loaded and an address becomes a URL.
+
+Consequences worth knowing:
+
+- **The chips a visitor sees come from the RESULT, not the catalogue.** A chip
+  that matches nothing on the page in front of you is a dead end, and the film
+  page must never offer "Painting".
+- **A work with no year sorts last in BOTH directions.** It is not the newest
+  thing and not the oldest; it has no place on the timeline. Sorting it first
+  under "oldest" would claim a date the catalogue does not have.
+- **Filtering is one tag at a time**, in `interact.js`, so a visitor gets it
+  without downloading the editor. Two tags at once reliably produces an empty
+  page and no idea why. `data-tags` is pipe-delimited so a filter matches a
+  whole tag: "Score" must not match "Scorekeeper".
+- **The catalogue is edited in the bar's `Works` panel** and publishes in the
+  same commit as everything else, like the look. A feed on the page redraws the
+  moment the catalogue changes — no rebuild.
+- `scripts/site.test.mjs` checks the two halves agree: every feed's `type` is a
+  real section, every section's `path` is a page that builds, and every footer
+  link goes somewhere.
 
 **A drawer is a page.** This is the one place the port departs from Bureau, and
 it is the whole port in a line. Bureau's drawer opens onto a nested grid inside
@@ -444,10 +500,25 @@ Interaction follows bureau:
   body or the title, never the whole tile, because a drawer front has a picture
   in it too. Click away keeps it, Escape reverts. What contenteditable produces
   is cleaned down to `a/em/strong/b/i/br` before it is stored
-- **right click** opens that object's settings — the fields its attributes
-  declare, its face, flow seed, lock, delete, and on narrow "reset to derived
-  position"
+- **hold, or right click, or Enter** opens the object's **menu**: a short list
+  of things to DO — Edit…, choose an image, edit the words, Duplicate, Lock,
+  Delete, and on narrow "reset to derived position". It was one panel carrying
+  every field and every action at once, which made the common case a hunt
+  through a settings sheet and the uncommon case cramped in a 340px column
+- **Edit…, or `E`,** opens the **object editor**, and it is where an object is
+  changed rather than acted on. Three parts, in the order the model puts them:
+  **what it is** (its kind — a preset, so changing it swaps the attributes and
+  *keeps the data*), **what it carries** (a tick per attribute — this is the
+  combination the whole design is built to allow and had no way of being made),
+  and **its fields**, drawn from whatever it ends up carrying. Kind and
+  attributes land at once, because both are questions about identity and you
+  want to see the answer; the fields wait for Apply, because they are words
+  being typed
 - **Look** is the site's dressing: colours, type, pinned
+- **Works** is the catalogue — one row per thing you have made, its section, its
+  tags, its year and where it lives. It is site-wide, like the look, and
+  publishes in the same commit. Apply keeps the panel open, because forty works
+  are typed in over a while
 - **There are no grid tabs either.** Each board wears its own name while
   unlocked — HEADER, FOOTER, the page — and the one you last touched is lit and
   is the one the bar acts on. A page beats chrome as the default, so opening a
@@ -488,8 +559,8 @@ Saving has three levels. **localStorage** holds work in progress and survives a
 reload. **Copy JSON**, in the Board panel, gives you the file to paste into
 `src/data/layouts/` or to hand over for review.
 **Publish sends everything at once** — every grid on the page that changed,
-every picked image, any page a new drawer made, and the look if it changed — as
-**one commit** to `main`, and the site rebuilds in about a minute. It uses the
+every picked image, any page a new drawer made, the look, and the works
+catalogue if either changed — as **one commit** to `main`, and the site rebuilds in about a minute. It uses the
 **git data API** (blob, tree, commit, move the ref) rather
 than the contents API, because a layout and the images it references have to
 arrive together: one commit, one rebuild, and never a published JSON pointing at
@@ -562,6 +633,13 @@ What's already done, so it isn't rediscovered:
   a picker that makes notes, images, buttons and drawers, faces, and a look
   panel. A drawer makes a page. This is the point at which the thing under
   `src/lib/` stopped being "the editor for this site" and became the tool.
+- **There is a catalogue, and a feed is a query.** September 2026: `works.json`,
+  the `feed` attribute and the `works` kind, tag chips live for a visitor, and a
+  Works panel that publishes with everything else. The six sections and the
+  everything page are built on it.
+- **A hold opens a menu of things to do; Edit… opens the object editor.** Which
+  is also where a kind can be changed and an attribute ticked — the combination
+  the model was built for, finally reachable.
 - **The board is a plain grid, a holder can be filled, and a page can be made
   without a drawer.** September 2026: the gap defaults to 0 and is per-board;
   `items` is a field; Pages lists every route and its links work; selection and
@@ -583,6 +661,32 @@ Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`,
 `/editor` (the standalone layout editor, noindex). `/contact-1` redirects to
 `/contact` — that is Squarespace's slug for the page, kept working so inbound
 links survive the cutover.
+
+**The new structure, September 2026.** The site is being reorganised around what
+Timothy has made rather than around page names. Six sections — film, games,
+writing, music, art, inventions — plus an everything list, all fed from one
+catalogue and narrowable by tag:
+
+| | |
+|---|---|
+| `/works` | everything, with the tag filter — the "see it all listed out" page |
+| `/film` `/games` `/art` `/inventions` | boards carrying a feed for their section |
+| `/writing` `/music` | **still the hand-written pages.** They already list the
+six writing collections and the SoundCloud sets, which is real content a feed
+would replace rather than add to. Converting them is a content decision, not an
+engine one — the `works` kind drops onto either the moment there are works to
+show |
+
+The footer is now the site map, so every section is reachable from every page.
+**The home page still carries its original section buttons** and has not been
+touched: it is hand-written markup with Squarespace GIF buttons, and choosing
+what the new sections look like there is Timothy's call, not a refactor.
+Converting `/` to a board is the obvious next step and would make it arrangeable
+like everything else.
+
+The section pages are live and empty apart from three seeded works, and that is
+deliberate — the catalogue is Timothy's to fill, from the **Works** panel, and
+inventing a body of work to fill it would be worse than an honest empty state.
 
 Not built yet:
 - `/uiux` — 40 images, the largest remaining page

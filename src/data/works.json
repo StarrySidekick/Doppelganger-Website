@@ -1,0 +1,67 @@
+{
+  "_note": "Everything Timothy has made. `type` is the section it belongs to; `tags` is everything else true about it — what you did on it, what form it took. A work is written once and appears wherever a feed matches it. See src/lib/works.js. Add one here, or from the editor's Works panel.",
+  "types": {
+    "film": {
+      "label": "Film",
+      "path": "/film",
+      "blurb": "What the credit was.",
+      "tags": ["Sound design", "Score", "Composer", "Producer", "Director", "Writer", "Editor", "Mix"]
+    },
+    "games": {
+      "label": "Games",
+      "path": "/games",
+      "blurb": "Made and played.",
+      "tags": ["Design", "Code", "Art", "Music", "Sound", "Writing"]
+    },
+    "writing": {
+      "label": "Writing",
+      "path": "/writing",
+      "blurb": "Poems, essays, journals, stories.",
+      "tags": ["Poem", "Essay", "Journal entry", "Short story", "Game design"]
+    },
+    "music": {
+      "label": "Music",
+      "path": "/music",
+      "blurb": "Songs and scores.",
+      "tags": ["Song", "Score", "Album", "Instrumental", "Production"]
+    },
+    "art": {
+      "label": "Art",
+      "path": "/art",
+      "blurb": "Made by hand and by pixel.",
+      "tags": ["Painting", "Drawing", "Aesthetics", "Animation"]
+    },
+    "inventions": {
+      "label": "Inventions",
+      "path": "/inventions",
+      "blurb": "Tools, apps and sites.",
+      "tags": ["Tool", "App", "Website", "Instrument"]
+    }
+  },
+  "works": [
+    {
+      "id": "composers-key",
+      "title": "Composer's Key",
+      "type": "games",
+      "tags": ["Design", "Music"],
+      "blurb": "Playable on itch.io.",
+      "link": "https://starry-sidekick.itch.io/composers-key"
+    },
+    {
+      "id": "starrysidekick-com",
+      "title": "StarrySidekick.com",
+      "type": "inventions",
+      "tags": ["Website"],
+      "blurb": "This site, rebuilt from scratch and edited in the page.",
+      "link": "/"
+    },
+    {
+      "id": "digidesk",
+      "title": "DigiDesk",
+      "type": "inventions",
+      "tags": ["Tool"],
+      "blurb": "The grid, the object model and the in-page editor this site is built with.",
+      "link": "/editor"
+    }
+  ]
+}

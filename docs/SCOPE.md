@@ -378,7 +378,7 @@ expensive to retrofit once twenty things have reached across it.
 | 8 | Cheap and stable | **$0–5/mo** | See the table above. |
 | 9 | Keep programmatic changes from Claude | **Preserved by design** | Everything textual stays a file in git. This gets *better*, not worse — Claude can currently only edit geometry; after §4 it can edit content too. |
 | 10 | Load assets from the site and from Claude | **Medium** | Two paths, one manifest. See §6. |
-| 11 | Projects, tagged and sortable | **Medium** | `src/content/projects/*.md` with `tags:` frontmatter, rendered by a `project-grid` element with filter and sort controls. |
+| 11 | Projects, tagged and sortable | **Done, September 2026** | Built as `src/data/works.json` + the `feed` attribute rather than a content collection: a work is one JSON entry with a `type` and `tags`, and a `works` object on any board is a QUERY against it. Simpler than a collection per section, and it means one work appears on its section page, the everything list and every tag without being written twice. Markdown collections are still the right answer for the blog *posts* (§7), which have bodies; a work is a card. |
 
 ---
 

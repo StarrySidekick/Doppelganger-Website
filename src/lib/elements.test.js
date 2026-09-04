@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   ATTRS, KINDS, FACES, PICKER_KINDS, has, attrsOf, kindOf, faceOf, isTyped, isInline, isContainer,
   fieldsOf, getField, setField, renderElement, checkElement, upgradeElement, unsafeHtml, escapeHtml, tiltFor, makeItem, itemsOf,
+  setKind, toggleAttr, feedOf, USER_ATTRS,
 } from './elements.js';
 
 /** Stand-ins for what AdaptiveGrid.astro supplies from assets.js. */
@@ -214,4 +215,111 @@ test('a holder does not nest — the board is the layout engine', () => {
   const html = renderElement(outer, {});
   assert.doesNotMatch(html, /deep/, 'one level only');
   assert.equal(itemsOf(outer).length, 1);
+});
+
+/* ------------------------------------------------------------------ *
+ * Changing what a thing is
+ * ------------------------------------------------------------------ */
+
+test('changing kind swaps the attributes and keeps the data', () => {
+  /* Bureau's rule, and the reason a kind is a preset rather than a category.
+     Nothing is thrown away for a choice you might undo a second later. */
+  const o = { id: 'x', kind: 'note', body: 'Words I typed', flow: 'stack' };
+  setKind(o, 'image');
+  assert.equal(o.kind, 'image');
+  assert.deepEqual(attrsOf(o), ['media', 'link']);
+  assert.equal(o.body, 'Words I typed', 'the words survive being briefly not drawn');
+  setKind(o, 'note');
+  assert.equal(has(o, 'text'), true, 'and are drawn again when it can carry them');
+});
+
+test('changing kind drops a list of attributes chosen against the old one', () => {
+  // Otherwise picking "Image" could leave you looking at a note.
+  const o = { kind: 'note', attrs: ['text', 'holds'], items: [] };
+  setKind(o, 'button');
+  assert.equal(o.attrs, undefined);
+  assert.deepEqual(attrsOf(o), KINDS.button.attrs);
+});
+
+test('an object can be told to carry something its kind never had', () => {
+  /* The combination the whole model is built to allow, and the one that had no
+     way of being made: USER_ATTRS has declared it since the port and nothing
+     ever showed it. */
+  const o = { kind: 'note', body: 'hello' };
+  toggleAttr(o, 'media', true);
+  assert.deepEqual(o.attrs, ['text', 'media']);
+  assert.equal(has(o, 'media'), true);
+  // …and its fields follow, with nothing designed for the combination.
+  assert.ok(fieldsOf(o).some((f) => f.key === 'media.src'));
+  assert.ok(fieldsOf(o).some((f) => f.key === 'body') === false, 'a note edits its words in the page');
+  const html = renderElement({ ...o, media: { src: 'u', alt: 'a' } }, ctx);
+  assert.match(html, /<img/);
+  assert.match(html, /hello/);
+});
+
+test('an attribute turned off takes its field with it', () => {
+  // Or the object keeps failing a check for something it no longer claims.
+  const o = { kind: 'image', media: { src: 'u' }, link: '/x' };
+  toggleAttr(o, 'link', false);
+  assert.equal(o.link, undefined);
+  assert.deepEqual(checkElement(o), []);
+  const holder = { kind: 'list', items: [{ kind: 'note', body: 'a' }], arrange: 'row' };
+  toggleAttr(holder, 'holds', false);
+  assert.equal(holder.items, undefined);
+  assert.equal(holder.arrange, undefined);
+});
+
+test('back to exactly the kind\'s attributes is no list at all', () => {
+  // A file should not carry a list that changes nothing.
+  const o = { kind: 'note' };
+  toggleAttr(o, 'media', true);
+  assert.ok(Array.isArray(o.attrs));
+  toggleAttr(o, 'media', false);
+  assert.equal(o.attrs, undefined);
+});
+
+test('every user-facing attribute is a real one', () => {
+  for (const a of USER_ATTRS) assert.ok(ATTRS[a], `USER_ATTRS names unknown ${a}`);
+});
+
+/* ------------------------------------------------------------------ *
+ * A feed
+ * ------------------------------------------------------------------ */
+
+test('a feed is a query, and the caller answers it', () => {
+  /* elements.js must not learn what a work is or where the catalogue lives —
+     hard rule 4, the same way ctx.image and ctx.link already work. */
+  const o = { kind: 'works', feed: { type: 'film', sort: 'title' } };
+  let asked = null;
+  const html = renderElement(o, {
+    works: (q) => { asked = q; return { items: [{ title: 'A Film', typeLabel: 'Film', year: 2024, tags: ['Score'], href: '/base/film', internal: true }], tags: ['Score'] }; },
+  });
+  assert.equal(asked.type, 'film');
+  assert.equal(asked.sort, 'title');
+  assert.match(html, /A Film/);
+  assert.match(html, /href="\/base\/film"/);
+  assert.doesNotMatch(html, /target="_blank"/, 'an address on this site is navigation, not a new tab');
+  assert.match(html, /data-tag="Score"/, 'the chip a visitor narrows by');
+});
+
+test('a feed with no resolver says so rather than drawing an empty list', () => {
+  const html = renderElement({ kind: 'works' }, {});
+  assert.match(html, /drawn in when the page is built/);
+});
+
+test('a feed states its defaults, so nothing downstream has to guess', () => {
+  assert.deepEqual(feedOf({}), { type: '', tag: '', limit: 0, sort: 'newest', chips: true });
+  assert.equal(feedOf({ feed: { sort: 'nonsense' } }).sort, 'newest');
+  assert.equal(feedOf({ feed: { limit: 2.6 } }).limit, 3);
+  assert.equal(feedOf({ feed: { chips: false } }).chips, false);
+});
+
+test('a malformed feed fails the build', () => {
+  const one = (feed) => checkElement({ kind: 'works', feed }).join(' | ');
+  assert.match(one({ sort: 'sideways' }), /feed.sort "sideways" is not one of/);
+  assert.match(one({ limit: 0 }), /positive number of works/);
+  assert.match(one({ type: 12 }), /feed.type must be a string/);
+  assert.deepEqual(checkElement({ kind: 'works', feed: { type: 'film', tag: 'Score', limit: 4, sort: 'oldest' } }), []);
+  // A slot carrying a feed can only mean a dropped kind.
+  assert.match(checkElement({ feed: {} }).join(' '), /kind "slot", so it would never render/);
 });
