@@ -698,6 +698,20 @@ Not built yet:
 Until those exist, `/uiux` and the six collection links are live 404s. They land
 on `src/pages/404.astro`, which explains the situation and offers a way back.
 
+**Those seven are declared in `PLANNED` in `scripts/site.test.mjs`, and that is
+the list that counts** — this paragraph is prose, that one is checked. Three
+tests hang off it, in both directions: an internal link that goes nowhere and is
+not on the list fails; an entry on the list that has since been *built* fails,
+so shipping `/uiux` tells you to delete the line rather than leaving a permanent
+excuse behind; and an entry nothing links to any more fails, so the list cannot
+outlive the links it excuses.
+
+The scanner reads three spellings, because the site uses all three: a literal
+`href`, `url('literal')`, and a `slug:` field in a data array — which is how
+`/writing` writes six links at once, and which a scanner looking only for
+`url('literal')` cannot see. That blind spot was real: the first version of
+these tests passed while being unable to see the six collections at all.
+
 ## Decisions already made — don't relitigate
 
 - **Font: EB Garamond**, not Adobe Garamond Pro. Adobe Fonts cannot be self-hosted

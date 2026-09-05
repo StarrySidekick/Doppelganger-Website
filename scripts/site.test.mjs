@@ -138,6 +138,87 @@ test('every link in the footer goes somewhere that exists', () => {
   }
 });
 
+/* ---------------- every internal link, not just the footer ----------------
+
+   The footer check above was the site map's, and the site map is not the only
+   place a dead link can be. A build of the site as it stands emits seven, and
+   every one is a page that is genuinely coming — but nothing distinguished
+   "known, planned" from "somebody typed it wrong", and nothing would have
+   noticed an eighth.
+
+   So the planned ones are declared, and BOTH directions are checked: a link to
+   anything not built and not on this list fails, and an entry on this list that
+   has since been built fails too. The second half is what stops the list
+   quietly becoming a lie — when /uiux ships, this test tells you to delete the
+   line rather than leaving a permanent excuse behind. */
+
+const PLANNED = new Set([
+  'uiux',                    // 40 images, the largest remaining page
+  'journal',                 // the six writing collections, exported to Markdown
+  'poems',                   // but not yet in this repo
+  'essays-about-everything',
+  'short-stories',
+  'game-design',
+  'expressiveaether',
+]);
+
+const routeExists = (slug) =>
+  slug === ''
+  || layouts[slug] !== undefined
+  || readdirSync(join(root, 'src/pages')).includes(`${slug}.astro`);
+
+/** Every site-relative href this repo ships, wherever it is written: a layout
+    element's body, its `link` field, a holder's items, or a hand-written page. */
+const internalLinks = () => {
+  const found = [];
+  const add = (href, where) => {
+    if (typeof href !== 'string' || !href.startsWith('/')) return;
+    found.push({ slug: href.split('#')[0].split('?')[0].replace(/^\/|\/$/g, ''), where });
+  };
+  for (const [name, layout] of Object.entries(layouts)) {
+    for (const el of layout.elements ?? []) {
+      add(el.link, `${name}:${el.id}`);
+      for (const m of String(el.body ?? '').matchAll(/href="([^"]+)"/g)) add(m[1], `${name}:${el.id}`);
+      for (const item of el.items ?? []) add(item.link, `${name}:${el.id}`);
+    }
+  }
+  for (const f of readdirSync(join(root, 'src/pages')).filter((f) => f.endsWith('.astro'))) {
+    const src = read(`src/pages/${f}`);
+    /* Three spellings a page can use. A literal href; the url() helper that
+       hard rule 2 requires for anything site-relative; and a `slug:` field in
+       a data array, which is how /writing lists its six collections — those go
+       through url() too, but as `url(c.slug)`, so a scanner looking only for
+       url('literal') cannot see them and would miss a typo in the one place
+       six links are written at once. */
+    for (const m of src.matchAll(/href="(\/[^"{]*)"/g)) add(m[1], `pages/${f}`);
+    for (const m of src.matchAll(/url\(\s*['"]([^'"]*)['"]/g)) add('/' + m[1], `pages/${f}`);
+    for (const m of src.matchAll(/\bslug:\s*['"]([^'"/]+)['"]/g)) add('/' + m[1], `pages/${f}`);
+  }
+  return found;
+};
+
+test('every internal link goes somewhere that builds, or is a declared plan', () => {
+  const bad = internalLinks()
+    .filter(({ slug }) => !routeExists(slug) && !PLANNED.has(slug))
+    .map(({ slug, where }) => `/${slug} (from ${where})`);
+  assert.deepEqual(bad, [], `these links go nowhere and are not on the planned list:\n  ${bad.join('\n  ')}`);
+});
+
+test('nothing on the planned list has quietly been built', () => {
+  const done = [...PLANNED].filter((slug) => routeExists(slug));
+  assert.deepEqual(done, [],
+    `these are built now — take them off PLANNED so a real break is not excused: ${done.join(', ')}`);
+});
+
+test('every planned page is still actually linked to', () => {
+  /* A plan nobody links to is a plan nobody is waiting for. If a link is
+     removed, the entry should go with it rather than sitting here forever. */
+  const linked = new Set(internalLinks().map((l) => l.slug));
+  const orphans = [...PLANNED].filter((slug) => !linked.has(slug));
+  assert.deepEqual(orphans, [],
+    `PLANNED lists pages nothing links to any more: ${orphans.join(', ')}`);
+});
+
 test('a feed on a section page asks for that section', () => {
   /* The page and the catalogue have to agree about the section id, and nothing
      else checks that they do — a typo would render an empty page that looks
