@@ -716,7 +716,25 @@ Interaction follows bureau:
   editing narrow, because that is the board in front of you. A ResizeObserver
   watches the container, the grid being container-queried makes it the real
   thing, and the bar says which you are in rather than asking
-- **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack
+- **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack.
+  **⌘⇧Z redoes**, and Redo is in the bar beside Undo. Bureau's decision 65:
+  `applyStep()` applies a step backwards AND returns the step that would apply
+  it forwards, so redo is the same function pointed the other way rather than
+  a second set of cases — every kind of step (box, boxes, content, add, remove,
+  group, ungroup, filed) says what its own inverse is. A new move clears the
+  redo stack, because keeping it is how a redo comes to reinstate a change on
+  top of a board it no longer fits
+- **flick a tile off the left, right or top edge and it is thrown away** —
+  Bureau's decision 112. Three things have to be true, so it is hard to do by
+  accident: fast (past what a careful move ends at — velocity is smoothed, one
+  pointer event's worth is noise; and a mouse has to be going nearly twice as
+  fast as a thumb, because a mouse crosses a screen far faster than a thumb
+  crosses a phone), let go at the very edge or past it, and
+  travelling *out* through it. A slow carry to the edge is still a move that
+  finds no room. Down is not an edge: below the board is more page, and the
+  bar. The toast offers Undo
+- **grips show on the selected tile**, not only on hover — a phone has no
+  hover, and before this a tile could not be resized by touch at all
 - **Done** leaves edit mode altogether, which is a different thing from the
   padlock: locked is still the editor, with a bar; Done is the site
 
@@ -811,6 +829,17 @@ What's already done, so it isn't rediscovered:
   the arrow keys; Duplicate; Copy JSON is back; the height field follows the
   device. Two live bugs went with them — `url('')` pointing at a 404, and
   `/editor` emitting duplicate ids.
+- **The gesture layer is Bureau's, ported from source.** September 2026, the
+  second pass: `clearGestureState()` as the one teardown; a gesture with one
+  owner; no `touch-action`, a `dragArmed()` predicate instead; the sketch from
+  arithmetic; one selection for the page; the lasso; group drag; `decor`; the
+  undo toast; the edge pan; keyboard walking; redo; the throw; `paint()`
+  asserting the whole board from the model. Group into a holder and drop into
+  one (Bureau's gather); a `form` kind that emails you; a page's own title,
+  description and share picture in the Board panel. Five Playwright harnesses
+  in the session scratchpad drove every one of these in a real browser before
+  it was committed — there is no editor test that presses anything in the
+  repo, and there should be; `scripts/` is the place.
 - The remaining work to replace Squarespace is: convert `/`, `/writing`,
   `/music` to grids and to typed content; build the six blog collections; pull
   the assets local.

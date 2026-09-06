@@ -323,7 +323,10 @@ const base = import.meta.env.BASE_URL;
     border-radius: 2px;
     opacity: 0; transition: opacity .12s ease;
   }
-  .ag-unlocked .ag-editable:hover .ag-grip { opacity: .9; }
+  /* On hover, and on the selected tile — a phone has no hover, so before this
+     the grips were invisible there and a tile could not be resized by touch. */
+  .ag-unlocked .ag-editable:hover .ag-grip,
+  .ag-unlocked .ag-editable.ag-selected .ag-grip { opacity: .9; }
   .ag-grip-nw { top: -7px; left: -7px; cursor: nwse-resize; }
   .ag-grip-ne { top: -7px; right: -7px; cursor: nesw-resize; }
   .ag-grip-se { bottom: -7px; right: -7px; cursor: nwse-resize; }

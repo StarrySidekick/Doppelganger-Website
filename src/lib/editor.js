@@ -251,6 +251,7 @@ export function mountEditor({
   };
   let device = deviceNow();
   let undo = [];
+  let redo = [];       // what undo took back, so it can be put forward again
   let G = null;          // the gesture in flight
   let sketch = null;     // the box being drawn on bare board
   let holdTimer = null;
@@ -518,6 +519,10 @@ export function mountEditor({
   function pushUndo(step) {
     undo.push(step);
     if (undo.length > 20) undo.shift();
+    /* A new move ends the branch you undid your way out of. Keeping the redo
+       stack across an edit is how an undo history comes to offer a redo that
+       reinstates a change on top of a board it no longer fits (decision 65). */
+    redo.length = 0;
     return step;
   }
 
@@ -580,83 +585,132 @@ export function mountEditor({
     Object.assign(e, prev);
   };
 
+  /**
+   * Apply one step backwards and hand back the step that would apply it
+   * forwards again. Bureau's `applyMove` (decision 65): redo is not a special
+   * case, it is the same function pointed the other way — so every kind of
+   * step here has to say what its own inverse is, and does.
+   *
+   * @returns {{step: object, said: string}|null}
+   */
+  function applyStep(move) {
+    const at = (id) => layout.elements.findIndex((e) => e.id === id);
+    const insert = (index, element) => {
+      layout.elements.splice(Math.min(index, layout.elements.length), 0, element);
+      mountTile(element);
+    };
+    const takeOut = (id) => {
+      const i = at(id);
+      return i >= 0 ? { index: i, element: layout.elements.splice(i, 1)[0] } : null;
+    };
+
+    switch (move.kind) {
+      case 'add': {
+        const gone = takeOut(move.id);
+        return gone && { step: { kind: 'remove', ...gone }, said: `Removed ${move.id}` };
+      }
+      case 'remove':
+        insert(move.index, move.element);
+        return { step: { kind: 'add', id: move.element.id }, said: `Put ${move.element.id} back` };
+      case 'adds': {
+        const items = move.ids.map(takeOut).filter(Boolean);
+        return { step: { kind: 'removes', items }, said: `Removed ${items.length}` };
+      }
+      case 'removes':
+        for (const { index, element } of [...move.items].sort((a, b) => a.index - b.index)) insert(index, element);
+        return { step: { kind: 'adds', ids: move.items.map((i) => i.element.id) }, said: `Put ${move.items.length} back` };
+
+      case 'content': {
+        const e = find(move.id);
+        if (!e) return null;
+        const now = contentOf(e);
+        restoreContent(e, move.prev);
+        drawnFrom.delete(move.id);
+        return { step: { kind: 'content', id: move.id, prev: now }, said: `Undid the change to ${move.id}` };
+      }
+      case 'box': {
+        const e = find(move.id);
+        if (!e) return null;
+        const now = e[move.device] ? structuredClone(e[move.device]) : null;
+        if (move.prev) e[move.device] = move.prev; else delete e[move.device];
+        device = move.device;
+        return { step: { kind: 'box', id: move.id, device: move.device, prev: now }, said: `Moved ${move.id} back` };
+      }
+      case 'boxes': {
+        const items = [];
+        for (const { id, prev } of move.items) {
+          const e = find(id);
+          if (!e) continue;
+          items.push({ id, prev: e[move.device] ? structuredClone(e[move.device]) : null });
+          if (prev) e[move.device] = prev; else delete e[move.device];
+        }
+        device = move.device;
+        return { step: { kind: 'boxes', device: move.device, items }, said: `Moved ${items.length} back` };
+      }
+
+      case 'group': {
+        const holder = takeOut(move.id);
+        for (const { index, element } of [...move.removed].sort((a, b) => a.index - b.index)) insert(index, element);
+        return holder && { step: { kind: 'regroup', holder: holder.element, holderIndex: holder.index, ids: move.removed.map((r) => r.element.id) }, said: `Ungrouped ${move.id}` };
+      }
+      case 'regroup': {
+        const removed = move.ids.map(takeOut).filter(Boolean);
+        insert(move.holderIndex, move.holder);
+        return { step: { kind: 'group', id: move.holder.id, removed }, said: `Grouped ${removed.length} again` };
+      }
+      case 'ungroup': {
+        const made = move.made.map(takeOut).filter(Boolean);
+        insert(move.index, move.holder);
+        return { step: { kind: 'reungroup', holderId: move.holder.id, made }, said: `Put them back into ${move.holder.id}` };
+      }
+      case 'reungroup': {
+        const holder = takeOut(move.holderId);
+        for (const { index, element } of [...move.made].sort((a, b) => a.index - b.index)) insert(index, element);
+        return holder && { step: { kind: 'ungroup', index: holder.index, holder: holder.element, made: move.made.map((m) => m.element.id) }, said: `Spread ${move.made.length} out again` };
+      }
+      case 'filed': {
+        const holder = find(move.holderId);
+        const filledWith = holder ? contentOf(holder) : null;
+        if (holder) { restoreContent(holder, move.prev); drawnFrom.delete(holder.id); }
+        insert(move.index, move.element);
+        return { step: { kind: 'refile', id: move.element.id, holderId: move.holderId, filled: filledWith }, said: `Took ${move.element.id} back out` };
+      }
+      case 'refile': {
+        const gone = takeOut(move.id);
+        const holder = find(move.holderId);
+        const prev = holder ? contentOf(holder) : null;
+        if (holder && move.filled) { restoreContent(holder, move.filled); drawnFrom.delete(holder.id); }
+        return gone && { step: { kind: 'filed', index: gone.index, element: gone.element, holderId: move.holderId, prev }, said: `Put ${move.id} back into ${move.holderId}` };
+      }
+      default:
+        return null;
+    }
+  }
+
   function undoLast() {
     const move = undo.pop();
     if (!move) return toast('Nothing to undo');
-
-    if (move.kind === 'add') {
-      const i = layout.elements.findIndex((e) => e.id === move.id);
-      if (i >= 0) layout.elements.splice(i, 1);
-      commit();                                  // paint() takes the tile away
-      return toast(`Removed ${move.id}`);
-    }
-    if (move.kind === 'remove') {
-      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.element);
-      mountTile(move.element);
-      commit();
-      return toast(`Put ${move.element.id} back`);
-    }
-    if (move.kind === 'removes') {
-      // Put them back in their original positions in the array, lowest first,
-      // so each index is still right by the time it is used.
-      for (const { index, element } of [...move.items].sort((a, b) => a.index - b.index)) {
-        layout.elements.splice(Math.min(index, layout.elements.length), 0, element);
-        mountTile(element);
-      }
-      commit();
-      return toast(`Put ${move.items.length} back`);
-    }
-    if (move.kind === 'group') {
-      const i = layout.elements.findIndex((e) => e.id === move.id);
-      if (i >= 0) layout.elements.splice(i, 1);
-      for (const { index, element } of [...move.removed].sort((a, b) => a.index - b.index)) {
-        layout.elements.splice(Math.min(index, layout.elements.length), 0, element);
-      }
-      commit();
-      return toast(`Ungrouped ${move.id}`);
-    }
-    if (move.kind === 'ungroup') {
-      for (const mid of move.made) {
-        const i = layout.elements.findIndex((e) => e.id === mid);
-        if (i >= 0) layout.elements.splice(i, 1);
-      }
-      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.holder);
-      commit();
-      return toast(`Put them back into ${move.holder.id}`);
-    }
-    if (move.kind === 'filed') {
-      const holder = find(move.holderId);
-      if (holder) restoreContent(holder, move.prev);
-      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.element);
-      if (holder) drawnFrom.delete(holder.id);
-      commit();
-      return toast(`Took ${move.element.id} back out`);
-    }
-    if (move.kind === 'boxes') {
-      for (const { id, prev } of move.items) {
-        const e = find(id);
-        if (!e) continue;
-        if (prev) e[move.device] = prev; else delete e[move.device];
-      }
-      const was = device;
-      device = move.device;
-      commit();
-      return toast(was !== device ? `Undone on ${device}` : `Moved ${move.items.length} back`);
-    }
-
-    const e = find(move.id);
-    if (!e) return;
-    if (move.kind === 'content') {
-      restoreContent(e, move.prev);
-      commit();
-      repaintContent(move.id);
-      return toast(`Undid the change to ${move.id}`);
-    }
-    if (move.prev) e[move.device] = move.prev; else delete e[move.device];
     const was = device;
-    device = move.device;
+    const out = applyStep(move);
     commit();
-    if (was !== device) toast(`Undone on ${device}`);
+    if (!out) return;
+    redo.push(out.step);
+    if (redo.length > 20) redo.shift();
+    toast(was !== device ? `Undone on ${device}` : out.said);
+  }
+
+  function redoLast() {
+    const move = redo.pop();
+    if (!move) return toast('Nothing to redo');
+    const was = device;
+    const out = applyStep(move);
+    commit();
+    if (!out) return;
+    // Straight onto the undo stack, not through pushUndo(), which would clear
+    // the redo stack you are in the middle of walking back down.
+    undo.push(out.step);
+    if (undo.length > 20) undo.shift();
+    toast(was !== device ? `Redone on ${device}` : `Redid — ${out.said.toLowerCase()}`);
   }
 
   /** Apply a content change to an object and record it. Shares the one undo stack. */
@@ -1207,6 +1261,7 @@ export function mountEditor({
       type: grip ? 'resize' : 'move',
       id, node, handle: grip?.dataset.rz ?? null,
       pointerId: e.pointerId,                 // every later event must match it
+      touch: e.pointerType === 'touch',
       armed: !!grip,                          // a grip drags at once, a tile waits
       menu: false,                            // the panel is up, the tile still in hand
       group,
@@ -1277,6 +1332,28 @@ export function mountEditor({
         openObjectMenu(G.id, G.sx, G.sy);
       }, MENU_AFTER);
     }, holdFor(e));
+  }
+
+  /* ---- thrown off the board ----
+     Bureau's decision 112. Carrying a tile could put it anywhere and could not
+     get rid of it; deleting was three deliberate acts for the one thing you
+     often decide WHILE you have hold of it. A hard flick off an edge throws it
+     away — the gesture every phone already has for dismissing something.
+     Hard to do by accident, which means asking three things rather than one:
+     fast (well past what a careful move ends at), let go at the very edge of
+     the board or past it, and travelling OUT through that edge. Down is not an
+     edge: below the board is more page, and the bar. Undo covers the rest. */
+  const TOSS_TOUCH = 1.15;   // px per ms — about a third of a second across a phone
+  const TOSS_MOUSE = 2.2;    // a mouse crosses a screen far faster than a thumb crosses a phone
+  const TOSS_EDGE = 26;      // how close to the edge letting go counts as off it
+  function tossed(g) {
+    if (!g.moved || g.group || g.into || g.type !== 'move') return null;
+    if (Math.hypot(g.vx || 0, g.vy || 0) < (g.touch ? TOSS_TOUCH : TOSS_MOUSE)) return null;
+    const r = grid.getBoundingClientRect();
+    if (g.px <= r.left + TOSS_EDGE && g.vx < 0) return 'left';
+    if (g.px >= r.right - TOSS_EDGE && g.vx > 0) return 'right';
+    if (g.py <= r.top + TOSS_EDGE && g.vy < 0) return 'up';
+    return null;
   }
 
   /* ---- the edge pan ----
@@ -1398,6 +1475,17 @@ export function mountEditor({
       if (G.group) for (const m of G.group) m.node.classList.add('ag-lifted');
     }
     if (!G.armed) return;
+    /* Velocity, smoothed. One pointer event's worth is mostly noise and a
+       threshold on noise fires at random; each reading is folded into the last
+       instead, which is enough to tell a flick from a carry. For the throw. */
+    const now = performance.now();
+    const dt = now - (G.at ?? now);
+    if (dt > 0) {
+      const k = Math.min(1, dt / 50);
+      G.vx = (G.vx || 0) * (1 - k) + ((e.clientX - G.px) / dt) * k;
+      G.vy = (G.vy || 0) * (1 - k) + ((e.clientY - G.py) / dt) * k;
+    }
+    G.at = now;
     G.px = e.clientX; G.py = e.clientY;
     const dx = e.clientX - G.sx, dy = e.clientY - G.sy;
     if (!G.moved) {
@@ -1440,6 +1528,13 @@ export function mountEditor({
        decision 10 and it stays — but refusing the ILLEGAL part of a drag is a
        different thing from refusing the legal part that came before it. */
     if (g.into && fileInto(g.id, g.into)) return;
+    if (tossed(g) && isTyped(find(g.id))) {
+      const gone = g.id;
+      select(null);
+      remove(gone);
+      navigator.vibrate?.([3, 20, 6]);
+      return;
+    }
     if (g.group) {
       const moves = g.ok ? g.moves : g.lastMoves;
       if (!moves) { paint(); return toast('No room there'); }
@@ -1956,7 +2051,10 @@ export function mountEditor({
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); endEdit(true); }
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      return e.shiftKey ? redoLast() : undoLast();
+    }
     if (e.key === 'l' || e.key === 'L') { chrome.setLocked(!locked()); return; }
     if (locked()) return;
 
@@ -2033,6 +2131,7 @@ export function mountEditor({
     paintSelection,
     isDirty: () => JSON.stringify(layout) !== baselineJson,
     undo: undoLast,
+    redo: redoLast,
     board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
       gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true,
       title: layout.title ?? '', description: layout.description ?? '', image: layout.image ?? '' }),
@@ -2649,7 +2748,8 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       <button data-bar="board" title="This board's grid">Board</button>
       <button data-bar="works" title="Everything you have made">Works</button>
       <button data-bar="look" title="The site's look">Look</button>
-      <button data-bar="undo">Undo</button>
+      <button data-bar="undo" title="⌘Z">Undo</button>
+      <button data-bar="redo" title="⌘⇧Z">Redo</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
       <button data-bar="leave" class="ag-leave" title="Leave edit mode and see the site as a visitor does">Done</button>
     `;
@@ -2981,6 +3081,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     const a = active();
     if (!a) return;
     if (act === 'undo') return a.undo();
+    if (act === 'redo') return a.redo();
   });
 
   let onPick = null;
