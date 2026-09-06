@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   resolve, resolveDevice, deriveNarrow, compileCSS, scopeFor, validateLayout,
-  normalizeLayout, overlaps, boxOk, freeSpot, columnsFor, deviceFor, packLayout,
+  normalizeLayout, overlaps, boxOk, boxesOk, freeSpot, columnsFor, deviceFor, packLayout,
 } from './adaptive-grid.js';
 
 /**
@@ -549,4 +549,68 @@ test('compiled CSS for a gapless board has cells that fill the width', () => {
   assert.match(css, /--ag-gap:0px/);
   assert.match(css, /--ag-cell:calc\(\(100cqi - 0px\) \/ 4\)/);
   assert.match(css, /gap:0px/);
+});
+
+/* ---------------- a decoration stands on the board, not in it ---------------- */
+
+test('a decoration may overlap anything, and anything may overlap it', () => {
+  // Bureau's decision 86: the aspidistra on the bookcase. It holds nothing and
+  // nothing makes room for it, so the one rule of the grid does not apply.
+  const lay = normalizeLayout({
+    version: 5, columns: 12, gap: 0, reflowBelow: 700,
+    elements: [
+      { id: 'card', kind: 'note', flow: 'stack', body: 'x', desk: { col: [1, 6], row: [1, 4] } },
+      { id: 'sun',  kind: 'image', attrs: ['media', 'decor'], flow: 'pin', desk: { col: [4, 3], row: [2, 3] } },
+    ],
+  });
+  assert.deepEqual(validateLayout(lay, 'decor'), [], 'the sun lying across the card is legal data');
+  assert.ok(boxOk(lay, 'sun', { col: [1, 3], row: [1, 3] }, 'desk'), 'the sun may move onto the card');
+  assert.ok(boxOk(lay, 'card', { col: [4, 6], row: [1, 4] }, 'desk'), 'and the card may move under the sun');
+  assert.ok(!boxOk(lay, 'sun', { col: [11, 3], row: [1, 3] }, 'desk'), 'but it still cannot leave the board');
+});
+
+test('packLayout leaves a decoration where it stands', () => {
+  const lay = normalizeLayout({
+    version: 5, columns: 12, gap: 0, reflowBelow: 700,
+    elements: [
+      { id: 'a', kind: 'note', flow: 'stack', body: 'a', desk: { col: [1, 4], row: [9, 2] } },
+      { id: 'sun', kind: 'image', attrs: ['media', 'decor'], flow: 'pin', desk: { col: [8, 3], row: [6, 3] } },
+    ],
+  });
+  const packed = packLayout(lay, 'desk');
+  assert.deepEqual(packed.get('a'), { col: [1, 4], row: [1, 2] }, 'an ordinary tile packs to the top');
+  assert.deepEqual(packed.get('sun'), { col: [8, 3], row: [6, 3] }, 'the decoration does not move');
+});
+
+/* ---------------- a group lands as a whole ---------------- */
+
+test('boxesOk judges a set together, ignoring collisions inside it', () => {
+  const lay = normalizeLayout({
+    version: 5, columns: 12, gap: 0, reflowBelow: 700,
+    elements: [
+      { id: 'a', kind: 'note', flow: 'stack', body: 'a', desk: { col: [1, 2], row: [1, 2] } },
+      { id: 'b', kind: 'note', flow: 'stack', body: 'b', desk: { col: [3, 2], row: [1, 2] } },
+      { id: 'wall', kind: 'note', flow: 'stack', body: 'w', desk: { col: [1, 12], row: [6, 1] } },
+    ],
+  });
+  // a and b move down two rows together: a lands where b's OLD box was
+  // overlapping nothing, and b's old position does not count against a.
+  const down = [
+    { id: 'a', box: { col: [1, 2], row: [3, 2] } },
+    { id: 'b', box: { col: [3, 2], row: [3, 2] } },
+  ];
+  assert.ok(boxesOk(lay, down, 'desk'));
+  // shifted right by two, a now sits exactly where b was: inside the set, fine
+  const right = [
+    { id: 'a', box: { col: [3, 2], row: [1, 2] } },
+    { id: 'b', box: { col: [5, 2], row: [1, 2] } },
+  ];
+  assert.ok(boxesOk(lay, right, 'desk'), 'a collision with a fellow member is not a collision');
+  // but onto the wall is refused for the whole set, even though a is clear
+  const onto = [
+    { id: 'a', box: { col: [1, 2], row: [4, 2] } },
+    { id: 'b', box: { col: [3, 2], row: [5, 2] } },
+  ];
+  assert.ok(!boxesOk(lay, onto, 'desk'), 'one member on the wall refuses the lot');
+  assert.ok(!boxesOk(lay, [{ id: 'b', box: { col: [12, 2], row: [1, 2] } }], 'desk'), 'off the edge');
 });

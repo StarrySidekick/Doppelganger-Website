@@ -10,6 +10,31 @@ thing built with it. Two things live in this repo: the tool, and the site made
 with the tool. Hard rule 4 is the seam between them, and it is what lets the
 tool be lifted out under its own name later without the site coming with it.
 
+**DigiDesk is Bureau, plus what a website needs — not a reimplementation of
+Bureau.** Bureau (`StarrySidekick/Bureau`, public) is a life-organisation app
+with a grid-based, object-based system, and it has already solved most of what
+an editor on a phone gets wrong. Where this tool needs a thing Bureau has,
+**port it from Bureau's source** rather than re-deriving it from its docs: the
+first version of the gesture layer was a re-derivation, and it re-found
+`dropSelection`, `refind`, `dragArmed`, the two-finger rule and the per-input
+hold length one at a time, as bugs. Diverge only where the web forces it, and
+say so in a comment when you do. The forced divergences so far: **pages instead
+of desks** (a website is pages, and `[...slug].astro` makes one from any
+layout); **Astro renders the published page, the editor cannot re-render it**
+(so the editor asserts its own state rather than emitting it — see "The editor
+cannot re-render"); and **saving is a commit to git**, not IndexedDB. Everything
+still to come is the web layer on top of that foundation: a contact form,
+sending people out to links, dropdowns and accordions and other ways of
+grouping objects that a page wants and a desk does not, the look, SEO, and
+eventually edit access behind a password. The site stays static throughout;
+publishing as JSON in a commit is the mechanism until there is a reason for
+another one.
+
+The portfolio itself splits what Timothy has made into sections — film, games,
+writing, music, art, inventions — and that is the reason the catalogue and the
+`feed` exist. Blog posts will fall under the same system. Both are Bureau's tag
+model adapted, not invented here.
+
 Timothy is a designer — fluent in CSS, new to terminals and git. Explain what a
 command does before running it. Don't assume git vocabulary.
 
@@ -214,6 +239,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `fold` | a folded size and an open size, toggled live — this is the dropdown | `fold: {cols, rows}` |
 | `holds` | holds other objects and lays them out by a rule | `items`, `arrange` |
 | `feed` | **shows the works, filtered** — a list that is true rather than one you wrote | `feed: {type, tag, sort, limit, chips}` |
+| `decor` | **stands on the board rather than in it** — the one thing allowed to overlap, and nothing makes room for it (Bureau's decision 86). The sun, the holo, the business card. `boxOk` and `validateLayout` let it lie across anything and anything across it; Tidy leaves it where it stands; it draws at `z-index: 2`, unclipped | — |
 
 | kind | attributes | face | made from the picker |
 |---|---|---|---|
@@ -583,6 +609,38 @@ Interaction follows bureau:
   dragging. That is the iPhone home screen's gesture and Bureau's decision 47.
   Cancelling made the hold a dead end — the menu came up and the press was
   finished with, and you had to start again
+- **drag a band across tiles** and they are selected — the same drag as the
+  sketch, told apart by whether it touched anything. That is Bureau's rubber
+  band and it is why there is no "select tool": touch nothing and you are
+  drawing the size of a new thing, touch something and you are choosing. The
+  band goes solid accent with no fill (`ag-picking`) so it reads as a lasso.
+  **Shift+click** toggles one tile in or out; **shift+band** adds; **⌘A** takes
+  the lot. A decoration is passed over by a plain band, because it stands in
+  front of things and would always be caught first — shift+band picks it up
+  deliberately
+- **drag any member of a selection and the lot moves**, keeping its shape —
+  `G.group`, captured at the press. One ghost per thing in the air, and the
+  set lands as a whole or not at all: `boxesOk()` judges it together, and a
+  collision *inside* the set is not a collision. It is **one undo step**
+  (`kind: 'boxes'`), because it was one thing you did (decision 65)
+- **the toast carries its own Undo** — a real button, pinned to the step that
+  was on top when the words were written, so a toast still on screen after
+  something else has changed does not undo the newer thing. A phone has no ⌘Z,
+  and the toasts used to say "⌘Z puts it back" to a device with no ⌘. Bureau's
+  `toast(msg, undo)`; here `undoOf(step)` is the closure the editor hands over
+- **hold a tile at the top or bottom edge and the page scrolls** under it, faster
+  the nearer the edge, with the drag re-applied between pointer events — the
+  finger is holding still and the board is what moves. Bureau's `autoPan`. The
+  bottom edge is the *bar's* top, since the bar owns that strip. Without this a
+  tall board could not be dragged onto below the fold at all, because a native
+  scroll is the first thing the hold refuses
+- **Tab / shift-Tab** walk the selection in reading order; **⌥+arrows** walk it
+  spatially, by Bureau's rule (decision 70): nearest in the direction pressed,
+  weighing distance *across* the axis double, so Right from a tall tile finds
+  the thing beside it and not the thing three rows down. The plain arrows still
+  **nudge**, because that is what every drawing program does with them. With
+  nothing selected any of these selects the first tile, so the keyboard can get
+  started at all
 - **corner grips** resize; there are no edge handles
 - **double click** the words and they become a field where they sit — the
   body or the title, never the whole tile, because a drawer front has a picture

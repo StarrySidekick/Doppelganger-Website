@@ -42,14 +42,14 @@
  *    derived from its flow. Moving it writes the box down for the first time.
  */
 import {
-  resolveDevice, boxOk, freeSpot, columnsFor, normalizeLayout, validateLayout,
-  packLayout, compileCSS, FLOWS,
+  resolveDevice, boxOk, boxesOk, freeSpot, columnsFor, normalizeLayout, validateLayout,
+  packLayout, compileCSS, overlaps, FLOWS,
 } from './adaptive-grid.js';
 import {
   KINDS, PICKER_KINDS, FACES, ATTRS, USER_ATTRS, K, has, attrsOf, kindOf,
   isTyped, isInline, faceOf, clickOf, fieldsOf, getField, setField, setKind,
   toggleAttr, itemsOf, makeItem, feedOf, SORTS, renderElement, unsafeHtml,
-  tiltFor, escapeHtml,
+  tiltFor, escapeHtml, isDecor,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
@@ -283,14 +283,25 @@ export function mountEditor({
    * same arrangement: one truth, and `paintSelection()` is the only thing that
    * writes the class.
    */
-  const selected = () => chrome.selectedOn(name);
-  const select = (id) => chrome.select(name, id);
+  const selected = () => chrome.selectedOn(name);          // the primary
+  const selection = () => chrome.selectionOn(name);        // the whole set
+  const select = (ids, opts) => chrome.select(name, ids, opts);
   function paintSelection() {
-    const mine = selected();
+    const set = new Set(selection());
     for (const node of grid.querySelectorAll('.ag-editable')) {
-      node.classList.toggle('ag-selected', !!mine && node.id === mine);
+      node.classList.toggle('ag-selected', set.has(node.id));
     }
   }
+
+  /**
+   * Undo pinned to ONE step: the way back a toast offers. It undoes only if
+   * that step is still the most recent thing, and says so otherwise, rather
+   * than undoing whatever happens to be on top by the time you press it.
+   */
+  const undoOf = (step) => () => {
+    if (undo[undo.length - 1] !== step) return toast('Something has changed since — use Undo in the bar');
+    undoLast();
+  };
 
   /* Which board is which. Three grids stacked up a page look like one page
      until you go to move something, and then it matters a great deal whether
@@ -367,6 +378,7 @@ export function mountEditor({
   function dressTile(node, item) {
     for (const c of [...node.classList]) if (c.startsWith('fc-')) node.classList.remove(c);
     node.classList.add('ob', `fc-${faceOf(item)}`);
+    node.classList.toggle('ob-decor', isDecor(item));
     node.style.setProperty('--tilt', tiltFor(item.id).toFixed(2) + 'deg');
     node.classList.toggle('ag-empty', has(item, 'media') && !item.media?.src && !item.body && !item.title);
   }
@@ -461,14 +473,36 @@ export function mountEditor({
   function pushUndo(step) {
     undo.push(step);
     if (undo.length > 20) undo.shift();
+    return step;
   }
 
   function setBox(id, box, { record = true } = {}) {
     const e = find(id);
-    if (!e) return;
-    if (record) pushUndo({ kind: 'box', id, device, prev: e[device] ? structuredClone(e[device]) : null });
+    if (!e) return null;
+    const step = record
+      ? pushUndo({ kind: 'box', id, device, prev: e[device] ? structuredClone(e[device]) : null })
+      : null;
     e[device] = { col: [...box.col], row: [...box.row] };
     commit();
+    return step;
+  }
+
+  /**
+   * Move several at once, as ONE undo step. A group drag is one thing you did,
+   * so ⌘Z must put the whole group back — decision 65's "one move per drop,
+   * covering every object the drop touches".
+   */
+  function setBoxes(moves) {
+    const items = [];
+    for (const { id, box } of moves) {
+      const e = find(id);
+      if (!e) continue;
+      items.push({ id, prev: e[device] ? structuredClone(e[device]) : null });
+      e[device] = { col: [...box.col], row: [...box.row] };
+    }
+    const step = pushUndo({ kind: 'boxes', device, items });
+    commit();
+    return step;
   }
 
   function commit() {
@@ -517,6 +551,27 @@ export function mountEditor({
       commit();
       return toast(`Put ${move.element.id} back`);
     }
+    if (move.kind === 'removes') {
+      // Put them back in their original positions in the array, lowest first,
+      // so each index is still right by the time it is used.
+      for (const { index, element } of [...move.items].sort((a, b) => a.index - b.index)) {
+        layout.elements.splice(Math.min(index, layout.elements.length), 0, element);
+        mountTile(element);
+      }
+      commit();
+      return toast(`Put ${move.items.length} back`);
+    }
+    if (move.kind === 'boxes') {
+      for (const { id, prev } of move.items) {
+        const e = find(id);
+        if (!e) continue;
+        if (prev) e[move.device] = prev; else delete e[move.device];
+      }
+      const was = device;
+      device = move.device;
+      commit();
+      return toast(was !== device ? `Undone on ${device}` : `Moved ${move.items.length} back`);
+    }
 
     const e = find(move.id);
     if (!e) return;
@@ -545,10 +600,10 @@ export function mountEditor({
       toast(problems[0].replace(/^[^:]+: /, ''));
       return false;
     }
-    pushUndo({ kind: 'content', id, prev });
+    const step = pushUndo({ kind: 'content', id, prev });
     commit();
     repaintContent(id);
-    return true;
+    return step;
   }
 
   /* ---- making and removing things ---- */
@@ -614,9 +669,11 @@ export function mountEditor({
       toast(problems[0].replace(/^[^:]+: /, ''));
       return null;
     }
-    pushUndo({ kind: 'add', id });
+    const step = pushUndo({ kind: 'add', id });
     mountTile(item);
     commit();
+    select(id);
+    toast(`Added ${id}`, undoOf(step));
     return item;
   }
 
@@ -624,10 +681,26 @@ export function mountEditor({
     const index = layout.elements.findIndex((e) => e.id === id);
     if (index < 0) return;
     const [element] = layout.elements.splice(index, 1);
-    pushUndo({ kind: 'remove', index, element });
+    const step = pushUndo({ kind: 'remove', index, element });
     el(id)?.remove();
     commit();
-    toast(`Deleted ${id} — ⌘Z puts it back`);
+    toast(`Deleted ${id}`, undoOf(step));
+  }
+
+  /** Delete a set, as one undo step. Only typed objects go; a slot is the page. */
+  function removeAll(ids) {
+    const items = [];
+    for (const id of ids) {
+      const index = layout.elements.findIndex((e) => e.id === id);
+      if (index < 0 || !isTyped(layout.elements[index])) continue;
+      const [element] = layout.elements.splice(index, 1);
+      items.push({ index, element });
+      el(id)?.remove();
+    }
+    if (!items.length) return toast('Those are drawn by the page itself, so there is nothing to delete');
+    const step = pushUndo({ kind: 'removes', items });
+    commit();
+    toast(`Deleted ${items.length}`, undoOf(step));
   }
 
   /**
@@ -689,7 +762,10 @@ export function mountEditor({
     const onBoard = e.target.closest('.ag-cell') || e.target === grid;
     if (!onBoard || !grid.contains(e.target)) return;
     if (editing) endEdit(true);
-    select(null);                              // pressing the board means "not that one"
+    // Pressing the board means "not that one" — unless shift is held, in which
+    // case a band drawn from here ADDS to what is chosen.
+    const add = e.shiftKey || e.metaKey || e.ctrlKey;
+    if (!add) select(null);
 
     const t = tracks(grid);
     const rect = grid.getBoundingClientRect();
@@ -701,6 +777,8 @@ export function mountEditor({
       sx: e.clientX, sy: e.clientY,
       moved: false,
       held: false,
+      add,
+      hits: [],                               // what the band has touched
       /* Whether the finger belongs to us yet. On a mouse it does at once, which
          is what makes dragging out a size on a desk immediate. On touch it does
          NOT until the hold lands — before that the finger belongs to the page,
@@ -748,9 +826,26 @@ export function mountEditor({
     sketch.to = to;
     sketch.moved = true;
     const box = spanBetween(sketch.from, to);
+    /* Anything the band touches becomes the selection. If it touches nothing,
+       the same drag is sketching the size of a new object — which is what
+       stopped the two gestures from fighting each other in Bureau, and is why
+       there is no "select tool". A decoration is passed over: it stands in
+       front of things, so a band meant for what is behind it would always
+       catch it first. Shift+band picks it up deliberately. */
+    const hits = placed()
+      .filter((r) => el(r.id)?.classList.contains('ag-editable'))
+      .filter((r) => !find(r.id)?.locked)
+      .filter((r) => sketch.add || !isDecor(find(r.id)))
+      .filter((r) => overlaps(box, { col: [r._col, r._span], row: [r._row, r._rowSpan] }))
+      .map((r) => r.id);
+    sketch.hits = hits;
+    if (hits.length) {
+      // Shown live, so you can see what you are about to have chosen.
+      select(hits, { add: sketch.add });
+    } else if (!sketch.add) select(null);
     sketch.node.className = 'ag-ghost ag-sketch'
       + (sketch.held ? ' ag-armed' : '')
-      + (boxOk(layout, null, box, device) ? '' : ' ag-bad');
+      + (hits.length ? ' ag-picking' : (boxOk(layout, null, box, device) ? '' : ' ag-bad'));
     place(sketch.node, box);
   }
 
@@ -758,6 +853,8 @@ export function mountEditor({
     if (!sketch || e.pointerId !== sketch.pointerId) return;
     const s = sketch;
     clearGestureState();
+    // It was a lasso, not a sketch: the selection is already what it touched.
+    if (s.hits.length) return;
     // A quick tap is a tap: it deselected on the way down and that is all it
     // does. Only a hold or a drawn box asks for the picker.
     if (!s.moved && !s.held) return;
@@ -865,7 +962,7 @@ export function mountEditor({
       sketch = null;
     }
     if (G) {
-      G.ghost?.remove();
+      stopPan();
       try { G.node?.releasePointerCapture?.(G.pointerId); } catch { /* already gone */ }
       G = null;
     }
@@ -931,12 +1028,25 @@ export function mountEditor({
     const grip = e.target.closest('[data-rz]');
     const t = tracks(grid);
     const rect = grid.getBoundingClientRect();
+    /* Dragging any member of a selection moves the lot, keeping their relative
+       positions — the offsets are captured up front, before anything moves.
+       Bureau's `G.group`. Only a move: a corner grip resizes one tile. */
+    const set = selection();
+    const group = !grip && set.includes(id) && set.length > 1
+      ? set.map((gid) => ({ id: gid, box: boxFor(gid), node: el(gid) }))
+          .filter((m) => m.node && find(m.id) && !find(m.id).locked)
+      : null;
     G = {
       type: grip ? 'resize' : 'move',
       id, node, handle: grip?.dataset.rz ?? null,
       pointerId: e.pointerId,                 // every later event must match it
       armed: !!grip,                          // a grip drags at once, a tile waits
       menu: false,                            // the panel is up, the tile still in hand
+      group,
+      // Shift or ⌘ held at the press: a tap toggles this one in the selection
+      // rather than replacing it. Read now, because the release may not carry it.
+      toggle: e.shiftKey || e.metaKey || e.ctrlKey,
+      px: e.clientX, py: e.clientY,           // where the pointer is, for the edge pan
       // The last candidate box that passed boxOk. A resize that ends on an
       // illegal box lands here instead of snapping all the way back to where it
       // started, which is most of "sizes don't stick": on a 24-column board
@@ -973,6 +1083,7 @@ export function mountEditor({
       G.node = el(G.id) ?? G.node;
       G.armed = true;
       G.node.classList.add('ag-lifted');
+      if (G.group) for (const m of G.group) { m.node = el(m.id) ?? m.node; m.node.classList.add('ag-lifted'); }
       navigator.vibrate?.(6);
 
       /* Keep holding WITHOUT moving and it becomes the menu instead. A phone
@@ -995,9 +1106,89 @@ export function mountEditor({
         G.armed = false;
         G.node.classList.remove('ag-lifted'); // down, but still under the finger
         G.node.style.transform = '';
+        if (G.group) for (const m of G.group) m.node.classList.remove('ag-lifted');
         openObjectMenu(G.id, G.sx, G.sy);
       }, MENU_AFTER);
     }, holdFor(e));
+  }
+
+  /* ---- the edge pan ----
+     A tall board cannot be dragged onto below the fold: the pointer reaches the
+     bottom of the window and the page does not move, because a native scroll
+     was the first thing the hold refused. So while a tile is in the air and the
+     pointer is within PAN_EDGE of the top or bottom, the window scrolls on its
+     own, faster the nearer the edge, and the drag is re-applied between pointer
+     events — the finger is holding still at the edge and the board is what
+     moves. Bureau's `autoPan`. */
+  const PAN_EDGE = 56, PAN_MAX = 14;
+  let panning = null;
+  function panLoop() {
+    panning = null;
+    if (!G || !G.armed || !G.moved || G.type !== 'move') return;
+    const h = window.innerHeight;
+    // The bar owns the bottom of the screen, so the bottom edge starts above it.
+    const barTop = chrome.barTop();
+    let v = 0;
+    if (G.py < PAN_EDGE) v = -Math.ceil(PAN_MAX * (1 - G.py / PAN_EDGE));
+    else if (G.py > barTop - PAN_EDGE) v = Math.ceil(PAN_MAX * (1 - (barTop - G.py) / PAN_EDGE));
+    if (v) {
+      const before = window.scrollY;
+      window.scrollBy(0, v);
+      const moved = window.scrollY - before;
+      if (moved) {
+        /* The page moved under a pointer that did not. The tile follows the
+           pointer through a translate from where the press began, so the start
+           point has to move with the page for the tile to stay in hand. */
+        G.sy -= moved;
+        applyDrag(G, G.px, G.py);
+      }
+    }
+    panning = requestAnimationFrame(panLoop);
+  }
+  const stopPan = () => { if (panning) { cancelAnimationFrame(panning); panning = null; } };
+
+  /**
+   * Everything a move redraws, given where the pointer is. Split out because
+   * the edge pan has to redraw between pointer events.
+   */
+  function applyDrag(G, clientX, clientY) {
+    const dx = clientX - G.sx, dy = clientY - G.sy;
+    // Cells crossed, from the real track edges — not dx divided by a step.
+    // The rect is re-read so the page can scroll mid-drag.
+    const rect = grid.getBoundingClientRect();
+    const dcol = trackAt(G.t.x, clientX - rect.left, G.t.colStep) - G.startCol;
+    const drow = trackAt(G.t.y, clientY - rect.top, G.t.rowStep) - G.startRow;
+    const box = candidate(G, dcol, drow);
+    G.cand = box;
+
+    if (G.group) {
+      // The whole set has to land legally, and only collisions with objects
+      // outside the set count — the set kept its shape.
+      G.moves = G.group.map((m) => ({
+        id: m.id,
+        box: { col: [m.box.col[0] + dcol, m.box.col[1]], row: [m.box.row[0] + drow, m.box.row[1]] },
+      }));
+      G.ok = boxesOk(layout, G.moves, device);
+    } else {
+      G.ok = boxOk(layout, G.id, box, device);
+    }
+    if (G.ok) { G.lastOk = box; G.lastMoves = G.moves; }
+    G.node.classList.toggle('ag-invalid', !G.ok);
+
+    if (G.type === 'move') {
+      G.node.style.transform = `translate(${dx}px,${dy}px)`;
+      G.ghosts.forEach((ghost, i) => {
+        ghost.className = 'ag-ghost' + (G.ok ? '' : ' ag-bad');
+        place(ghost, G.group ? G.moves[i].box : box);
+      });
+      if (G.group) for (const m of G.group) {
+        if (m.id === G.id) continue;
+        m.node.style.transform = `translate(${dx}px,${dy}px)`;
+        m.node.classList.toggle('ag-invalid', !G.ok);
+      }
+    } else {
+      place(G.node, box);                     // live resize
+    }
   }
 
   function onMove(e) {
@@ -1019,39 +1210,30 @@ export function mountEditor({
       chrome.closeMenu();
       G.armed = true;
       G.node.classList.add('ag-lifted');
+      if (G.group) for (const m of G.group) m.node.classList.add('ag-lifted');
     }
     if (!G.armed) return;
+    G.px = e.clientX; G.py = e.clientY;
     const dx = e.clientX - G.sx, dy = e.clientY - G.sy;
     if (!G.moved) {
       if (Math.abs(dx) < NUDGE && Math.abs(dy) < NUDGE) return;
       G.moved = true;
       G.node.classList.add('ag-dragging');
+      G.ghosts = [];
       if (G.type === 'move') {
-        G.ghost = document.createElement('div');
-        G.ghost.className = 'ag-ghost';
-        place(G.ghost, G.box);
-        grid.appendChild(G.ghost);
+        // One ghost per thing in the air, so a group shows where each lands.
+        for (const m of (G.group ?? [{ box: G.box }])) {
+          const ghost = document.createElement('div');
+          ghost.className = 'ag-ghost';
+          place(ghost, m.box);
+          grid.appendChild(ghost);
+          G.ghosts.push(ghost);
+        }
+        if (G.group) for (const m of G.group) if (m.id !== G.id) m.node.classList.add('ag-dragging');
+        if (!panning) panning = requestAnimationFrame(panLoop);
       }
     }
-
-    // Cells crossed, from the real track edges — not dx divided by a step.
-    // The rect is re-read so the page can scroll mid-drag.
-    const rect = grid.getBoundingClientRect();
-    const dcol = trackAt(G.t.x, e.clientX - rect.left, G.t.colStep) - G.startCol;
-    const drow = trackAt(G.t.y, e.clientY - rect.top, G.t.rowStep) - G.startRow;
-    const box = candidate(G, dcol, drow);
-    G.cand = box;
-    G.ok = boxOk(layout, G.id, box, device);
-    if (G.ok) G.lastOk = box;
-    G.node.classList.toggle('ag-invalid', !G.ok);
-
-    if (G.type === 'move') {
-      G.node.style.transform = `translate(${dx}px,${dy}px)`;
-      G.ghost.className = 'ag-ghost' + (G.ok ? '' : ' ag-bad');
-      place(G.ghost, box);
-    } else {
-      place(G.node, box);                     // live resize
-    }
+    applyDrag(G, e.clientX, e.clientY);
   }
 
   function onUp(e) {
@@ -1064,19 +1246,28 @@ export function mountEditor({
 
     // The menu is up and you let go: that is the menu, not a move.
     if (g.menu) return;
-    // A press that went nowhere is not a move; it is you saying which one.
-    if (!g.moved) return select(g.id);
+    // A press that went nowhere is not a move; it is you saying which one —
+    // or, with shift, one more of them.
+    if (!g.moved) return select(g.id, { toggle: g.toggle });
 
     /* Land on the last box that was legal rather than throwing the whole
        gesture away. `boxOk` still refuses to shove a neighbour aside — that is
        decision 10 and it stays — but refusing the ILLEGAL part of a drag is a
        different thing from refusing the legal part that came before it. */
+    if (g.group) {
+      const moves = g.ok ? g.moves : g.lastMoves;
+      if (!moves) { paint(); return toast('No room there'); }
+      const step = setBoxes(moves);
+      toast(g.ok ? `Moved ${moves.length}` : 'No room there — left where they last fitted', undoOf(step));
+      return;
+    }
     const land = (g.cand && g.ok) ? g.cand : g.lastOk;
     if (land) {
       const first = device === 'narrow' && !find(g.id)?.narrow;
-      setBox(g.id, land);
-      if (!g.ok) toast('No room there — left where it last fitted');
-      else if (first) toast(`${g.id} now has its own narrow position`);
+      const step = setBox(g.id, land);
+      if (!g.ok) toast('No room there — left where it last fitted', undoOf(step));
+      else if (first) toast(`${g.id} now has its own narrow position`, undoOf(step));
+      else toast(g.type === 'resize' ? `Resized ${g.id}` : `Moved ${g.id}`, undoOf(step));
     } else {
       paint();                                // it was never legal: snap back
       toast('No room there');
@@ -1134,7 +1325,8 @@ export function mountEditor({
       if (!keep) toast('Reverted');
       return;
     }
-    setContent(id, (o) => { o[field] = next; });
+    const step = setContent(id, (o) => { o[field] = next; });
+    if (step) toast(`${id} updated`, undoOf(step));
   }
 
   function onDblClick(e) {
@@ -1311,8 +1503,8 @@ export function mountEditor({
         return reopen();
       }
       if (act === 'fields') {
-        const ok = applyFields(id, menuEl);
-        if (ok) toast(`${id} updated`);
+        const step = applyFields(id, menuEl);
+        if (step) toast(`${id} updated`, undoOf(step));
       }
     }, { wide: true });
 
@@ -1445,19 +1637,68 @@ export function mountEditor({
 
   /** Move or resize the selected tile by one cell. Refused the same way a drag is. */
   function nudge(dcol, drow, resize) {
-    const id = selected();
-    if (!id) return;
-    const e = find(id);
-    if (!e) return select(null);
-    if (e.locked) return toast(`${id} is locked in place`);
-    const b = boxFor(id);
-    const box = resize
-      ? { col: [b.col[0], Math.max(1, b.col[1] + dcol)], row: [b.row[0], Math.max(1, b.row[1] + drow)] }
-      : { col: [b.col[0] + dcol, b.col[1]], row: [b.row[0] + drow, b.row[1]] };
-    if (!boxOk(layout, id, box, device)) return toast('No room there');
-    const first = device === 'narrow' && !e.narrow;
-    setBox(id, box);
-    if (first) toast(`${id} now has its own narrow position`);
+    const ids = selection().filter((id) => find(id) && !find(id).locked);
+    if (!ids.length) return;
+    /* A resize is one tile's; a move is the whole selection's, kept in shape.
+       The same rule as the drag — dragging any member moves the lot. */
+    if (resize) {
+      const id = ids[0];
+      const b = boxFor(id);
+      const box = { col: [b.col[0], Math.max(1, b.col[1] + dcol)], row: [b.row[0], Math.max(1, b.row[1] + drow)] };
+      if (!boxOk(layout, id, box, device)) return toast('No room there');
+      const first = device === 'narrow' && !find(id).narrow;
+      const step = setBox(id, box);
+      if (first) toast(`${id} now has its own narrow position`, undoOf(step));
+      return;
+    }
+    const moves = ids.map((id) => {
+      const b = boxFor(id);
+      return { id, box: { col: [b.col[0] + dcol, b.col[1]], row: [b.row[0] + drow, b.row[1]] } };
+    });
+    if (!boxesOk(layout, moves, device)) return toast('No room there');
+    const step = setBoxes(moves);
+    if (moves.length > 1) toast(`Moved ${moves.length}`, undoOf(step));
+  }
+
+  /* ---- walking the selection by keyboard ----
+     Bureau's decision 70: the arrows do not introduce a second idea of "the
+     current tile" — they move the selection, which already draws itself. Here
+     the plain arrows already NUDGE, because that is what every drawing program
+     does with them and it is documented; so walking is Tab in reading order,
+     and Alt+arrow spatially, with Bureau's rule — nearest in the direction
+     pressed, weighing distance ACROSS the axis double, so Right from a tall
+     tile finds the thing beside it and not the thing three rows down that
+     happens to be marginally closer. With nothing selected, any of them
+     selects the first tile, so the keyboard can get started at all. */
+  const centre = (r) => ({ x: r._col + r._span / 2, y: r._row + r._rowSpan / 2 });
+  const inOrder = () => placed().filter((r) => el(r.id)).sort((a, b) => a._row - b._row || a._col - b._col);
+  function walkSelection(dir, add = false) {
+    const tiles = inOrder();
+    if (!tiles.length) return;
+    const cur = selected() && tiles.find((t) => t.id === selected());
+    let next = null;
+    if (!cur) next = tiles[0];
+    else if (dir === 'next' || dir === 'prev') {
+      const i = tiles.indexOf(cur);
+      next = tiles[(i + (dir === 'next' ? 1 : tiles.length - 1)) % tiles.length];
+    } else {
+      const from = centre(cur);
+      const [dx, dy] = ARROWS[dir];
+      let best = null, bestScore = Infinity;
+      for (const t of tiles) {
+        if (t === cur) continue;
+        const to = centre(t);
+        const along = (to.x - from.x) * dx + (to.y - from.y) * dy;   // forward distance
+        if (along <= 0) continue;                                    // behind, or level
+        const across = Math.abs((to.x - from.x) * dy) + Math.abs((to.y - from.y) * dx);
+        const score = along + across * 2;
+        if (score < bestScore) { bestScore = score; best = t; }
+      }
+      next = best;
+    }
+    if (!next) return;
+    select(next.id, { add });
+    el(next.id)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }
 
   /**
@@ -1488,11 +1729,11 @@ export function mountEditor({
       layout.elements.pop();
       return toast(problems[0].replace(/^[^:]+: /, ''));
     }
-    pushUndo({ kind: 'add', id: copy.id });
+    const step = pushUndo({ kind: 'add', id: copy.id });
     mountTile(copy);
     commit();
     select(copy.id);
-    toast(`${copy.id} — a copy of ${id}`);
+    toast(`${copy.id} — a copy of ${id}`, undoOf(step));
   }
 
   /* ---- keyboard ---- */
@@ -1517,8 +1758,23 @@ export function mountEditor({
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
     if (e.key === 'l' || e.key === 'L') { chrome.setLocked(!locked()); return; }
+    if (locked()) return;
+
+    /* Choosing by keyboard: Tab walks the board in reading order, Alt+arrow
+       walks it spatially, ⌘A takes the lot. Any of them with nothing selected
+       selects the first tile. */
+    if (e.key === 'Tab') { e.preventDefault(); return walkSelection(e.shiftKey ? 'prev' : 'next'); }
+    if (e.altKey && ARROWS[e.key]) { e.preventDefault(); return walkSelection(e.key, e.shiftKey); }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      return select(inOrder().filter((r) => !find(r.id)?.locked).map((r) => r.id));
+    }
+
     const sel = selected();
-    if (locked() || !sel) return;
+    if (!sel) {
+      if (ARROWS[e.key]) { e.preventDefault(); walkSelection('next'); }
+      return;
+    }
 
     /* The exact versions of the gestures. Shift resizes rather than moves,
        which is the same pairing every drawing program makes. */
@@ -1537,8 +1793,9 @@ export function mountEditor({
     if (e.key === 'e' || e.key === 'E') { e.preventDefault(); return openObjectEditor(sel); }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
+      const gone = selection();
       select(null);
-      return remove(sel);
+      return gone.length > 1 ? removeAll(gone) : remove(sel);
     }
   }
 
@@ -1614,15 +1871,14 @@ export function mountEditor({
     },
     tidy: () => {
       const boxes = packLayout(layout, device);
-      let moved = 0;
+      const moves = [];
       for (const [id, box] of boxes) {
-        const e = find(id);
-        const cur = e?.[device];
-        if (!cur || cur.col[0] !== box.col[0] || cur.row[0] !== box.row[0]) moved++;
-        if (e) e[device] = box;
+        const cur = find(id)?.[device];
+        if (!cur || cur.col[0] !== box.col[0] || cur.row[0] !== box.row[0]) moves.push({ id, box });
       }
-      commit();
-      toast(moved ? `Tidied ${moved} object${moved > 1 ? 's' : ''} on ${device}` : 'Already tidy');
+      if (!moves.length) return toast('Already tidy');
+      const step = setBoxes(moves);
+      toast(`Tidied ${moves.length} object${moves.length > 1 ? 's' : ''} on ${device}`, undoOf(step));
     },
     /* A feed shows the catalogue, so editing the catalogue changes what is on
        the board without anything on the board having been touched. */
@@ -1778,13 +2034,42 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   const editors = new Map();
   let activeName = null;
 
+  /**
+   * Say something — and, if it was a change, offer the way back on the toast.
+   *
+   * A phone has no ⌘Z, and a toast that said "⌘Z puts it back" was talking to
+   * a device with no ⌘. Bureau's toast carries its own Undo (its mutations.js),
+   * and it is pinned to the move that was on top when the words were written:
+   * the link used to call a bare undo(), which takes whatever is on top NOW,
+   * so a toast still on screen after something else had changed undid the
+   * newer thing and left the one you were looking at where it was. So `undo`
+   * is a closure the editor hands over, and it checks its own step is still on
+   * top before it does anything.
+   */
   let toastTimer = null;
-  const toast = (msg) => {
+  let toastUndo = null;
+  const toast = (msg, undo = null) => {
+    toastUndo = typeof undo === 'function' ? undo : null;
     toastEl.textContent = msg;
+    if (toastUndo) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ag-toast-undo';
+      btn.textContent = 'Undo';
+      toastEl.appendChild(btn);
+    }
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
+    // Long enough to read and reach for; a toast with a button is one you may
+    // want to press.
+    toastTimer = setTimeout(() => { toastEl.hidden = true; toastUndo = null; }, toastUndo ? 5200 : 3200);
   };
+  toastEl.addEventListener('click', (e) => {
+    if (!e.target.closest('.ag-toast-undo')) return;
+    const fn = toastUndo;
+    toastEl.hidden = true; toastUndo = null; clearTimeout(toastTimer);
+    fn?.();
+  });
 
   const active = () => editors.get(activeName);
 
@@ -1871,12 +2156,38 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
    * losing it as well as the board gaining it, so two tiles can never wear the
    * accent ring at once.
    */
-  let selection = { board: null, id: null };
-  const selectedOn = (board) => (selection.board === board ? selection.id : null);
-  function select(board, id) {
-    if (selection.board === board && selection.id === id) return;
+  /* A SET, on one board, with a primary — Bureau's `S.sel`. The primary is the
+     one the keyboard's Enter, E and Delete act on and the one a drag is
+     anchored to; the set is what moves together and what Delete removes. A
+     selection never spans boards: a group drag across two grids has nowhere to
+     land. */
+  let selection = { board: null, ids: [] };
+  const selectedOn = (board) => (selection.board === board ? selection.ids[0] ?? null : null);
+  const selectionOn = (board) => (selection.board === board ? selection.ids.slice() : []);
+  /**
+   * @param ids  one id, an array, or null to clear
+   * @param add  keep what was selected on this board and add to it
+   * @param toggle  flip membership instead of setting it — shift-click
+   */
+  function select(board, ids, { add = false, toggle = false } = {}) {
+    const want = ids == null ? [] : Array.isArray(ids) ? ids : [ids];
+    let next;
+    if (!want.length) next = [];
+    else if (toggle && selection.board === board) {
+      next = selection.ids.slice();
+      for (const id of want) {
+        const i = next.indexOf(id);
+        if (i >= 0) next.splice(i, 1); else next.push(id);
+      }
+    } else if (add && selection.board === board) {
+      next = [...new Set([...selection.ids, ...want])];
+    } else next = [...new Set(want)];
+
     const was = selection.board;
-    selection = id ? { board, id } : { board: null, id: null };
+    const same = was === (next.length ? board : null)
+      && next.length === selection.ids.length && next.every((id, i) => id === selection.ids[i]);
+    if (same) return;
+    selection = next.length ? { board, ids: next } : { board: null, ids: [] };
     if (was && was !== board) editors.get(was)?.paintSelection?.();
     editors.get(board)?.paintSelection?.();
   }
@@ -2535,8 +2846,10 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   return {
     register, unregister, setActive, render, toast, busy, published,
     activeName: () => activeName,
+    // Where the bar begins, so a drag's edge pan knows where the screen ends.
+    barTop: () => (bar.hidden ? window.innerHeight : bar.getBoundingClientRect().top),
     locked: () => isLocked, setLocked,
-    select, selectedOn, dropSelection,
+    select, selectedOn, selectionOn, dropSelection,
     look: () => look, setLook,
     // One catalogue for every board on the page, so a feed in the header and a
     // feed on the page can never disagree about what has been made.

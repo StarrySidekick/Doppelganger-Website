@@ -37,7 +37,7 @@
  * stays responsible for WHERE something sits and elements.js for WHAT it is,
  * which is why the two can be validated and reasoned about separately.
  */
-import { checkElement, upgradeElement } from './elements.js';
+import { checkElement, upgradeElement, isDecor } from './elements.js';
 
 /** The only legal values for an element's reflow seed. */
 export const FLOWS = ['pin', 'keep', 'full', 'stack'];
@@ -131,9 +131,33 @@ export function boxOk(layout, id, box, device = 'desk') {
   if (box.col[0] < 1 || box.row[0] < 1 || box.col[1] < 1 || box.row[1] < 1) return false;
   if (box.col[0] + box.col[1] - 1 > cols) return false;
 
+  // A decoration stands on the board rather than in it: it may lie across
+  // anything, and anything may lie across it. Bounds still apply.
+  const self = id ? layout.elements?.find((e) => e.id === id) : null;
+  if (self && isDecor(self)) return true;
   return !resolveDevice(layout, device).some(
-    (other) => other.id !== id && overlaps(box, boxOf(other))
+    (other) => other.id !== id && !isDecor(other) && overlaps(box, boxOf(other))
   );
+}
+
+/**
+ * Is this SET of boxes a legal placement, all at once?
+ *
+ * A group drag has to land as a whole: every box inside the columns, and none
+ * of them on top of anything outside the set. Collisions inside the set are
+ * not collisions — the set moved together and kept its shape.
+ */
+export function boxesOk(layout, moved, device = 'desk') {
+  const cols = columnsFor(layout, device);
+  const ids = new Set(moved.map((m) => m.id));
+  const others = resolveDevice(layout, device).filter((o) => !ids.has(o.id) && !isDecor(o));
+  return moved.every(({ id, box }) => {
+    if (box.col[0] < 1 || box.row[0] < 1 || box.col[1] < 1 || box.row[1] < 1) return false;
+    if (box.col[0] + box.col[1] - 1 > cols) return false;
+    const self = layout.elements?.find((e) => e.id === id);
+    if (self && isDecor(self)) return true;
+    return !others.some((o) => overlaps(box, boxOf(o)));
+  });
 }
 
 /** The lowest free spot for a box of this size, scanning left-to-right then down. */
@@ -288,6 +312,12 @@ export function packLayout(layout, device = 'desk') {
   for (const e of ordered) {
     const w = Math.min(e._span, cols);
     const h = e._rowSpan;
+    // Nothing makes room for a decoration, and Tidy does not move one: it
+    // stands where it was put, clamped only to the columns.
+    if (isDecor(e)) {
+      out.set(e.id, { col: [Math.min(e._col, cols - w + 1), w], row: [e._row, h] });
+      continue;
+    }
     let box = null;
     for (let row = 1; !box && row < 1000; row++) {
       for (let col = 1; col <= cols - w + 1; col++) {
@@ -387,7 +417,9 @@ export function validateLayout(input, name = 'layout') {
   for (const device of DEVICES) {
     const placed = layout.elements.every((e) => e.desk) ? resolveDevice(layout, device) : [];
     for (let i = 0; i < placed.length; i++) {
+      if (isDecor(placed[i])) continue;      // a decoration may lie across anything
       for (let j = i + 1; j < placed.length; j++) {
+        if (isDecor(placed[j])) continue;
         if (overlaps(boxOf(placed[i]), boxOf(placed[j]))) {
           bad(`${placed[i].id} overlaps ${placed[j].id} on ${device}`);
         }

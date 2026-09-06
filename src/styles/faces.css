@@ -174,6 +174,13 @@
 /* …and has to sit above its neighbours while it is open */
 .ob:has(> .ob-fold:not([hidden])) { z-index: 30; }
 
+/* ================= decoration ======================================
+   Stands on the board rather than in it (Bureau's decision 86). It may overlap
+   anything, so it draws above the things it stands in front of, and it is not
+   clipped to its box the way a tile is — a plant leans out of its pot. It is
+   below an open fold (30), which is the one thing that has to win. */
+.ob.ob-decor { z-index: 2; overflow: visible; }
+
 /* ================= holding ==========================================
    The one fluid thing on a rigid board, fenced into a single tile: a holder is
    a box whose CONTENTS flow. Which is what an accordion, a row of links and a

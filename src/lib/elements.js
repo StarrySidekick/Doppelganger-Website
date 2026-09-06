@@ -93,10 +93,21 @@ export const ATTRS = {
   fold:      { label: 'Folds',     says: 'Has a folded size and an open size, and toggles between them', field: 'fold' },
   holds:     { label: 'Holds',     says: 'Holds other objects and lays them out by a rule', field: 'items' },
   feed:      { label: 'Feed',      says: 'Shows the works the site knows about, filtered and tagged', field: 'feed' },
+  /* Bureau's decision 86, whole. A decoration is not information: it is the
+     aspidistra on the bookcase, and it is the one thing on the board allowed
+     to OVERLAP — a plant standing in front of a row of books is what a shelf
+     looks like, and a grid that refuses it is a spreadsheet. On this site that
+     is the sun, the holo, the business card: things that stand on the page
+     rather than in it. `boxOk` lets it lie across anything and lets anything
+     lie across it; Tidy leaves it where it is; it draws above the rest. */
+  decor:     { label: 'Decoration', says: 'Stands on the board rather than in it — may overlap anything, and nothing makes room for it' },
 };
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'decor'];
+
+/** Does it stand above the board rather than take a place on it? */
+export const isDecor = (o) => has(o, 'decor');
 
 /* ------------------------------------------------------------------ *
  * What a click does

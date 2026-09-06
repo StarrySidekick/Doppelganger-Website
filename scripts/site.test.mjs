@@ -326,7 +326,7 @@ test('there is one selection for the page, not one per board', () => {
      so pressing a tile in the page and then one in the footer left both wearing
      the accent ring. The chrome holds it now and paints both boards. */
   const js = read('src/lib/editor.js');
-  assert.match(js, /select, selectedOn, dropSelection,/, 'the chrome owns the selection');
+  assert.match(js, /select, selectedOn, selectionOn, dropSelection,/, 'the chrome owns the selection');
   assert.match(js, /function paintSelection\(\)/);
   // …and paint() re-asserts it, which is what an undo that re-mounts a tile needs.
   const at = js.indexOf('  function paint() {');
