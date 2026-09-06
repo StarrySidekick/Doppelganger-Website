@@ -379,16 +379,65 @@ Consequences worth knowing:
   rather than a field. A bare `href="/writing"` stored in content is correct and
   becomes `/Doppelganger-Website/writing` on the way out.
 
+### The editor cannot re-render, so there is exactly one place it cleans up
+
+Bureau's decision 8 is "full re-render on every change": every editor state —
+selected, lifted, invalid, the drop target — is emitted by the renderer from the
+model, so it cannot be left behind. **This editor cannot do that, because the
+page is Astro's markup.** So six visual states are poked onto the DOM by hand:
+`ag-selected`, `ag-lifted`, `ag-invalid`, `ag-drop`, the drag ghost and the
+sketch ghost.
+
+Every exit path was expected to remember all six, and `pointercancel` remembered
+two — it cleared the tile drag and never touched the sketch. So the sketch's
+ghost stayed in the grid, its timer went on to paint `ag-armed` onto it, and the
+next press assigned a fresh sketch and orphaned that node for the life of the
+page. **A `pointercancel` fires exactly when a second finger lands**, so every
+attempt to two-finger scroll off bare board left an amber box behind — which is
+why "highlights get stuck" and "two fingers barely scroll" were one bug reported
+from both ends.
+
+`clearGestureState()` is the answer and it is deliberately the *only* teardown:
+both gestures, both timers, both ghosts, all four classes, plus a sweep of the
+grid for anything still wearing one that we have lost the handle on — because
+losing the handle is the whole class of bug. It is wired to `pointercancel`,
+`blur`, `visibilitychange`, a second finger, and both pointer-up paths. **Do not
+add a seventh piece of hand-managed state without adding it here**, and do not
+add a second teardown.
+
+Two more rules follow from the same fact:
+
+- **A gesture has one owner.** `G` and `sketch` each carry the `pointerId` they
+  started with, and every later event checks it. Nothing used to, so a second
+  touch overwrote them and the *first* finger's release then cleaned up the
+  *second* gesture and left the first tile lifted and transformed for good.
+- **Never ask the DOM where the finger is.** The sketch used to call
+  `document.elementFromPoint` for a `.ag-cell` and give up when there wasn't
+  one, which is any time the pointer crossed a tile — tiles are `z-index: 1`,
+  cells are `0` — so the ghost froze and a box could not be drawn across
+  anything. `cellAt()` and `spanBetween()` do the arithmetic instead; they are
+  pure, exported, and tested. **The checkerboard is a look, not the thing that
+  decides where you pressed.**
+
 ### A phone is the hard case
 
 Three defaults fight an editor on a touch screen, and all three are the browser
 being helpful about something else:
 
 - **A one-finger drag scrolls the page**, so a tile can never be picked up.
-  `touch-action: pinch-zoom` on the grid gives the single finger to the drag and
-  keeps **two fingers for scrolling** — the trade any canvas has to make. It
-  applies only while unlocked; locked, the site scrolls exactly as a visitor
-  expects, and a test asserts that.
+  This was answered with `touch-action: pinch-zoom` on the grid, and **that was
+  the wrong instrument.** It gave the single finger to the drag, which costs
+  one-finger scrolling outright; and on iOS `pinch-zoom` buys two-finger *zoom*
+  rather than two-finger *pan* on an unzoomed page, so the scrolling it was
+  supposed to leave you barely answered either. **Bureau never sets
+  `touch-action` on its board.** The board is not a surface that declares what
+  gestures it takes; the editor decides per gesture. A non-passive `touchmove`
+  calls `preventDefault` while — and only while — `dragArmed()`, and the hold is
+  what makes that legal: the finger has been still for 300ms, so no native
+  scroll has begun, and `preventDefault` can still stop one from starting. Once
+  scrolling is under way the call is ignored, which is also why the hold cannot
+  grow much longer than it is. Two fingers cancels any gesture in flight and
+  hands the page straight back to the browser. Tests assert all three.
 - **Tapping paints a blue highlight box** — `-webkit-tap-highlight-color`.
 - **Holding starts a text selection** and iOS adds a callout menu on top, both
   of which fight hold-to-drag. **While unlocked the DOCUMENT is not a selectable
@@ -511,15 +560,29 @@ Interaction follows bureau:
   cover most of the screen, and "tap outside" is not a way out you can rely on.
   A panel is also kept clear of the bar, which owns the bottom ~90px of a phone
   — clamping only to the window put a panel's last row underneath it
-- **press a tile** to select it — the one the keys act on, ringed in the accent
+- **press a tile** to select it — the one the keys act on, ringed in the accent.
+  **There is one selection for the page, and the chrome holds it**, exactly as
+  Bureau keeps `S.sel` in the model. It was a variable inside each editor, and a
+  page mounts three of them, so pressing a tile in the page and then one in the
+  footer left *both* wearing the ring. `paint()` also re-asserts the class on
+  every commit rather than poking it on at the moment of pressing, so an undo
+  that re-mounts a tile cannot leave the selection pointing at a node that no
+  longer wears it
 - **arrow keys** move the selected tile one cell, **shift+arrows** resize it by
   one, **⌘D** copies it, **Delete** removes it. A drag is right for "roughly
   there" and wrong for "one cell left", which on a 24-column board is a few
   pixels of pointer travel
-- **hold 200ms** to pick a tile up — there is no arrange mode, so the hold is
+- **hold to pick a tile up** — 200ms with a mouse, **300ms with a finger**,
+  because 200 on glass is inside the window in which the browser is still
+  deciding whether you meant to scroll. There is no arrange mode, so the hold is
   the only thing keeping an ordinary click from moving something
 - **keep holding without moving** and it becomes the settings panel instead —
-  a phone has no right button, and Bureau makes the same bargain
+  a phone has no right button, and Bureau makes the same bargain. **The gesture
+  is not cancelled when the menu appears**: the tile is put back down but stays
+  under your finger, so keep holding and move and the menu goes away and you are
+  dragging. That is the iPhone home screen's gesture and Bureau's decision 47.
+  Cancelling made the hold a dead end — the menu came up and the press was
+  finished with, and you had to start again
 - **corner grips** resize; there are no edge handles
 - **double click** the words and they become a field where they sit — the
   body or the title, never the whole tile, because a drawer front has a picture

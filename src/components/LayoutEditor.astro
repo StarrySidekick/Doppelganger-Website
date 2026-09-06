@@ -150,14 +150,19 @@ const base = import.meta.env.BASE_URL;
      browser being helpful about something else.
 
      1. A one-finger drag on the page scrolls it, so a tile can never be
-        picked up. `touch-action: pinch-zoom` gives the single finger to the
-        drag and keeps TWO fingers for scrolling, which is the trade a canvas
-        has to make. It applies only while unlocked; locked, the site scrolls
-        exactly as a visitor expects.
+        picked up. **This used to be answered with `touch-action: pinch-zoom`
+        on the board, and that was the wrong instrument.** It gave the single
+        finger to the drag, which cost one-finger scrolling outright; and on
+        iOS `pinch-zoom` buys two-finger ZOOM rather than two-finger PAN on an
+        unzoomed page, so the scrolling it was supposed to leave you barely
+        answered at all. Bureau never sets touch-action on its board. It lets
+        the page scroll as a page scrolls and takes the finger only once the
+        hold has landed, with a non-passive `touchmove` that preventDefaults
+        while — and only while — a drag is armed. That lives in editor.js,
+        because it is a question about a gesture and not about a surface.
      2. Tapping anything paints a blue highlight box over it.
      3. Holding anything starts a text selection, and iOS puts a callout
         menu on top of that — both of which fight a hold-to-drag. */
-  .ag-unlocked .ag-grid { touch-action: pinch-zoom; }
 
   /* These used to be scoped to `.ag-grid` and its descendants, which left three
      ways to start a selection that then swallowed the hold — and a selection
@@ -261,9 +266,14 @@ const base = import.meta.env.BASE_URL;
     z-index: 40;
     box-shadow: 0 14px 34px -10px rgba(0,0,0,.95);
   }
+  /* Drawn INSIDE the box like every other ring here. It was `outline-offset:
+     3px`, three pixels outward, from when the board had an 8px gap everywhere
+     — on a board whose cells touch that put the ring into both neighbours, and
+     made a tile appear to change size the moment you picked it up. The shadow
+     above is what does the lifting; the ring only has to say which one. */
   .ag-unlocked .ag-lifted::after {
-    outline: 2px solid #FFD27A !important;
-    outline-offset: 3px !important;
+    outline: 3px solid #FFD27A !important;
+    outline-offset: -3px !important;
     background: rgba(255,210,122,.14);
   }
 

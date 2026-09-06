@@ -67,9 +67,27 @@ const WORKS_PATH = 'src/data/works.json';
 /** For putting a stored value back into a form field without breaking out of it. */
 const escapeAttr = escapeHtml;
 
-const HOLD_MS = 200;
-const MENU_MS = 620;   // hold this long WITHOUT moving and it is the menu
-const NUDGE = 5; // px of movement before a drag counts as a drag
+/**
+ * Two lengths of press, and the difference between them is whether you moved.
+ *
+ * **A finger needs longer than a mouse**, and this was one number for both.
+ * 200ms on glass is inside the window in which the browser is still deciding
+ * whether you meant to scroll — and it is also the whole budget for stopping
+ * one, because `preventDefault` is ignored once a native scroll is under way.
+ * So it cannot grow much either. These are Bureau's numbers for Bureau's
+ * reason (its `gestures.js`).
+ *
+ * The menu is measured from the moment the hold LANDS rather than from the
+ * press, so it can only ever follow a hold that actually armed. It used to be
+ * a second timer started alongside the first, which meant it could fire on a
+ * press the hold had already given up on.
+ */
+const HOLD_TOUCH = 300;
+const HOLD_MOUSE = 200;
+const MENU_AFTER = 320;
+const NUDGE = 5;  // px of movement before a drag counts as a drag
+const WOBBLE = 6; // px a finger resting on glass moves without meaning to
+const holdFor = (e) => (e.pointerType === 'touch' ? HOLD_TOUCH : HOLD_MOUSE);
 
 /* ------------------------------------------------------------------ *
  * Track geometry — measured, never assumed
@@ -80,7 +98,7 @@ const NUDGE = 5; // px of movement before a drag counts as a drag
  * Read fresh at the start of each gesture: the cell is derived from the
  * container's width, so a resized window is a different set of numbers.
  */
-function tracks(grid) {
+export function tracks(grid) {
   const cs = getComputedStyle(grid);
   const parse = (s) => s.split(' ').filter(Boolean).map(parseFloat);
   const cols = parse(cs.gridTemplateColumns);
@@ -112,13 +130,42 @@ function tracks(grid) {
  * it is what kept working when rows DID vary — dividing by an average once
  * moved a tile seven rows when the pointer had crossed thirteen.
  */
-function trackAt(edges, px, step) {
+export function trackAt(edges, px, step) {
   for (let i = 0; i < edges.length - 1; i++) {
     if (px < edges[i + 1]) return i + 1;
   }
   const over = px - edges[edges.length - 1];
   return edges.length + (step > 0 ? Math.max(0, Math.floor(over / step)) : 0);
 }
+
+/**
+ * Which cell a point on the board is in, from the measured tracks.
+ *
+ * **The sketch used to ask `document.elementFromPoint` for a `.ag-cell`, and
+ * return if there wasn't one.** Tiles sit at `z-index: 1` and checkerboard
+ * cells at 0, so the moment your finger crossed an existing object there was no
+ * cell to find: the ghost froze at the last bare square it had seen, which
+ * reads exactly like a stuck highlight, and meant a box could not be drawn
+ * across anything. Bureau never asks the DOM where a finger is — it divides by
+ * the cell step. This walks the measured track edges instead, which is the same
+ * answer and stays right if the tracks ever stop being uniform. The
+ * checkerboard stays for how it looks; it is simply no longer load-bearing.
+ *
+ * Exported with `spanBetween` because between them they are the whole geometry
+ * of drawing a box, and neither needs a browser to be checked.
+ */
+export function cellAt(t, rect, cols, x, y) {
+  return {
+    col: Math.min(Math.max(trackAt(t.x, x - rect.left, t.colStep), 1), cols),
+    row: Math.max(trackAt(t.y, y - rect.top, t.rowStep), 1),
+  };
+}
+
+/** The box between two cells, whichever corner you started from. */
+export const spanBetween = (a, b) => ({
+  col: [Math.min(a.col, b.col), Math.abs(b.col - a.col) + 1],
+  row: [Math.min(a.row, b.row), Math.abs(b.row - a.row) + 1],
+});
 
 /* ------------------------------------------------------------------ *
  * Cleaning what contenteditable produces
@@ -205,10 +252,10 @@ export function mountEditor({
   let device = deviceNow();
   let undo = [];
   let G = null;          // the gesture in flight
+  let sketch = null;     // the box being drawn on bare board
   let holdTimer = null;
   let menuTimer = null;
   let editing = null;    // {id, field, node, tile, before} while words are being edited
-  let selected = null;   // the tile the settings panel was last opened on
 
   const el = (id) => grid.querySelector(`#${CSS.escape(id)}`);
   const find = (id) => layout.elements.find((e) => e.id === id);
@@ -221,6 +268,29 @@ export function mountEditor({
   const chrome = sharedChrome(look, pages, works);
   const toast = chrome.toast;
   const locked = () => chrome.locked();
+
+  /**
+   * There is ONE selection for the whole page, and the chrome holds it.
+   *
+   * It used to be a variable inside each editor, and a page mounts three of
+   * them — header, body and footer. Pressing a tile in the page and then one in
+   * the footer left BOTH wearing the accent ring, because the page's editor was
+   * never told to let go; and `paint()` re-asserted every other class on a tile
+   * but not this one, so an undo that re-mounted a tile produced a fresh node
+   * with no ring while the id was still selected and the arrow keys still moved
+   * it. Bureau keeps the selection in the model and its renderer emits the class
+   * from it (its decision 8), which is why neither can happen there. This is the
+   * same arrangement: one truth, and `paintSelection()` is the only thing that
+   * writes the class.
+   */
+  const selected = () => chrome.selectedOn(name);
+  const select = (id) => chrome.select(name, id);
+  function paintSelection() {
+    const mine = selected();
+    for (const node of grid.querySelectorAll('.ag-editable')) {
+      node.classList.toggle('ag-selected', !!mine && node.id === mine);
+    }
+  }
 
   /* Which board is which. Three grids stacked up a page look like one page
      until you go to move something, and then it matters a great deal whether
@@ -313,7 +383,7 @@ export function mountEditor({
 
   function paint() {
     // Undo can take the selected object away underneath the selection.
-    if (selected && !find(selected)) selected = null;
+    if (selected() && !find(selected())) select(null);
     for (const r of placed()) {
       /* An object made in the editor and kept in localStorage has no tile in
          the built page, so on a reload it would be in the layout, in the undo
@@ -334,6 +404,9 @@ export function mountEditor({
       addGrips(node);
     }
     root.dataset.agDevice = device;
+    // Asserted here, on every commit, rather than poked on at the moment of
+    // pressing — see the note on `selected` above.
+    paintSelection();
     paintChecker();
     if (chrome.activeName() === name) chrome.render();
   }
@@ -608,19 +681,32 @@ export function mountEditor({
    * the symmetry Bureau has: HOLD it, or DRAG a size. It is never something a
    * press can do on its own.
    */
-  let sketch = null;
-
   function onCellDown(e) {
     if (locked() || e.button === 2) return;
-    const cell = e.target.closest('.ag-cell');
-    if (!cell || !grid.contains(cell)) return;
+    if (!e.isPrimary) return clearGestureState();
+    // Bare board is a cell OR the grid itself — the cells are a look, not the
+    // thing that decides where you pressed.
+    const onBoard = e.target.closest('.ag-cell') || e.target === grid;
+    if (!onBoard || !grid.contains(e.target)) return;
     if (editing) endEdit(true);
     select(null);                              // pressing the board means "not that one"
+
+    const t = tracks(grid);
+    const rect = grid.getBoundingClientRect();
+    const cols = columnsFor(layout, device);
+    const from = cellAt(t, rect, cols, e.clientX, e.clientY);
     sketch = {
-      col: +cell.dataset.col, row: +cell.dataset.row,
-      toCol: +cell.dataset.col, toRow: +cell.dataset.row,
+      pointerId: e.pointerId,
+      t, cols, from, to: from,
+      sx: e.clientX, sy: e.clientY,
       moved: false,
       held: false,
+      /* Whether the finger belongs to us yet. On a mouse it does at once, which
+         is what makes dragging out a size on a desk immediate. On touch it does
+         NOT until the hold lands — before that the finger belongs to the page,
+         so one-finger scrolling works exactly as a visitor's does. That is the
+         trade `touch-action: pinch-zoom` was making badly. */
+      tracking: e.pointerType !== 'touch',
       node: Object.assign(document.createElement('div'), { className: 'ag-ghost ag-sketch' }),
     };
     // The ghost goes accent once the hold has landed, so the board says the
@@ -628,42 +714,54 @@ export function mountEditor({
     sketch.timer = setTimeout(() => {
       if (!sketch) return;
       sketch.held = true;
+      sketch.tracking = true;
       sketch.node.classList.add('ag-armed');
-    }, HOLD_MS);
-    place(sketch.node, boxOfSketch());
+      showSketch();
+      chrome.dropSelection();
+      navigator.vibrate?.(6);
+    }, holdFor(e));
+    // Not drawn until the finger is ours. On touch that is when the hold lands,
+    // so a one-finger scroll off bare board no longer flashes a box on its way
+    // past.
+    if (sketch.tracking) showSketch();
+  }
+
+  /** Put the sketch's ghost on the board at whatever it currently spans. */
+  function showSketch() {
+    if (!sketch || sketch.node.isConnected) return;
+    place(sketch.node, spanBetween(sketch.from, sketch.to));
     grid.appendChild(sketch.node);
   }
 
-  const boxOfSketch = () => ({
-    col: [Math.min(sketch.col, sketch.toCol), Math.abs(sketch.toCol - sketch.col) + 1],
-    row: [Math.min(sketch.row, sketch.toRow), Math.abs(sketch.toRow - sketch.row) + 1],
-  });
-
   function onSketchMove(e) {
-    if (!sketch) return;
-    const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.ag-cell');
-    if (!cell || !grid.contains(cell)) return;
-    const c = +cell.dataset.col, r = +cell.dataset.row;
-    if (c === sketch.toCol && r === sketch.toRow) return;
-    sketch.toCol = c; sketch.toRow = r;
+    if (!sketch || e.pointerId !== sketch.pointerId) return;
+    // Before the hold lands on touch the finger belongs to the page, and a
+    // press that travels was a scroll. Stand down rather than wait to steal it.
+    if (!sketch.tracking) {
+      if (Math.abs(e.clientX - sketch.sx) > WOBBLE || Math.abs(e.clientY - sketch.sy) > WOBBLE) {
+        clearGestureState();
+      }
+      return;
+    }
+    const to = cellAt(sketch.t, grid.getBoundingClientRect(), sketch.cols, e.clientX, e.clientY);
+    if (to.col === sketch.to.col && to.row === sketch.to.row) return;
+    sketch.to = to;
     sketch.moved = true;
-    const box = boxOfSketch();
-    sketch.node.className = 'ag-ghost ag-sketch' + (boxOk(layout, null, box, device) ? '' : ' ag-bad');
+    const box = spanBetween(sketch.from, to);
+    sketch.node.className = 'ag-ghost ag-sketch'
+      + (sketch.held ? ' ag-armed' : '')
+      + (boxOk(layout, null, box, device) ? '' : ' ag-bad');
     place(sketch.node, box);
   }
 
   function onSketchUp(e) {
-    if (!sketch) return;
-    const s = sketch; sketch = null;
-    clearTimeout(s.timer);
-    s.node.remove();
+    if (!sketch || e.pointerId !== sketch.pointerId) return;
+    const s = sketch;
+    clearGestureState();
     // A quick tap is a tap: it deselected on the way down and that is all it
     // does. Only a hold or a drawn box asks for the picker.
     if (!s.moved && !s.held) return;
-    const box = {
-      col: [Math.min(s.col, s.toCol), Math.abs(s.toCol - s.col) + 1],
-      row: [Math.min(s.row, s.toRow), Math.abs(s.toRow - s.row) + 1],
-    };
+    const box = spanBetween(s.from, s.to);
     // A drag says what size it wants; a hold lets the kind decide.
     openPicker(box.col[0], box.row[0], e.clientX, e.clientY, s.moved ? box : null);
   }
@@ -735,6 +833,61 @@ export function mountEditor({
 
   /* ---- gestures ---- */
 
+  /**
+   * Put every gesture down and take every mark off the board.
+   *
+   * **This is the fix for boxes stranded on the board, and it is one function
+   * because there is no other way to get it right.** The editor cannot
+   * re-render — the page belongs to Astro — so six visual states are poked onto
+   * the DOM by hand: `ag-lifted`, `ag-dragging`, `ag-invalid`, `ag-drop`, the
+   * drag ghost and the sketch ghost. Every exit path was expected to remember
+   * all six, and `pointercancel` remembered two: it cleared the tile drag and
+   * never touched the sketch at all. So the sketch's ghost stayed in the grid,
+   * its timer went on to fire `ag-armed` onto it a moment later, and the next
+   * press assigned a fresh sketch and orphaned that node for the life of the
+   * page. They accumulated.
+   *
+   * A `pointercancel` fires exactly when a second finger lands, which is why
+   * "boxes get stuck" and "two fingers barely scroll" were the same event seen
+   * from both ends.
+   *
+   * The sweep at the end is deliberate belt and braces: it takes the classes
+   * off anything still wearing one even if we have lost the handle on it,
+   * because the whole class of bug is losing the handle.
+   */
+  function clearGestureState() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
+
+    if (sketch) {
+      clearTimeout(sketch.timer);
+      sketch.node.remove();
+      sketch = null;
+    }
+    if (G) {
+      G.ghost?.remove();
+      try { G.node?.releasePointerCapture?.(G.pointerId); } catch { /* already gone */ }
+      G = null;
+    }
+    markDrop(null);
+
+    for (const stray of grid.querySelectorAll('.ag-lifted, .ag-dragging, .ag-invalid, .ag-drop')) {
+      stray.classList.remove('ag-lifted', 'ag-dragging', 'ag-invalid', 'ag-drop');
+      stray.style.transform = '';
+    }
+    for (const ghost of grid.querySelectorAll('.ag-ghost')) ghost.remove();
+  }
+
+  /**
+   * Is a gesture of ours currently carrying the finger?
+   *
+   * Bureau asks this of its gesture module for one reason: it is what decides
+   * whether the page may scroll (`wire.js`) and whether the browser's own long
+   * press may raise a context menu. Both of those are answered by a predicate
+   * rather than by a CSS property, which is the whole of divergence three.
+   */
+  const dragArmed = () => !!(G && G.armed) || !!(sketch && sketch.tracking);
+
   function candidate(g, dcol, drow) {
     const b = g.box;
     if (g.type === 'move') {
@@ -755,6 +908,13 @@ export function mountEditor({
   function onDown(e) {
     if (locked()) return;
     if (e.button === 2) return;               // right click is the settings menu
+    /* A second finger is never a drag — Bureau's rule, and the reason it takes
+       the two-finger gesture itself rather than leaving it to the browser.
+       There is one `G`, one `sketch` and one pair of timers for the whole
+       board, and nothing used to check: a second touch simply overwrote them,
+       so the FIRST finger's release then cleaned up the second gesture and left
+       the first tile lifted, transformed and ringed for good. */
+    if (!e.isPrimary) return clearGestureState();
     // A fold's own tab is a control, not a handle: pressing it should open the
     // fold so you can arrange what is inside it. Hold anywhere else to move it.
     if (e.target.closest('[data-fold],[data-acc]')) return;
@@ -774,7 +934,15 @@ export function mountEditor({
     G = {
       type: grip ? 'resize' : 'move',
       id, node, handle: grip?.dataset.rz ?? null,
+      pointerId: e.pointerId,                 // every later event must match it
       armed: !!grip,                          // a grip drags at once, a tile waits
+      menu: false,                            // the panel is up, the tile still in hand
+      // The last candidate box that passed boxOk. A resize that ends on an
+      // illegal box lands here instead of snapping all the way back to where it
+      // started, which is most of "sizes don't stick": on a 24-column board
+      // whose cells touch, almost any grow meets a neighbour eventually, and
+      // throwing away the legal part of the gesture punishes you for it.
+      lastOk: null,
       box: boxFor(id),
       // Measured once, at the start, and not re-read mid-gesture: the ground
       // must not move under the pointer while the tile is following it.
@@ -786,41 +954,73 @@ export function mountEditor({
     };
     try { node.setPointerCapture?.(e.pointerId); } catch {}
 
-    if (!G.armed) {
-      const mine = G;
-      holdTimer = setTimeout(() => {
-        holdTimer = null;
-        if (G !== mine) return;
-        G.armed = true;
-        G.node.classList.add('ag-lifted');
-        navigator.vibrate?.(6);
-      }, HOLD_MS);
-    }
-    /* Keep holding without moving and it becomes the menu instead. A phone has
-       no right button, and Bureau makes the same bargain: hold and move is the
-       drag, hold still is the menu. */
+    if (G.armed) return;                      // a grip: nothing to wait for
+
     const mine = G;
-    menuTimer = setTimeout(() => {
-      menuTimer = null;
-      if (G !== mine || G.moved) return;
-      const { id: at, sx, sy } = G;
-      onCancel();
-      navigator.vibrate?.(12);
-      openObjectMenu(at, sx, sy);
-    }, MENU_MS);
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      if (G !== mine) return;
+      /* Refusing `selectstart` stops a NEW selection and does nothing about one
+         already on screen — and iOS begins its own during the press, after
+         `pointerdown` has been and gone. So it is dropped again here, at the
+         moment the hold lands, before iOS decides the hold was about text.
+         Bureau's `dropSelection()`, called from the same place. */
+      chrome.dropSelection();
+      /* And look the tile up again rather than trusting the node captured at
+         the press: an undo, or any repaint that re-mounts a tile, detaches it
+         mid-hold and everything after this would be happening to something
+         nobody can see. Bureau's `refind()`. */
+      G.node = el(G.id) ?? G.node;
+      G.armed = true;
+      G.node.classList.add('ag-lifted');
+      navigator.vibrate?.(6);
+
+      /* Keep holding WITHOUT moving and it becomes the menu instead. A phone
+         has no right button, and Bureau makes the same bargain.
+         Nested inside the hold, so the menu can only ever follow a hold that
+         armed — it used to be a second timer started alongside the first, which
+         could fire on a press the hold had already given up on.
+         And the gesture is **not** cancelled when the menu appears: the tile is
+         put back down but `G` stays alive, so you can keep holding, move, and
+         have the menu go away with the tile in your hand. That is the iPhone
+         home screen's gesture and Bureau's decision 47. Cancelling here made
+         the hold a dead end — the menu came up and the finger was finished
+         with, and you had to start the whole press again. */
+      menuTimer = setTimeout(() => {
+        menuTimer = null;
+        if (G !== mine || G.moved) return;    // it started moving: it is a drag
+        chrome.dropSelection();
+        navigator.vibrate?.(12);
+        G.menu = true;
+        G.armed = false;
+        G.node.classList.remove('ag-lifted'); // down, but still under the finger
+        G.node.style.transform = '';
+        openObjectMenu(G.id, G.sx, G.sy);
+      }, MENU_AFTER);
+    }, holdFor(e));
   }
 
   function onMove(e) {
-    if (menuTimer && G && (Math.abs(e.clientX - G.sx) > 6 || Math.abs(e.clientY - G.sy) > 6)) {
-      clearTimeout(menuTimer); menuTimer = null;
+    if (!G) return;
+    // Only the finger that started this gesture may drive it. Without this a
+    // second pointer's movement steers a tile the first one is carrying.
+    if (e.pointerId !== G.pointerId) return;
+
+    const wobbled = Math.abs(e.clientX - G.sx) > WOBBLE || Math.abs(e.clientY - G.sy) > WOBBLE;
+    // Any real movement means it was not a press-and-hold.
+    if (wobbled && menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
+    if (wobbled && holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+
+    /* The menu is up and the tile is still under your finger. Move, and the
+       menu goes away and you are dragging — decision 47's "keep holding and
+       move", which is the gesture every phone user already knows. */
+    if (G.menu && wobbled) {
+      G.menu = false;
+      chrome.closeMenu();
+      G.armed = true;
+      G.node.classList.add('ag-lifted');
     }
-    if (holdTimer) {
-      // Any real movement means it was not a press-and-hold.
-      if (Math.abs(e.clientX - G.sx) > 6 || Math.abs(e.clientY - G.sy) > 6) {
-        clearTimeout(holdTimer); holdTimer = null;
-      }
-    }
-    if (!G || !G.armed) return;
+    if (!G.armed) return;
     const dx = e.clientX - G.sx, dy = e.clientY - G.sy;
     if (!G.moved) {
       if (Math.abs(dx) < NUDGE && Math.abs(dy) < NUDGE) return;
@@ -842,6 +1042,7 @@ export function mountEditor({
     const box = candidate(G, dcol, drow);
     G.cand = box;
     G.ok = boxOk(layout, G.id, box, device);
+    if (G.ok) G.lastOk = box;
     G.node.classList.toggle('ag-invalid', !G.ok);
 
     if (G.type === 'move') {
@@ -853,35 +1054,37 @@ export function mountEditor({
     }
   }
 
-  function onUp() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
+  function onUp(e) {
     if (!G) return;
-    const g = G; G = null;
-    g.node.classList.remove('ag-lifted', 'ag-dragging', 'ag-invalid');
-    g.node.style.transform = '';
-    g.ghost?.remove();
+    if (e && e.pointerId !== G.pointerId) return;
+    const g = G;
+    // Everything comes off in one place now, including the four classes and
+    // both ghosts — see clearGestureState().
+    clearGestureState();
 
+    // The menu is up and you let go: that is the menu, not a move.
+    if (g.menu) return;
     // A press that went nowhere is not a move; it is you saying which one.
     if (!g.moved) return select(g.id);
-    if (g.cand && g.ok) {
-      const first = device === 'narrow' && !find(g.id).narrow;
-      setBox(g.id, g.cand);
-      if (first) toast(`${g.id} now has its own narrow position`);
+
+    /* Land on the last box that was legal rather than throwing the whole
+       gesture away. `boxOk` still refuses to shove a neighbour aside — that is
+       decision 10 and it stays — but refusing the ILLEGAL part of a drag is a
+       different thing from refusing the legal part that came before it. */
+    const land = (g.cand && g.ok) ? g.cand : g.lastOk;
+    if (land) {
+      const first = device === 'narrow' && !find(g.id)?.narrow;
+      setBox(g.id, land);
+      if (!g.ok) toast('No room there — left where it last fitted');
+      else if (first) toast(`${g.id} now has its own narrow position`);
     } else {
-      paint();                                // snap back
+      paint();                                // it was never legal: snap back
       toast('No room there');
     }
   }
 
   function onCancel() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
-    if (!G) return;
-    G.node.classList.remove('ag-lifted', 'ag-dragging', 'ag-invalid');
-    G.node.style.transform = '';
-    G.ghost?.remove();
-    G = null;
+    clearGestureState();
     paint();
   }
 
@@ -956,6 +1159,11 @@ export function mountEditor({
 
   function onContext(e) {
     if (locked()) return;
+    /* iOS raises this from the SAME long press that arms the drag, at around
+       500ms. So on a phone the menu opened here, and then the editor's own
+       hold landed and opened it a second time. Bureau's first line in this
+       handler, for the same reason. */
+    if (dragArmed()) { e.preventDefault(); return; }
     const node = e.target.closest('.ag-editable');
     if (!node || !grid.contains(node)) return;
     e.preventDefault();
@@ -1227,38 +1435,29 @@ export function mountEditor({
           : `Derived from its <b>${item.flow}</b> rule. Move it to place it by hand.`)
       : `Desk position. Its <b>${item.flow}</b> rule seeds narrow.`;
 
-  /* ---- selection, and the keyboard as a second pair of hands ---- */
-
-  /**
-   * A tile you have pressed is the selected one.
-   *
-   * The board had no selection at all: a gesture was the only way to say which
-   * object you meant, so every adjustment had to be a drag. A drag is right for
-   * "roughly there" and wrong for "one cell left", which on a 24-column board
-   * is a few pixels of pointer travel. Pressing a tile now selects it, and the
-   * arrow keys do the exact version of what the drag does approximately.
-   */
-  function select(id) {
-    if (selected === id) return;
-    if (selected) el(selected)?.classList.remove('ag-selected');
-    selected = id;
-    if (id) el(id)?.classList.add('ag-selected');
-  }
+  /* ---- selection, and the keyboard as a second pair of hands ----
+     A tile you have pressed is the selected one. A drag is right for "roughly
+     there" and wrong for "one cell left", which on a 24-column board is a few
+     pixels of pointer travel, so the arrow keys do the exact version of what
+     the drag does approximately. `select()` and `selected()` are at the top of
+     this function; the chrome holds the value, because there is one selection
+     for the page and not one per board. */
 
   /** Move or resize the selected tile by one cell. Refused the same way a drag is. */
   function nudge(dcol, drow, resize) {
-    if (!selected) return;
-    const e = find(selected);
+    const id = selected();
+    if (!id) return;
+    const e = find(id);
     if (!e) return select(null);
-    if (e.locked) return toast(`${selected} is locked in place`);
-    const b = boxFor(selected);
+    if (e.locked) return toast(`${id} is locked in place`);
+    const b = boxFor(id);
     const box = resize
       ? { col: [b.col[0], Math.max(1, b.col[1] + dcol)], row: [b.row[0], Math.max(1, b.row[1] + drow)] }
       : { col: [b.col[0] + dcol, b.col[1]], row: [b.row[0] + drow, b.row[1]] };
-    if (!boxOk(layout, selected, box, device)) return toast('No room there');
+    if (!boxOk(layout, id, box, device)) return toast('No room there');
     const first = device === 'narrow' && !e.narrow;
-    setBox(selected, box);
-    if (first) toast(`${selected} now has its own narrow position`);
+    setBox(id, box);
+    if (first) toast(`${id} now has its own narrow position`);
   }
 
   /**
@@ -1318,28 +1517,28 @@ export function mountEditor({
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undoLast(); return; }
     if (e.key === 'l' || e.key === 'L') { chrome.setLocked(!locked()); return; }
-    if (locked() || !selected) return;
+    const sel = selected();
+    if (locked() || !sel) return;
 
     /* The exact versions of the gestures. Shift resizes rather than moves,
        which is the same pairing every drawing program makes. */
     const step = ARROWS[e.key];
     if (step) { e.preventDefault(); return nudge(step[0], step[1], e.shiftKey); }
     if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
-      e.preventDefault(); return duplicate(selected);
+      e.preventDefault(); return duplicate(sel);
     }
     /* The two panels, without the hold. A hold is the only way a phone has to
        ask for them; a desk should not have to imitate one. */
     const at = () => {
-      const r = el(selected)?.getBoundingClientRect();
+      const r = el(sel)?.getBoundingClientRect();
       return r ? [r.left + r.width / 2, r.top + 8] : [window.innerWidth / 2, 120];
     };
-    if (e.key === 'Enter') { e.preventDefault(); return openObjectMenu(selected, ...at()); }
-    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); return openObjectEditor(selected); }
+    if (e.key === 'Enter') { e.preventDefault(); return openObjectMenu(sel, ...at()); }
+    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); return openObjectEditor(sel); }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      const gone = selected;
       select(null);
-      return remove(gone);
+      return remove(sel);
     }
   }
 
@@ -1368,6 +1567,9 @@ export function mountEditor({
     markActive: (on) => root.classList.toggle('ag-active', on),
     getLayout: () => layout,
     getPending: () => pending,
+    // The chrome holds the one selection and calls this on whichever board is
+    // losing it as well as the one gaining it.
+    paintSelection,
     isDirty: () => JSON.stringify(layout) !== baselineJson,
     undo: undoLast,
     board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
@@ -1447,9 +1649,40 @@ export function mountEditor({
   grid.addEventListener('dragover', allowDrop);
   grid.addEventListener('drop', onDrop);
   grid.addEventListener('dragleave', (e) => { if (!grid.contains(e.relatedTarget)) markDrop(null); });
+  // A file drag abandoned outside the window fires neither `drop` nor, in every
+  // browser, `dragleave` — and the green ring stayed on the tile.
+  grid.addEventListener('dragend', () => markDrop(null));
   grid.addEventListener('pointerdown', onCellDown);
   window.addEventListener('pointermove', onSketchMove);
   window.addEventListener('pointerup', onSketchUp);
+
+  /* ---- the touch policy, which is a predicate and not a CSS property ----
+     `touch-action: pinch-zoom` on the board used to stand in for all of this.
+     It cost one-finger scrolling outright, and on iOS it buys two-finger ZOOM
+     rather than two-finger PAN on an unzoomed page — which is why scrolling
+     with two fingers barely answered. Bureau never sets touch-action at all.
+     It leaves the page scrolling as a page scrolls and takes the finger only
+     once it knows it has a gesture, which is what these two listeners are.
+     The hold is what makes it work: the finger has been still for 300ms, so no
+     native scroll has begun, and `preventDefault` can still stop one from
+     starting. Once scrolling is under way the call is ignored — which is also
+     why the hold cannot get much longer than it is. */
+  grid.addEventListener('touchstart', (e) => {
+    if (locked()) return;
+    // Two fingers is never a drag. Hand the gesture straight back to the
+    // browser so the page scrolls, rather than holding a half-started one.
+    if (e.touches.length > 1) onCancel();
+  }, { passive: true });
+  grid.addEventListener('touchmove', (e) => {
+    if (dragArmed() && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  /* A gesture the page never hears the end of: the tab goes to the background
+     mid-drag, or the window loses focus to a file picker. Both used to leave
+     the tile lifted. */
+  const onHide = () => { if (document.hidden) onCancel(); };
+  window.addEventListener('blur', onCancel);
+  document.addEventListener('visibilitychange', onHide);
   // With a header, a page and a footer all on one screen there are three grids
   // and one bar. Touching a grid is what makes it the one the bar acts on.
   grid.addEventListener('pointerdown', () => chrome.setActive(name), true);
@@ -1488,6 +1721,8 @@ export function mountEditor({
       grid.removeEventListener('pointerdown', onCellDown);
       window.removeEventListener('pointermove', onSketchMove);
       window.removeEventListener('pointerup', onSketchUp);
+      window.removeEventListener('blur', onCancel);
+      document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('keydown', onKey);
       chrome.unregister(name);
     },
@@ -1567,6 +1802,11 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     isLocked = !!v;
     try { localStorage.setItem(LOCK_KEY, String(isLocked)); } catch { /* ignore */ }
     applyLock();
+    /* A highlight made while locked — where nothing refuses a selection,
+       because locked is the site as a visitor sees it — was still on the screen
+       the moment you unlocked, and the browser goes on extending an existing
+       selection under the finger. Which is exactly what a hold feels like. */
+    dropSelection();
     closeMenu();
     for (const e of editors.values()) e.onLock?.(isLocked);
     markBoards();
@@ -1590,6 +1830,23 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     const node = target?.nodeType === 3 ? target.parentElement : target;
     return node?.closest?.('input, textarea, select, [contenteditable="true"]') ?? null;
   };
+  /**
+   * Drop whatever is highlighted, unless it is highlighted inside a field.
+   *
+   * Refusing `selectstart` stops a NEW selection and does nothing about one
+   * that already exists — Safari keeps a highlight, and the callout that goes
+   * with it, from a press two gestures ago. Exported to the editors because
+   * `pointerdown` is not the only moment worth calling it: **iOS begins its own
+   * selection during the press**, after `pointerdown` has already fired, so the
+   * hold has to drop it again when it arms. Bureau's `dropSelection()`, called
+   * from both places for the same reason (its decision 52).
+   */
+  function dropSelection() {
+    const active = document.activeElement;
+    if (active?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    const sel = document.getSelection();
+    if (sel && !sel.isCollapsed) sel.removeAllRanges();
+  }
   document.addEventListener('selectstart', (e) => {
     if (!isLocked && !writing(e.target)) e.preventDefault();
   });
@@ -1601,9 +1858,28 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   // the tile up. Pressing anywhere that is not a field starts clean.
   document.addEventListener('pointerdown', (e) => {
     if (isLocked || writing(e.target)) return;
-    const sel = document.getSelection();
-    if (sel && !sel.isCollapsed) sel.removeAllRanges();
+    dropSelection();
   }, true);
+
+  /* ---- the selection: one for the page, not one per board ---- */
+
+  /**
+   * Which object is selected, and on which board.
+   *
+   * It lives here because a page mounts three editors and there is only one
+   * selection — see the note in mountEditor. Changing it repaints the board
+   * losing it as well as the board gaining it, so two tiles can never wear the
+   * accent ring at once.
+   */
+  let selection = { board: null, id: null };
+  const selectedOn = (board) => (selection.board === board ? selection.id : null);
+  function select(board, id) {
+    if (selection.board === board && selection.id === id) return;
+    const was = selection.board;
+    selection = id ? { board, id } : { board: null, id: null };
+    if (was && was !== board) editors.get(was)?.paintSelection?.();
+    editors.get(board)?.paintSelection?.();
+  }
 
   /* ---- the look ---- */
 
@@ -2260,6 +2536,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     register, unregister, setActive, render, toast, busy, published,
     activeName: () => activeName,
     locked: () => isLocked, setLocked,
+    select, selectedOn, dropSelection,
     look: () => look, setLook,
     // One catalogue for every board on the page, so a feed in the header and a
     // feed on the page can never disagree about what has been made.
