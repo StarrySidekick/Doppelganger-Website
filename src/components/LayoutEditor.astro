@@ -375,6 +375,13 @@ const base = import.meta.env.BASE_URL;
   .ag-menu-pages a[aria-current] { border-color: rgba(255,255,255,.6); }
   /* the sketched box, while you are dragging out a size on bare grid */
   .ag-sketch { border-style: dashed; }
+  /* The hold has landed and letting go now opens the picker. Saying so on the
+     board is the difference between the picker arriving and it surprising you. */
+  .ag-sketch.ag-armed {
+    border-style: solid;
+    background: rgba(255,210,122,.28);
+    box-shadow: 0 0 0 2px rgba(255,210,122,.35);
+  }
   /* What a holder holds: one row per thing, four fields and a way to drop it.
      Narrow columns, because the panel is 340px at most and four fields on one
      line is what makes a list of five readable at all. */
@@ -464,7 +471,26 @@ const base = import.meta.env.BASE_URL;
     border-radius: 8px;
     font: 12px/1.35 ui-monospace, monospace; color: #fff;
   }
+  /* Every panel carries one, from openMenu, so there is always a way out
+     without needing an Escape key or somewhere outside to tap.
+     Sticky and its own row, not absolute in a corner: the panel scrolls
+     (max-height 84vh), and an absolute child scrolls away with the content
+     exactly when a long panel is the one you most need to get out of. */
+  .ag-menu-close {
+    position: sticky; top: 0; z-index: 2;
+    align-self: flex-end; margin-bottom: -10px;
+    width: 30px; height: 30px; padding: 0;
+    font: 13px/1 ui-monospace, monospace; color: inherit;
+    background: rgba(20,20,20,.97);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 4px; cursor: pointer; opacity: .65;
+  }
+  .ag-menu-close:hover, .ag-menu-close:focus-visible { opacity: 1; background: rgba(255,255,255,.14); }
   .ag-menu-title { font-weight: 700; padding-bottom: 2px; }
+  /* The picker is the panel you are most likely to have opened by accident, so
+     it says no in words rather than only with the ✕. */
+  .ag-menu-cancel { text-align: center; opacity: .6; }
+  .ag-menu-cancel:hover { opacity: 1; }
   .ag-menu-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
   .ag-menu select { font: inherit; background: #111; color: #fff;
     border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 2px 4px; }
@@ -487,7 +513,7 @@ const base = import.meta.env.BASE_URL;
   .ag-menu-check { display: flex; align-items: center; gap: 6px; }
   .ag-menu-actions { display: flex; gap: 6px; }
   .ag-menu-actions .ag-menu-btn { flex: 1; text-align: center; }
-  .ag-menu { max-width: min(340px, calc(100vw - 24px)); max-height: 84vh; overflow-y: auto; }
+  .ag-menu { max-width: min(340px, calc(100vw - 24px)); max-height: 80vh; overflow-y: auto; }
   /* The object editor is a panel you work in rather than a menu you pick from,
      so it gets room: two columns of attribute ticks, and fields wide enough to
      read a path in. */

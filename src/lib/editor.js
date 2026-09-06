@@ -581,6 +581,7 @@ export function mountEditor({
       <div class="ag-menu-kinds">
         ${PICKER_KINDS.map((k) => `<button class="ag-menu-btn" data-act="new:${k}">${KINDS[k].label}<small>${KINDS[k].says}</small></button>`).join('')}
       </div>
+      <button class="ag-menu-btn ag-menu-cancel" data-act="none">Nothing, thanks</button>
     `, (act) => {
       const kind = act.startsWith('new:') && act.slice(4);
       if (!kind) return;
@@ -594,10 +595,18 @@ export function mountEditor({
    * Sketching a box on bare grid.
    *
    * A press on a cell starts it; dragging shows the box the new object will
-   * take; letting go opens the picker at that size. A press with no drag is
-   * the same gesture with a one-cell box, so a click still means "one of these
-   * here, at its own size" — which is Bureau's bargain, and the reason there
-   * is no New button anywhere.
+   * take; letting go opens the picker at that size.
+   *
+   * **A quick tap on bare board does NOT open the picker**, and that is the
+   * fix for it going off by accident. One finger belongs to the board while
+   * you are arranging — that is the trade `touch-action: pinch-zoom` makes —
+   * so every stray touch, every attempt to scroll with one finger, and every
+   * tap meant to deselect used to land in the picker. A tap now means what it
+   * means everywhere else on the board: nothing is selected any more.
+   *
+   * So the picker is asked for the same two ways a tile is picked up, which is
+   * the symmetry Bureau has: HOLD it, or DRAG a size. It is never something a
+   * press can do on its own.
    */
   let sketch = null;
 
@@ -611,8 +620,16 @@ export function mountEditor({
       col: +cell.dataset.col, row: +cell.dataset.row,
       toCol: +cell.dataset.col, toRow: +cell.dataset.row,
       moved: false,
+      held: false,
       node: Object.assign(document.createElement('div'), { className: 'ag-ghost ag-sketch' }),
     };
+    // The ghost goes accent once the hold has landed, so the board says the
+    // picker is coming before it arrives rather than surprising you with it.
+    sketch.timer = setTimeout(() => {
+      if (!sketch) return;
+      sketch.held = true;
+      sketch.node.classList.add('ag-armed');
+    }, HOLD_MS);
     place(sketch.node, boxOfSketch());
     grid.appendChild(sketch.node);
   }
@@ -638,12 +655,16 @@ export function mountEditor({
   function onSketchUp(e) {
     if (!sketch) return;
     const s = sketch; sketch = null;
+    clearTimeout(s.timer);
     s.node.remove();
+    // A quick tap is a tap: it deselected on the way down and that is all it
+    // does. Only a hold or a drawn box asks for the picker.
+    if (!s.moved && !s.held) return;
     const box = {
       col: [Math.min(s.col, s.toCol), Math.abs(s.toCol - s.col) + 1],
       row: [Math.min(s.row, s.toRow), Math.abs(s.toRow - s.row) + 1],
     };
-    // A drag says what size it wants; a plain press lets the kind decide.
+    // A drag says what size it wants; a hold lets the kind decide.
     openPicker(box.col[0], box.row[0], e.clientX, e.clientY, s.moved ? box : null);
   }
 
@@ -1812,7 +1833,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       <span class="ag-where">${escapeAttr(activeName)}${d === 'narrow' ? ' · narrow' : ''}</span>
       <span class="ag-hint">${isLocked
         ? 'locked · press the padlock to arrange'
-        : 'tap a cell to add · hold for the menu · arrows nudge · E edits'}</span>
+        : 'hold or drag bare board to add · hold a tile for its menu · arrows nudge · E edits'}</span>
       ${waiting.length ? `<span class="ag-pending" title="Not committed until you publish">${[
         layouts ? `${layouts} layout${layouts > 1 ? 's' : ''}` : '',
         images ? `${images} image${images > 1 ? 's' : ''}` : '',
@@ -2151,14 +2172,23 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
    *   you pressed.
    */
   function openMenu(x, y, html, handler, opts = {}) {
-    menu.innerHTML = html;
+    // Every panel gets a way out, built in here rather than left to each
+    // caller to remember. A phone has no Escape, and a panel can cover most of
+    // the screen, so "tap outside" is not a way out you can rely on.
+    menu.innerHTML =
+      `<button class="ag-menu-close" data-menu="close" title="Close" aria-label="Close">✕</button>` + html;
     menu.classList.toggle('ag-menu-wide', !!opts.wide);
     menu.hidden = false;
     const r = menu.getBoundingClientRect();
+    // The bar owns the bottom of the screen — on a phone that is ~90px of it —
+    // so a panel clamped only to the window put its last row underneath the bar
+    // and out of reach. Which row that was depended on how tall the panel
+    // happened to be, so it was the picker's "Nothing, thanks" as often as not.
+    const floor = window.innerHeight - (bar.getBoundingClientRect().height || 0) - 8;
     const wantX = x == null ? (window.innerWidth - r.width) / 2 : x;
-    const wantY = y == null ? (window.innerHeight - r.height) / 2 : y;
+    const wantY = y == null ? Math.max(8, (floor - r.height) / 2) : y;
     menu.style.left = Math.max(8, Math.min(wantX, window.innerWidth - r.width - 8)) + 'px';
-    menu.style.top = Math.max(8, Math.min(wantY, window.innerHeight - r.height - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(wantY, floor - r.height)) + 'px';
     onPick = handler;
   }
   const closeMenu = () => {
@@ -2187,6 +2217,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     'fields', 'works-apply',
   ]);
   menu.addEventListener('click', (e) => {
+    if (e.target.closest('[data-menu="close"]')) return closeMenu();
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.tagName === 'SELECT') return;
     // A row's × is bookkeeping inside the panel, not a change to the object —
@@ -2211,6 +2242,9 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   });
   document.addEventListener('pointerdown', (e) => {
     if (!menu.hidden && !menu.contains(e.target)) closeMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); closeMenu(); }
   });
 
   // A picked image or a new page lives in this tab until Publish. Leaving with

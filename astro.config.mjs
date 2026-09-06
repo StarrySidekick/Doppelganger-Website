@@ -13,6 +13,13 @@ export default defineConfig({
   trailingSlash: 'never',
   build: { format: 'file' },
 
+  // The CSS minifier drops a -webkit- prefix it thinks the target does not need,
+  // and it dropped every -webkit-user-select in the editor's touch rules —
+  // which Safari needed unprefixed only from 17. On an older iPhone that left
+  // the whole "holding a tile must not select text" ruleset doing nothing.
+  // Naming Safari 14 keeps the prefixes; nothing else about the output changes.
+  vite: { build: { cssTarget: ['chrome87', 'edge88', 'firefox78', 'safari14'] } },
+
   redirects: {
     // Squarespace's contact page is /contact-1 — the "-1" is an artifact of the
     // original slug being taken, and not worth inheriting. The new page is

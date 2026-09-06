@@ -496,9 +496,21 @@ big". A gradient cannot be pressed.
 
 Interaction follows bureau:
 
-- **click a bare cell** for the picker — and what you pick lands on that cell
-  at its kind's size, or in the first free room
-- **drag across bare cells** to sketch a box; the new object takes that size
+- **hold bare board** for the picker — and what you pick lands on that cell at
+  its kind's size, or in the first free room. **A quick tap does not**, and that
+  is deliberate: one finger belongs to the board while you are arranging, so
+  every stray touch, every attempt to scroll with one finger and every tap
+  meant to deselect used to land in the picker. A tap now means what it means
+  everywhere else — nothing is selected any more. The ghost goes solid amber
+  the moment the hold lands, so the board says the picker is coming rather than
+  springing it on you
+- **drag across bare cells** to sketch a box; the new object takes that size.
+  A drawn box is deliberate by nature, so it opens the picker without the hold
+- **every panel has a ✕**, from `openMenu`, and **Escape closes whatever is
+  open** whichever board is active. A phone has no Escape key, a panel can
+  cover most of the screen, and "tap outside" is not a way out you can rely on.
+  A panel is also kept clear of the bar, which owns the bottom ~90px of a phone
+  — clamping only to the window put a panel's last row underneath it
 - **press a tile** to select it — the one the keys act on, ringed in the accent
 - **arrow keys** move the selected tile one cell, **shift+arrows** resize it by
   one, **⌘D** copies it, **Delete** removes it. A drag is right for "roughly
@@ -758,6 +770,14 @@ these tests passed while being unable to see the six collections at all.
 out when this moves to the real domain — that is the only change required.**
 `base` is a `const` at the top of that file because the redirects map needs it
 too.
+
+**The CSS minifier drops `-webkit-` prefixes it thinks the target does not
+need, and it dropped every `-webkit-user-select`.** Safari only took
+`user-select` unprefixed in 17, so on an older iPhone the entire "holding a tile
+must not select text" ruleset silently did nothing and only the JS guards were
+working. `vite.build.cssTarget` in `astro.config.mjs` names Safari 14 to keep
+them. Nothing else about the output changes — `color-mix`, which the look
+depends on, is emitted as written.
 
 **A redirect target must spell out the base.** Astro applies `base` to the route
 it generates but *not* to the destination, so `'/contact-1': '/contact'` builds
