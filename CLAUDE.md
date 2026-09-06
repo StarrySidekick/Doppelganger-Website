@@ -391,8 +391,21 @@ being helpful about something else:
   expects, and a test asserts that.
 - **Tapping paints a blue highlight box** — `-webkit-tap-highlight-color`.
 - **Holding starts a text selection** and iOS adds a callout menu on top, both
-  of which fight hold-to-drag. `user-select` and `-webkit-touch-callout` off,
-  except inside a live `contenteditable`, which must select normally.
+  of which fight hold-to-drag. **While unlocked the DOCUMENT is not a selectable
+  surface**, and the bar and its panels never are, locked or not. Scoping this
+  to `.ag-grid` was not enough and is the bug worth remembering: a selection
+  that STARTS outside a tile — on `.ag-root`'s padding, on `.site-main`, on a
+  board label, on a word in the bar — runs straight through the tile anyway,
+  because `user-select: none` on a child cannot stop a drag that began
+  elsewhere. CSS alone is also not enough: `selectstart` and `dragstart` are
+  refused at the document while unlocked, and a stale selection is dropped on
+  the next press, because once a selection exists the browser extends it under
+  the finger and that is exactly what a hold feels like.
+- **The exceptions have to out-specify the ban.** `.ag-editing .ag-menu *` is
+  two classes and beats a bare `.ag-editing input`, which made every field in
+  Board and Publish unselectable the first time this was written. The
+  `contenteditable`, `input`, `textarea` and `select` exceptions carry
+  `.ag-menu`/`.ag-bar` copies for that reason.
 
 Also: **the bar is the only chrome a phone has.** It goes full-width along the
 bottom with a safe-area inset, every button is at least 34px tall, and it lost

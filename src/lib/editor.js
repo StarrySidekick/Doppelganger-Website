@@ -1554,6 +1554,36 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   }
   applyLock();
 
+  /* ---- the browser's own gestures, which fight the hold ----
+
+     CSS turns the document off as a selectable surface while unlocked, but CSS
+     is not the whole story: a selection can still be STARTED on something the
+     rules missed, and once it exists the browser extends it through everything
+     under the finger — which is what a hold-to-pick-up feels like from the
+     outside. So the gestures themselves are refused at the document, where
+     they begin, and only where you are not actually writing.
+
+     `dragstart` was already refused, but only inside a grid; a picture in a
+     panel, or a link in the bar, still started a native drag. */
+  const writing = (target) => {
+    const node = target?.nodeType === 3 ? target.parentElement : target;
+    return node?.closest?.('input, textarea, select, [contenteditable="true"]') ?? null;
+  };
+  document.addEventListener('selectstart', (e) => {
+    if (!isLocked && !writing(e.target)) e.preventDefault();
+  });
+  document.addEventListener('dragstart', (e) => {
+    if (!isLocked && !writing(e.target)) e.preventDefault();
+  });
+  // A selection made before you unlocked — or by a stray gesture the rules did
+  // not catch — is still live, and the next press extends it instead of picking
+  // the tile up. Pressing anywhere that is not a field starts clean.
+  document.addEventListener('pointerdown', (e) => {
+    if (isLocked || writing(e.target)) return;
+    const sel = document.getSelection();
+    if (sel && !sel.isCollapsed) sel.removeAllRanges();
+  }, true);
+
   /* ---- the look ---- */
 
   let publishedLook = normalizeLook(lookInitial);

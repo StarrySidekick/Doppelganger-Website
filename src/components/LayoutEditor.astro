@@ -158,18 +158,53 @@ const base = import.meta.env.BASE_URL;
      3. Holding anything starts a text selection, and iOS puts a callout
         menu on top of that — both of which fight a hold-to-drag. */
   .ag-unlocked .ag-grid { touch-action: pinch-zoom; }
-  .ag-unlocked .ag-grid,
-  .ag-unlocked .ag-grid * {
+
+  /* These used to be scoped to `.ag-grid` and its descendants, which left three
+     ways to start a selection that then swallowed the hold — and a selection
+     begun OUTSIDE a tile still runs through it, because `user-select: none` on
+     a child does not stop a drag that started somewhere else:
+       - the page around a board: .ag-root's own padding, .site-main, the
+         header and footer. A drag that leaves the grid lands here.
+       - the board labels sitting on the board, right where you press.
+       - every word in the bar and in every panel.
+     So while you are arranging, the DOCUMENT is not a selectable surface. */
+  .ag-unlocked, .ag-unlocked body {
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     user-select: none;
     -webkit-user-select: none;
   }
-  /* …except the words being written in, which must select normally. */
-  .ag-unlocked [contenteditable="true"],
-  .ag-unlocked [contenteditable="true"] * {
-    user-select: text; -webkit-user-select: text; -webkit-touch-callout: default;
+  /* The chrome is never a selectable surface, locked or not — the bar is there
+     in both modes, and holding "Publish" should not select the word. */
+  .ag-editing .ag-bar, .ag-editing .ag-bar *,
+  .ag-editing .ag-menu, .ag-editing .ag-menu * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* …except anything you are actually writing in: the words being edited in
+     place, and the fields in the panels — a token, a URL, an alt text. Those
+     have to select, and be double-tappable, exactly as a field normally is.
+
+     The .ag-menu/.ag-bar copies are not redundant: `.ag-editing .ag-menu *`
+     above is two classes, and would out-specify a bare `.ag-editing input`
+     inside a panel — which made the fields in Board and Publish unselectable
+     the first time this was written. */
+  .ag-editing [contenteditable="true"],
+  .ag-editing [contenteditable="true"] *,
+  .ag-editing input, .ag-editing textarea, .ag-editing select,
+  .ag-editing .ag-menu input, .ag-editing .ag-menu textarea, .ag-editing .ag-menu select,
+  .ag-editing .ag-bar input, .ag-editing .ag-bar textarea, .ag-editing .ag-bar select {
+    user-select: text; -webkit-user-select: text;
+    -webkit-touch-callout: default;
     touch-action: auto;
+  }
+  /* A picture is the other thing a hold grabs: WebKit starts its own image
+     drag, which is a second gesture competing for the same press. */
+  .ag-editing .ag-grid img, .ag-editing .ag-grid a {
+    -webkit-user-drag: none;
+    user-drag: none;
   }
   /* The bar and its panels are chrome: taps there should be instant and
      ordinary, and a long list of settings must still scroll with one finger. */
