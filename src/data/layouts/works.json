@@ -5,6 +5,7 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Everything",
+  "description": "Everything Timothy Vlangas has made — film, games, writing, music, art and inventions, in one list you can narrow by tag.",
   "elements": [
     {
       "id": "works-heading",

@@ -181,6 +181,36 @@
    below an open fold (30), which is the one thing that has to win. */
 .ob.ob-decor { z-index: 2; overflow: visible; }
 
+/* ================= a form ============================================
+   Fields that email you. Dressed in the look like everything else; the
+   button is the same plaque a button object wears. */
+.ob-form { display: grid; gap: clamp(6px, 1cqi, 12px); align-content: start; height: 100%; overflow: auto; }
+.ob-form .ob-field { display: grid; gap: 3px; font-size: clamp(.8rem, 1.3cqi, 1rem); }
+.ob-form input, .ob-form textarea {
+  font: inherit; font-family: var(--body-font, inherit);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: .45em .6em; min-width: 0;
+}
+.ob-form textarea { resize: vertical; min-height: 4em; }
+.ob-form input:focus, .ob-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ob-form .ob-hp { position: absolute; left: -9999px; }
+.ob-form .ob-send {
+  justify-self: start; cursor: pointer;
+  font: inherit; font-family: var(--display-font, inherit); font-size: 1.1em;
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px; padding: .35em 1.2em;
+}
+.ob-form .ob-send:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.ob-form .ob-send:disabled { opacity: .5; cursor: default; }
+.ob-form[data-unready]::after {
+  content: 'Not wired up yet: this form needs a Web3Forms access key before it can send.';
+  font-size: .8em; opacity: .65;
+}
+.ob-form .ob-sent { margin: 0; font-weight: 600; }
+.ob-form[data-sent] .ob-field, .ob-form[data-sent] .ob-send { display: none; }
+
 /* ================= holding ==========================================
    The one fluid thing on a rigid board, fenced into a single tile: a holder is
    a box whose CONTENTS flow. Which is what an accordion, a row of links and a

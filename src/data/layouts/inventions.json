@@ -5,6 +5,7 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Inventions",
+  "description": "Inventions and tools by Timothy Vlangas.",
   "elements": [
     {
       "id": "inventions-heading",
@@ -21,7 +22,7 @@
           2
         ]
       },
-      "body": "<h1 class=\"page-title\">Inventions</h1><p class=\"page-lede\">Tools, apps and sites \u2014 things built to be used.</p>"
+      "body": "<h1 class=\"page-title\">Inventions</h1><p class=\"page-lede\">Tools, apps and sites — things built to be used.</p>"
     },
     {
       "id": "inventions-feed",

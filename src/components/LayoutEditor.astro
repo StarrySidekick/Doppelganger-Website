@@ -340,6 +340,9 @@ const base = import.meta.env.BASE_URL;
     border-color: rgba(255,107,107,.9);
     background: rgba(255,107,107,.12);
   }
+  /* Aiming into a holder: the holder wears the drop ring and the ghost steps
+     aside, because the thing in hand is not landing on the board at all. */
+  .ag-ghost.ag-hidden { visibility: hidden; }
 
   /* Centred with auto margins, not left:50%. With left:50% the bar's available
      width is only the right half of the window, so it wrapped to two lines on a

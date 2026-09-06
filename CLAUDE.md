@@ -251,6 +251,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `list` | holds, text | card | yes — **the accordion / gallery** |
 | `works` | feed, text | plain | yes — **a section page, or a strip of recent work** |
 | `html` | text (raw markup) | plain | no, a tool |
+| `form` | form, text | card | yes — **fields that email you.** The web layer's first kind |
 | `slot` | — | — | no, written by code |
 
 **What a click does is a field**, `onclick`, asked of every object — Bureau's
@@ -641,6 +642,16 @@ Interaction follows bureau:
   **nudge**, because that is what every drawing program does with them. With
   nothing selected any of these selects the first tile, so the keyboard can get
   started at all
+- **Group (⌘G) and Ungroup (⌘⇧G)** — Bureau's *gather* (decision 24), as a
+  website wants it. Select two or more notes, pictures or buttons and Group
+  makes ONE holder out of them, taking the room they had between them so the
+  board looks the same the moment after; its items are the objects themselves
+  with their geometry taken off (`toItem`), and Ungroup gives them back a place
+  (`fromItem` + `freeSpot`). **Drop a tile onto a holder and it is filed in**
+  — the holder wears the green drop ring and the ghost steps aside, because
+  the thing in hand is not landing on the board at all. The aim is the cell
+  under the pointer, never `elementFromPoint`. All three are one undo step.
+  A holder, a feed and a form cannot be held; a slot is the page
 - **corner grips** resize; there are no edge handles
 - **double click** the words and they become a field where they sit — the
   body or the title, never the whole tile, because a drawer front has a picture
@@ -678,6 +689,14 @@ Interaction follows bureau:
   here** — touch one first, since it is the board you last touched that the bar
   acts on. A change recompiles the grid's inline CSS under its existing scope
   class so you see it immediately, rather than waiting for the site to rebuild
+- **Board also carries the page**, for a board that is one: its **title**, a
+  **description** (what a search result shows under the title, and what a
+  shared link says) and a **picture for a shared link** — an `asset:` key, a
+  `media:` file or a URL. They are fields on the layout (`title`,
+  `description`, `image`), `[...slug].astro` hands them to `Base.astro`, and
+  a hand-written page that wraps a board passes the board's own through
+  (`links.astro` does). Base falls back to the site's line and wordmark when
+  a board has none. Header and footer do not offer them
 - **Pages** is the working list of every page there is, and **a page is a
   ROUTE** — a file in `src/pages` or a layout the dynamic route turns into one.
   It used to be built from the layout files alone, which meant it listed
@@ -878,8 +897,17 @@ these tests passed while being unable to see the six collections at all.
   page does.
 - **The favicon is the one local asset**, generated from the first frame of
   Sun.gif into `/public`. Everything else still comes from the CDN.
-- **Contact form uses Web3Forms** (250/mo free, static-friendly). The access key
-  is still a placeholder and the submit button is disabled until it's real.
+- **Contact form uses Web3Forms** (250/mo free, static-friendly). It is now an
+  OBJECT — the `form` kind, carrying the `form` attribute: `{key, fields,
+  button}`, drawn from the picker onto any board, its fields chosen from name,
+  email, subject and message. `interact.js` sends it with fetch so a visitor
+  stays on the page, and a browser with no script still gets the plain POST.
+  **With no key the button is disabled and the form says so** — a form that
+  looks live and drops every message is the worst thing a contact page can
+  do. The key is public by design (it is in the page for anyone to read), so
+  it is data like everything else and travels in the layout. The hand-written
+  `/contact` still stands with its placeholder key; drop a form object on a
+  board and give it the real key when there is one.
 - **Hosting stays GitHub Pages for now.** Cloudflare was considered and rejected
   for the moment — Cloudflare has de-prioritised Pages in favour of Workers, and
   the unmetered-bandwidth advantage solves a problem this site doesn't have.

@@ -5,6 +5,7 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Art",
+  "description": "Art by Timothy Vlangas — paintings, drawings and pieces.",
   "elements": [
     {
       "id": "art-heading",

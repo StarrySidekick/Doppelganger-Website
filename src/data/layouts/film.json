@@ -5,6 +5,7 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Film",
+  "description": "Films by Timothy Vlangas — directing, sound design and score.",
   "elements": [
     {
       "id": "film-heading",

@@ -13,6 +13,7 @@ import {
   fieldsOf, getField, setField, renderElement, checkElement, upgradeElement, unsafeHtml, escapeHtml, tiltFor, makeItem, itemsOf,
   setKind, toggleAttr, feedOf, USER_ATTRS,
 } from './elements.js';
+import { toItem, fromItem } from './elements.js';
 
 /** Stand-ins for what AdaptiveGrid.astro supplies from assets.js. */
 const ctx = {
@@ -322,4 +323,50 @@ test('a malformed feed fails the build', () => {
   assert.deepEqual(checkElement({ kind: 'works', feed: { type: 'film', tag: 'Score', limit: 4, sort: 'oldest' } }), []);
   // A slot carrying a feed can only mean a dropped kind.
   assert.match(checkElement({ feed: {} }).join(' '), /kind "slot", so it would never render/);
+});
+
+/* ---------------- a form that emails you ---------------- */
+
+test('a form renders its fields, and refuses to look live without a key', () => {
+  const dead = renderElement({ kind: 'form' }, {});
+  assert.match(dead, /data-unready/, 'no key: the form says it is not wired up');
+  assert.match(dead, /<button class="ob-send" type="submit" disabled>/);
+  assert.match(dead, /name="botcheck"/, 'the honeypot is there');
+
+  const live = renderElement({ kind: 'form', form: { key: 'abc-123', fields: ['email', 'message'], button: 'Write to me' } }, {});
+  assert.doesNotMatch(live, /data-unready/);
+  assert.match(live, /value="abc-123"/);
+  assert.match(live, /type="email" name="email"/);
+  assert.match(live, /<textarea name="message"/);
+  assert.doesNotMatch(live, /name="name"/, 'only the fields it asked for');
+  assert.match(live, />Write to me</);
+  assert.match(live, /action="https:\/\/api\.web3forms\.com\/submit"/);
+});
+
+test('a malformed form fails the build', () => {
+  const one = (form) => checkElement({ kind: 'form', form }).join(' | ');
+  assert.match(one({ fields: ['name', 'phone'] }), /unknown field "phone"/);
+  assert.match(one({ key: 12 }), /form.key must be a string/);
+  assert.deepEqual(checkElement({ kind: 'form', form: { key: 'k', fields: ['name', 'email', 'subject', 'message'] } }), []);
+  assert.match(checkElement({ form: {} }).join(' '), /kind "slot"/);
+});
+
+/* ---------------- a thing on the board becomes a thing a holder holds ---------------- */
+
+test('toItem strips geometry and fromItem gives it back a place', () => {
+  const on = { id: 'email', kind: 'note', flow: 'stack', locked: true, body: 'hi', attrs: ['text', 'link'], link: '/links',
+    desk: { col: [1, 4], row: [1, 2] }, narrow: { col: [1, 8], row: [3, 2] } };
+  const it = toItem(on);
+  assert.deepEqual(it, { kind: 'note', body: 'hi', attrs: ['text', 'link'], link: '/links' });
+  assert.deepEqual(checkElement(it, 'item'), [], 'a held thing is a valid object');
+  const back = fromItem(it, 'note-2');
+  assert.equal(back.id, 'note-2');
+  assert.equal(back.flow, 'stack');
+  assert.equal(back.desk, undefined, 'a box is the caller\'s to find');
+  assert.equal(back.body, 'hi');
+  // and it round-trips through a holder's render
+  const html = renderElement({ kind: 'list', arrange: 'row', items: [it, toItem({ kind: 'button', body: 'Go', link: 'https://x.y' })] }, { link: (h) => h });
+  assert.match(html, /ar-row/);
+  assert.match(html, /href="\/links"/);
+  assert.match(html, /href="https:\/\/x\.y"/);
 });

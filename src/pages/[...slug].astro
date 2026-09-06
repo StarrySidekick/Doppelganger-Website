@@ -11,6 +11,7 @@
 import Base from '../layouts/Base.astro';
 import AdaptiveGrid from '../components/AdaptiveGrid.astro';
 import { layouts } from '../lib/layouts.js';
+import { asset, url } from '../lib/assets.js';
 
 export function getStaticPaths() {
   // Names that already have a file in src/pages, and the two that are chrome.
@@ -26,8 +27,17 @@ export function getStaticPaths() {
 const { name } = Astro.props;
 const layout = layouts[name];
 const title = layout.title ?? name.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+// A board says what a search result and a shared link show for it. Both are
+// fields on the layout, set in the Board panel, and both are optional — Base
+// falls back to the site's own line and wordmark.
+const description = layout.description || undefined;
+const image = layout.image
+  ? (layout.image.startsWith('asset:') ? asset[layout.image.slice(6)]
+    : layout.image.startsWith('media:') ? url(`media/${layout.image.slice(6)}`)
+    : layout.image)
+  : undefined;
 ---
-<Base title={title} path={`/${name}`}>
+<Base title={title} path={`/${name}`} description={description} image={image}>
   <main class="drawer-page">
     <h1 class="sr-only">{title}</h1>
     <AdaptiveGrid layout={layout} name={name} class="page-grid" />

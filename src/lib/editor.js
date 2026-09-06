@@ -49,7 +49,7 @@ import {
   KINDS, PICKER_KINDS, FACES, ATTRS, USER_ATTRS, K, has, attrsOf, kindOf,
   isTyped, isInline, faceOf, clickOf, fieldsOf, getField, setField, setKind,
   toggleAttr, itemsOf, makeItem, feedOf, SORTS, renderElement, unsafeHtml,
-  tiltFor, escapeHtml, isDecor,
+  tiltFor, escapeHtml, isDecor, toItem, fromItem,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
@@ -606,6 +606,32 @@ export function mountEditor({
       commit();
       return toast(`Put ${move.items.length} back`);
     }
+    if (move.kind === 'group') {
+      const i = layout.elements.findIndex((e) => e.id === move.id);
+      if (i >= 0) layout.elements.splice(i, 1);
+      for (const { index, element } of [...move.removed].sort((a, b) => a.index - b.index)) {
+        layout.elements.splice(Math.min(index, layout.elements.length), 0, element);
+      }
+      commit();
+      return toast(`Ungrouped ${move.id}`);
+    }
+    if (move.kind === 'ungroup') {
+      for (const mid of move.made) {
+        const i = layout.elements.findIndex((e) => e.id === mid);
+        if (i >= 0) layout.elements.splice(i, 1);
+      }
+      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.holder);
+      commit();
+      return toast(`Put them back into ${move.holder.id}`);
+    }
+    if (move.kind === 'filed') {
+      const holder = find(move.holderId);
+      if (holder) restoreContent(holder, move.prev);
+      layout.elements.splice(Math.min(move.index, layout.elements.length), 0, move.element);
+      if (holder) drawnFrom.delete(holder.id);
+      commit();
+      return toast(`Took ${move.element.id} back out`);
+    }
     if (move.kind === 'boxes') {
       for (const { id, prev } of move.items) {
         const e = find(id);
@@ -761,6 +787,103 @@ export function mountEditor({
     if (!made) return;
     chrome.addFile(pathFor(slug), JSON.stringify(newLayout(title), null, 2) + '\n');
     toast(`"${title}" opens /${slug} once published`);
+  }
+
+  /* ---- grouping: Bureau's gather, as a website wants it ----
+     Bureau's decision 24: drop two things together and they become a container
+     holding both. Here a HOLDER is the container that lives inside one tile
+     and lays its contents out by a rule — a stack, a row, a wrapping grid, an
+     accordion — which is what a page wants where a desk wants a drawer. Two
+     ways in: select several and Group (⌘G), or drop one onto a holder and it
+     is filed in. Ungroup (⌘⇧G) spreads a holder's items back onto the board.
+     A group made from a selection takes the room the selection had, so the
+     board looks the same the moment after as the moment before. */
+
+  /** Typed, not a slot, not itself a holder or a feed — things that can be held. */
+  const holdable = (e) => e && isTyped(e) && !has(e, 'holds') && !has(e, 'feed') && !has(e, 'form');
+
+  function group(ids) {
+    const members = ids.map(find).filter(holdable);
+    if (members.length < 2) return toast('Select two or more notes, pictures or buttons to group them');
+    // Reading order, and the room they took up together.
+    const boxes = members.map((m) => ({ m, b: boxFor(m.id) })).sort((a, b) => a.b.row[0] - b.b.row[0] || a.b.col[0] - b.b.col[0]);
+    const c0 = Math.min(...boxes.map((x) => x.b.col[0])), r0 = Math.min(...boxes.map((x) => x.b.row[0]));
+    const c1 = Math.max(...boxes.map((x) => x.b.col[0] + x.b.col[1])), r1 = Math.max(...boxes.map((x) => x.b.row[0] + x.b.row[1]));
+    const id = uniqueId('list');
+    const holder = { id, kind: 'list', flow: 'stack', arrange: 'stack', face: 'card', items: boxes.map((x) => toItem(x.m)) };
+    holder[device] = { col: [c0, c1 - c0], row: [r0, r1 - r0] };
+    if (device === 'narrow') holder.desk = freeSpot(layout, [Math.min(c1 - c0, layout.columns), r1 - r0], 'desk', id);
+    // Out with the members, in with the holder, checked as one change.
+    const removed = [];
+    for (const { m } of boxes) {
+      const index = layout.elements.findIndex((e) => e.id === m.id);
+      removed.push({ index, element: layout.elements.splice(index, 1)[0] });
+    }
+    layout.elements.push(holder);
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      layout.elements.pop();
+      for (const { index, element } of [...removed].sort((a, b) => a.index - b.index)) layout.elements.splice(index, 0, element);
+      return toast(problems[0].replace(/^[^:]+: /, ''));
+    }
+    const step = pushUndo({ kind: 'group', id, removed });
+    commit();
+    select(id);
+    toast(`Grouped ${members.length} into ${id}`, undoOf(step));
+  }
+
+  function ungroup(id) {
+    const holder = find(id);
+    if (!holder || !has(holder, 'holds')) return toast('Only a holder can be ungrouped');
+    const items = itemsOf(holder);
+    if (!items.length) return toast(`${id} holds nothing`);
+    const b = boxFor(id);
+    const made = [];
+    const index = layout.elements.findIndex((e) => e.id === id);
+    layout.elements.splice(index, 1);
+    for (const it of items) {
+      const o = fromItem(it, uniqueId(it.kind ?? 'note'));
+      const size = KINDS[o.kind]?.size ?? [4, 2];
+      const w = Math.min(size[0], columnsFor(layout, device), b.col[1]);
+      // First choice: inside the room the holder had; then anywhere free.
+      const at = { col: [b.col[0], w], row: [b.row[0] + made.length * size[1], size[1]] };
+      o[device] = boxOk(layout, o.id, at, device) ? at : freeSpot(layout, [w, size[1]], device, o.id);
+      if (device === 'narrow') o.desk = freeSpot(layout, [Math.min(size[0], layout.columns), size[1]], 'desk', o.id);
+      layout.elements.push(o);
+      made.push(o.id);
+    }
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      for (const mid of made) layout.elements.splice(layout.elements.findIndex((e) => e.id === mid), 1);
+      layout.elements.splice(index, 0, holder);
+      return toast(problems[0].replace(/^[^:]+: /, ''));
+    }
+    const step = pushUndo({ kind: 'ungroup', index, holder, made });
+    commit();
+    select(made);
+    toast(`Spread ${made.length} out of ${id}`, undoOf(step));
+  }
+
+  /** Drop one object into a holder: it leaves the board and joins the list. */
+  function fileInto(id, holderId) {
+    const o = find(id), holder = find(holderId);
+    if (!holdable(o) || !holder || !has(holder, 'holds')) return false;
+    const index = layout.elements.findIndex((e) => e.id === id);
+    const prev = contentOf(holder);
+    const [element] = layout.elements.splice(index, 1);
+    holder.items = [...itemsOf(holder), toItem(element)];
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      restoreContent(holder, prev);
+      layout.elements.splice(index, 0, element);
+      toast(problems[0].replace(/^[^:]+: /, ''));
+      return false;
+    }
+    const step = pushUndo({ kind: 'filed', index, element, holderId, prev });
+    commit();
+    select(holderId);
+    toast(`Put ${id} into ${holderId}`, undoOf(step));
+    return true;
   }
 
   /* ---- the picker ---- */
@@ -1205,6 +1328,21 @@ export function mountEditor({
     const box = candidate(G, dcol, drow);
     G.cand = box;
 
+    /* Over a holder with nothing legal to do there? Then letting go files it
+       in: the thing under the pointer is a place to land, not a collision.
+       Bureau's aimDrop, cut to the one answer a page has. The aim is the cell
+       under the pointer, never elementFromPoint — the tile in hand is what it
+       would find. */
+    G.into = null;
+    if (G.type === 'move' && !G.group && holdable(find(G.id))) {
+      const rect2 = grid.getBoundingClientRect();
+      const at = cellAt(G.t, rect2, columnsFor(layout, device), clientX, clientY);
+      const under = placed().find((r) => r.id !== G.id && has(find(r.id) ?? {}, 'holds')
+        && at.col >= r._col && at.col < r._col + r._span && at.row >= r._row && at.row < r._row + r._rowSpan);
+      if (under) G.into = under.id;
+    }
+    markDrop(G.into ? el(G.into) : null);
+
     if (G.group) {
       // The whole set has to land legally, and only collisions with objects
       // outside the set count — the set kept its shape.
@@ -1222,9 +1360,12 @@ export function mountEditor({
     if (G.type === 'move') {
       G.node.style.transform = `translate(${dx}px,${dy}px)`;
       G.ghosts.forEach((ghost, i) => {
-        ghost.className = 'ag-ghost' + (G.ok ? '' : ' ag-bad');
+        // Aiming into a holder: the ghost hides, because the holder is where
+        // it lands and a red box over it says the opposite.
+        ghost.className = 'ag-ghost' + (G.into ? ' ag-hidden' : (G.ok ? '' : ' ag-bad'));
         place(ghost, G.group ? G.moves[i].box : box);
       });
+      if (G.into) G.node.classList.remove('ag-invalid');
       if (G.group) for (const m of G.group) {
         if (m.id === G.id) continue;
         m.node.style.transform = `translate(${dx}px,${dy}px)`;
@@ -1298,6 +1439,7 @@ export function mountEditor({
        gesture away. `boxOk` still refuses to shove a neighbour aside — that is
        decision 10 and it stays — but refusing the ILLEGAL part of a drag is a
        different thing from refusing the legal part that came before it. */
+    if (g.into && fileInto(g.id, g.into)) return;
     if (g.group) {
       const moves = g.ok ? g.moves : g.lastMoves;
       if (!moves) { paint(); return toast('No room there'); }
@@ -1430,6 +1572,8 @@ export function mountEditor({
       ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
       ${isInline(item) ? '<button class="ag-menu-btn" data-act="write">Edit the words<small>Or double-click them in the page</small></button>' : ''}
       ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate<small>⌘D</small></button>' : ''}
+      ${selection().length > 1 && selection().includes(id) ? '<button class="ag-menu-btn" data-act="group">Group these<small>⌘G · one holder, laid out by a rule</small></button>' : ''}
+      ${has(item, 'holds') && itemsOf(item).length ? '<button class="ag-menu-btn" data-act="ungroup">Ungroup<small>⌘⇧G · back onto the board</small></button>' : ''}
       <button class="ag-menu-btn" data-act="lock">${item.locked ? 'Unlock' : 'Lock in place'}</button>
       ${device === 'narrow' ? `<button class="ag-menu-btn" data-act="reset"${hasOwn ? '' : ' disabled'}>
         ${hasOwn ? 'Reset to derived position' : 'Position is derived'}
@@ -1443,6 +1587,8 @@ export function mountEditor({
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
       if (act === 'pick') { pickFileFor(id); return; }
       if (act === 'duplicate') { duplicate(id); }
+      if (act === 'group') { group(selection()); }
+      if (act === 'ungroup') { ungroup(id); }
       if (act === 'delete') { select(null); remove(id); }
     });
   }
@@ -1477,6 +1623,10 @@ export function mountEditor({
       if (f.kind === 'number') return `<input data-field="${f.key}" type="number" min="1" value="${escapeAttr(v ?? '')}" />`;
       if (f.kind === 'items') return itemsControl(item);
       if (f.kind === 'feed') return feedControl(item);
+      // A short list typed as words with commas between — what a form asks for.
+      if (f.kind === 'list') {
+        return `<input data-field="${f.key}" type="text" value="${escapeAttr((Array.isArray(v) ? v : []).join(', '))}" />`;
+      }
       if (f.kind === 'select') {
         return `<select data-field="${f.key}">${Object.entries(f.options).map(([k, label]) =>
           `<option value="${escapeAttr(k)}"${String(v ?? '') === k ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}</select>`;
@@ -1563,6 +1713,12 @@ export function mountEditor({
       for (const f of fieldsOf(o)) {
         if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
         if (f.kind === 'feed') { o.feed = readFeed(menuEl); continue; }
+        if (f.kind === 'list') {
+          const raw = menuEl.querySelector(`[data-field="${f.key}"]`)?.value ?? '';
+          const list = raw.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+          setField(o, f.key, list.length ? list : null);
+          continue;
+        }
         const input = menuEl.querySelector(`[data-field="${f.key}"]`);
         if (!input) continue;
         const raw = input.value.trim();
@@ -1827,6 +1983,10 @@ export function mountEditor({
     if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
       e.preventDefault(); return duplicate(sel);
     }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
+      e.preventDefault();
+      return e.shiftKey ? ungroup(sel) : group(selection());
+    }
     /* The two panels, without the hold. A hold is the only way a phone has to
        ask for them; a desk should not have to imitate one. */
     const at = () => {
@@ -1874,11 +2034,12 @@ export function mountEditor({
     isDirty: () => JSON.stringify(layout) !== baselineJson,
     undo: undoLast,
     board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
-      gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true }),
+      gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true,
+      title: layout.title ?? '', description: layout.description ?? '', image: layout.image ?? '' }),
     setBoard: (patch) => {
       const before = structuredClone(layout);
       Object.assign(layout, patch);
-      for (const k of ['rows', 'narrowRows']) if (layout[k] === '' || layout[k] == null) delete layout[k];
+      for (const k of ['rows', 'narrowRows', 'title', 'description', 'image']) if (layout[k] === '' || layout[k] == null) delete layout[k];
 
       /* A coarser grid can leave objects hanging off the right-hand edge —
          #socials spans ten columns and cannot sit on a board eight wide. That
@@ -2581,6 +2742,17 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
         <input data-board="sticky" type="checkbox"${b.sticky ? ' checked' : ''} />
         Floating — follows you as you scroll
       </label>
+      ${a.isChrome ? '' : `
+      <div class="ag-menu-sub">This page, to a search engine and a shared link</div>
+      <label class="ag-menu-field">Title
+        <input data-board="title" type="text" value="${escapeAttr(b.title)}" />
+      </label>
+      <label class="ag-menu-field">Description — one or two sentences; what a search result shows under the title
+        <textarea data-board="description" rows="2">${escapeAttr(b.description)}</textarea>
+      </label>
+      <label class="ag-menu-field">Picture for a shared link — an asset: key, a media: file, or a URL
+        <input data-board="image" type="text" value="${escapeAttr(b.image)}" />
+      </label>`}
       <div class="ag-menu-actions">
         <button class="ag-menu-btn" data-act="board-apply">Apply</button>
         <button class="ag-menu-btn" data-act="tidy">Tidy</button>
@@ -2601,10 +2773,12 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
         const raw = el ? el.value.trim() : '';
         return raw === '' ? null : Number(raw);
       };
+      const text = (k) => menuEl.querySelector(`[data-board="${k}"]`)?.value.trim() ?? null;
       a.setBoard({
         columns: num('columns'), narrowColumns: num('narrowColumns'), gap: num('gap'),
         [heightKey]: num(heightKey),
         sticky: menuEl.querySelector('[data-board="sticky"]').checked,
+        ...(a.isChrome ? {} : { title: text('title'), description: text('description'), image: text('image') }),
       });
     });
   }

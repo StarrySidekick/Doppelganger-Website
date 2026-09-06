@@ -16,6 +16,9 @@ const {
   description = "Timothy Vlangas — writer, game designer, musician and UI/UX designer. Poems, essays, short stories, games and music, all in one place.",
   path = '',
   noindex = false,
+  // The picture a shared link shows. A board may name its own; the wordmark
+  // is what every other page shows.
+  image = null,
 } = Astro.props;
 const full = `${title} — StarrySidekick.com`;
 
@@ -23,7 +26,9 @@ const full = `${title} — StarrySidekick.com`;
 // nothing has to be rewritten at cutover. PROD_ORIGIN lives in assets.js — the
 // domain is written down once, not once per tag.
 const canonical = `${PROD_ORIGIN}${path}`;
-const ogImage = sized(asset.wordmark, 1000);
+const ogImage = image
+  ? (image.startsWith('http') && image.includes('squarespace') ? sized(image, 1000) : image)
+  : sized(asset.wordmark, 1000);
 ---
 <!DOCTYPE html>
 <html lang="en">

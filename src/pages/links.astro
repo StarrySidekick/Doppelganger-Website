@@ -17,7 +17,7 @@ import { getLayout } from '../lib/layouts.js';
 const layout = getLayout('links');
 ---
 
-<Base title="Links" path="/links">
+<Base title="Links" path="/links" description={layout.description}>
   <h1 class="sr-only">Links — Timothy Vlangas</h1>
   <AdaptiveGrid layout={layout} name="links" class="links-grid">
     {/* Slot elements. Their boxes are in the layout like everything else; only

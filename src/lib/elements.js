@@ -101,10 +101,29 @@ export const ATTRS = {
      rather than in it. `boxOk` lets it lie across anything and lets anything
      lie across it; Tidy leaves it where it is; it draws above the rest. */
   decor:     { label: 'Decoration', says: 'Stands on the board rather than in it — may overlap anything, and nothing makes room for it' },
+  /* The web layer's first attribute. A form is fields that email you when
+     sent, and on a static site that means a form service: Web3Forms, which
+     the hand-written /contact already uses. The key is public by design — it
+     is in the page for anyone to read — so it is data like everything else. */
+  form:      { label: 'Form',      says: 'Fields that email you when sent — needs a free Web3Forms key', field: 'form' },
 };
 
+/** The fields a form may ask for, in the order they usually come. */
+export const FORM_FIELDS = {
+  name:    { label: 'Name',    type: 'text' },
+  email:   { label: 'Email',   type: 'email' },
+  subject: { label: 'Subject', type: 'text' },
+  message: { label: 'Message', type: 'textarea' },
+};
+export const FORM_ENDPOINT = 'https://api.web3forms.com/submit';
+export const formOf = (o) => ({
+  key: typeof o?.form?.key === 'string' ? o.form.key : '',
+  fields: Array.isArray(o?.form?.fields) && o.form.fields.length ? o.form.fields : ['name', 'email', 'message'],
+  button: typeof o?.form?.button === 'string' && o.form.button ? o.form.button : 'Send',
+});
+
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'decor'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'decor'];
 
 /** Does it stand above the board rather than take a place on it? */
 export const isDecor = (o) => has(o, 'decor');
@@ -215,10 +234,11 @@ export const KINDS = {
   list:   { label: 'Holder',        says: 'Holds other objects and lays them out',   attrs: ['holds', 'text'],             face: 'card',    size: [6, 5], arrange: 'stack' },
   works:  { label: 'Works',         says: 'The things you have made, filtered by tag', attrs: ['feed', 'text'],              face: 'none',    size: [14, 10] },
   html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
+  form:   { label: 'Contact form',  says: 'Fields that email you when sent',         attrs: ['form', 'text'],              face: 'card',    size: [10, 9], form: { key: '', fields: ['name', 'email', 'message'], button: 'Send' } },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works'];
+export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form'];
 
 /* ------------------------------------------------------------------ *
  * Faces — how a thing draws
@@ -293,6 +313,32 @@ export const itemsOf = (o) => (Array.isArray(o?.items) ? o.items : []);
  * intended: what this thing can do is decided by what it was given, not by a
  * name chosen for it.
  */
+/**
+ * An object on the board, as a thing a holder holds — and back.
+ *
+ * Bureau's `gather` (its decision 24): two things dropped together become a
+ * container holding them. A held thing is the object with its geometry taken
+ * off: no box, no flow, no lock, no id, because inside a holder its place is
+ * its position in the list. `fromItem` gives it back everything but a box,
+ * which the caller finds room for.
+ */
+const GEOMETRY_KEYS = ['id', 'desk', 'narrow', 'flow', 'locked', 'col', 'row'];
+export function toItem(o) {
+  const it = {};
+  for (const [k, v] of Object.entries(o ?? {})) {
+    if (GEOMETRY_KEYS.includes(k) || v == null) continue;
+    it[k] = typeof v === 'object' ? structuredClone(v) : v;
+  }
+  if (!it.kind) it.kind = 'note';
+  return it;
+}
+export function fromItem(it, id) {
+  const o = toItem(it);
+  o.id = id;
+  o.flow = 'stack';
+  return o;
+}
+
 export function makeItem({ title = '', body = '', link = '', src = '' } = {}) {
   const attrs = ['text'];
   if (link) attrs.push('link');
@@ -336,6 +382,11 @@ export function fieldsOf(o) {
     out.push({ key: 'items', label: 'What it holds', kind: 'items' });
   }
   if (has(o, 'feed')) out.push({ key: 'feed', label: 'Shows', kind: 'feed' });
+  if (has(o, 'form')) {
+    out.push({ key: 'form.key', label: 'Web3Forms access key', kind: 'text' });
+    out.push({ key: 'form.fields', label: 'Asks for (name, email, subject, message)', kind: 'list' });
+    out.push({ key: 'form.button', label: 'The button says', kind: 'text' });
+  }
   // What a click does is a field like any other, so an invented combination
   // gets it too. Bureau's clickOf(), asked as a question in the panel.
   out.push({ key: 'onclick', label: 'When clicked', kind: 'select', options: { '': `Whatever suits (${clickOf(o)})`, ...CLICKS } });
@@ -393,6 +444,7 @@ function inner(o, ctx, { linked = false, depth = 0 } = {}) {
 
   if (has(o, 'holds')) parts.push(renderHolder(o, ctx, depth));
   if (has(o, 'feed')) parts.push(renderFeed(o, ctx));
+  if (has(o, 'form')) parts.push(renderForm(o));
 
   if (has(o, 'text') && o.body != null && !has(o, 'fold')) {
     const body = rewriteLinks(o.body, ctx.link);
@@ -464,6 +516,32 @@ function renderFeed(o, ctx) {
 }
 
 /** What a holder holds, laid out by its rule. One level deep only. */
+/**
+ * A form that emails you. Posts to Web3Forms as the hand-written /contact
+ * does; interact.js sends it with fetch so the visitor stays on the page, and
+ * a browser without JS still gets the plain POST. With no key the button is
+ * disabled and the form says so — a form that looks live and drops every
+ * message on the floor is the worst outcome a contact page can have.
+ */
+function renderForm(o) {
+  const f = formOf(o);
+  const ready = !!f.key;
+  const controls = f.fields.filter((k) => FORM_FIELDS[k]).map((k) => {
+    const d = FORM_FIELDS[k];
+    const control = d.type === 'textarea'
+      ? `<textarea name="${k}" rows="5" required></textarea>`
+      : `<input type="${d.type}" name="${k}" required />`;
+    return `<label class="ob-field">${escapeHtml(d.label)} ${control}</label>`;
+  }).join('');
+  return `<form class="ob-form" action="${FORM_ENDPOINT}" method="POST" data-form${ready ? '' : ' data-unready'}>
+    <input type="hidden" name="access_key" value="${escapeHtml(f.key)}" />
+    <input type="checkbox" name="botcheck" class="ob-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+    ${controls}
+    <button class="ob-send" type="submit"${ready ? '' : ' disabled'}>${escapeHtml(ready ? f.button : `${f.button} (needs a key)`)}</button>
+    <p class="ob-sent" hidden>Sent — thank you.</p>
+  </form>`;
+}
+
 function renderHolder(o, ctx, depth) {
   const items = itemsOf(o);
   const arrange = arrangeOf(o);
@@ -542,7 +620,7 @@ export function checkElement(o, at = 'element') {
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -594,6 +672,17 @@ export function checkElement(o, at = 'element') {
     if (o.arrange != null && !ARRANGES[o.arrange]) out.push(`${at}.arrange ${JSON.stringify(o.arrange)} is not one of ${Object.keys(ARRANGES).join(', ')}`);
     if (o.items != null && !Array.isArray(o.items)) out.push(`${at}.items must be an array`);
     else for (const [i, it] of itemsOf(o).entries()) out.push(...checkElement(it, `${at}.items[${i}]`));
+  }
+  if (has(o, 'form') && o.form != null) {
+    if (typeof o.form !== 'object') out.push(`${at}.form must be an object`);
+    else {
+      if (o.form.key != null && typeof o.form.key !== 'string') out.push(`${at}.form.key must be a string`);
+      if (o.form.fields != null) {
+        if (!Array.isArray(o.form.fields)) out.push(`${at}.form.fields must be an array`);
+        else for (const k of o.form.fields) if (!FORM_FIELDS[k]) out.push(`${at}.form.fields has unknown field ${JSON.stringify(k)} — one of ${Object.keys(FORM_FIELDS).join(', ')}`);
+      }
+      if (o.form.button != null && typeof o.form.button !== 'string') out.push(`${at}.form.button must be a string`);
+    }
   }
   return out;
 }
@@ -659,7 +748,7 @@ export function setKind(o, kind) {
   // face is the honest default, and the face picker is right there.
   delete o.face;
   // Fill in whatever the new kind cannot do without, and only that.
-  for (const k of ['body', 'title', 'fold', 'arrange']) {
+  for (const k of ['body', 'title', 'fold', 'arrange', 'form']) {
     if (KINDS[kind][k] != null && o[k] == null) o[k] = structuredClone(KINDS[kind][k]);
   }
   /* Nothing is DELETED here, and that is the point of the whole function. A

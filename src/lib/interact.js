@@ -73,8 +73,41 @@ function onClick(e) {
   if (!e.target.closest('.ob-fold')) closeOthers(null);
 }
 
+/**
+ * A form object, sent without leaving the page.
+ *
+ * The form is a plain POST to Web3Forms, so a browser with no script still
+ * sends it and lands on their thank-you page. With script it is sent from
+ * here and the page says "Sent" where the fields were. Nothing about the
+ * address or the key lives in this file — both are on the form.
+ */
+async function onSubmit(e) {
+  const form = e.target.closest('form[data-form]');
+  if (!form || form.hasAttribute('data-unready')) return;
+  e.preventDefault();
+  const btn = form.querySelector('.ob-send');
+  const was = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const res = await fetch(form.action, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      body: new FormData(form),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || out.success === false) throw new Error(out.message || `The form service said ${res.status}`);
+    form.setAttribute('data-sent', '');
+    form.querySelector('.ob-sent')?.removeAttribute('hidden');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = was; }
+    const note = form.querySelector('.ob-sent');
+    if (note) { note.textContent = `Could not send — ${err.message}`; note.removeAttribute('hidden'); }
+  }
+}
+
 export function wireInteractions(root = document) {
   root.addEventListener('click', onClick);
+  root.addEventListener('submit', onSubmit);
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeOthers(null);
   });

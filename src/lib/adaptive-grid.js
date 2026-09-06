@@ -374,6 +374,10 @@ export function validateLayout(input, name = 'layout') {
   }
   if (layout.sticky != null && typeof layout.sticky !== 'boolean') bad('sticky must be true or false');
   if (layout.title != null && typeof layout.title !== 'string') bad('title must be a string');
+  // What a search result and a shared link say about this page. Optional;
+  // Base.astro falls back to the site's own line when a board has none.
+  if (layout.description != null && typeof layout.description !== 'string') bad('description must be a string');
+  if (layout.image != null && typeof layout.image !== 'string') bad('image must be a string — an asset: key, a media: file, or a URL');
   for (const key of ['columns', 'narrowColumns']) {
     const v = layout[key];
     // `stack` insets one column each side and `pin` divides by three, so a grid
