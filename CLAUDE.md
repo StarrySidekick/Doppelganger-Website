@@ -1,5 +1,11 @@
 # doppelganger
 
+> **Read [`INTENT.md`](INTENT.md) first.** It records what this project is for
+> and what Timothy wants next, in his own words, dated. Where it disagrees with
+> this file about *direction* it is newer and wins; where it disagrees about
+> *mechanics* — how the code works, what was decided deliberately, the
+> invariants — this file wins.
+
 Self-hosted rebuild of **timothyvlangas.com** (brand: StarrySidekick.com), replacing
 a Squarespace 7.1 site. Runs in parallel with Squarespace until it reaches parity.
 
