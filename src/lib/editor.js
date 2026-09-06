@@ -1668,6 +1668,7 @@ export function mountEditor({
       ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
       ${isInline(item) ? '<button class="ag-menu-btn" data-act="write">Edit the words<small>Or double-click them in the page</small></button>' : ''}
       ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate<small>⌘D</small></button>' : ''}
+      ${typed ? '<button class="ag-menu-btn" data-act="copy">Copy<small>⌘C · paste on any board, or any page</small></button>' : ''}
       ${selection().length > 1 && selection().includes(id) ? '<button class="ag-menu-btn" data-act="group">Group these<small>⌘G · one holder, laid out by a rule</small></button>' : ''}
       ${has(item, 'holds') && itemsOf(item).length ? '<button class="ag-menu-btn" data-act="ungroup">Ungroup<small>⌘⇧G · back onto the board</small></button>' : ''}
       <button class="ag-menu-btn" data-act="lock">${item.locked ? 'Unlock' : 'Lock in place'}</button>
@@ -1683,6 +1684,7 @@ export function mountEditor({
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
       if (act === 'pick') { pickFileFor(id); return; }
       if (act === 'duplicate') { duplicate(id); }
+      else if (act === 'copy') { chrome.select(name, [id]); copySelection(); }
       if (act === 'group') { group(selection()); }
       if (act === 'ungroup') { ungroup(id); }
       if (act === 'delete') { select(null); remove(id); }
@@ -2032,6 +2034,73 @@ export function mountEditor({
     toast(`${copy.id} — a copy of ${id}`, undoOf(step));
   }
 
+  /* ---- copy and paste ----------------------------------------------------
+     Duplicate copies a tile beside itself, which is the wrong tool for the
+     thing a person building a site actually reaches for: taking something they
+     made on one board and putting it on another. A page carries three boards
+     (header, page, footer) and the site carries many pages, and until now the
+     only way across any of those boundaries was to build the thing again.
+
+     The clipboard is localStorage rather than a variable, and that is the whole
+     point. Each page is a separate document, so an in-memory clipboard dies on
+     the navigation between copying and pasting — which is exactly the journey
+     worth supporting. Same origin, survives the reload, no permission prompt.
+
+     Ids are global across the document, not per grid (hard rule 0), so every
+     pasted element is re-idded against the board it lands on. Pasting into the
+     board it was copied from is therefore a duplicate, which is the right
+     answer rather than a special case. */
+  const CLIP_KEY = 'ag:clipboard:v1';
+
+  function copySelection() {
+    const ids = selection();
+    const items = ids.map(find).filter((e) => e && isTyped(e)).map((e) => structuredClone(e));
+    if (!items.length) return toast('Nothing to copy — a slot is drawn by the page itself');
+    try {
+      localStorage.setItem(CLIP_KEY, JSON.stringify({ from: name, items }));
+    } catch { /* private mode, full disk: the paste simply will not find it */ }
+    toast(items.length === 1 ? `Copied ${items[0].id}` : `Copied ${items.length}`);
+  }
+
+  function pasteClipboard() {
+    let payload = null;
+    try { payload = JSON.parse(localStorage.getItem(CLIP_KEY) || 'null'); } catch { /* ignore */ }
+    if (!payload || !Array.isArray(payload.items) || !payload.items.length) {
+      return toast('Nothing copied yet');
+    }
+    const added = [];
+    for (const src of payload.items) {
+      const copy = structuredClone(src);
+      copy.id = uniqueId(src.kind ?? 'copy');
+      /* Size travels, position does not — the same bargain reparenting makes on
+         a grid. A box's width and height mean the same on any board; its column
+         and row mean a place on the board it came from. */
+      const size = (b) => (b && b.col && b.row ? [b.col[1], b.row[1]] : [4, 2]);
+      const dSize = size(src.desk), nSize = size(src.narrow || src.desk);
+      delete copy.desk; delete copy.narrow;
+      copy.desk = freeSpot(layout, dSize, 'desk', copy.id);
+      if (device === 'narrow') copy.narrow = freeSpot(layout, nSize, 'narrow', copy.id);
+      layout.elements.push(copy);
+      added.push(copy);
+    }
+    const problems = validateLayout(layout, name);
+    if (problems.length) {
+      for (let i = 0; i < added.length; i++) layout.elements.pop();
+      return toast(problems[0].replace(/^[^:]+: /, ''));
+    }
+    const step = pushUndo({ kind: 'adds', ids: added.map((e) => e.id) });
+    /* No mountTile here. commit() repaints, and the repaint mounts anything the
+       layout has and the board has not — so mounting first put two identical
+       tiles on the board for one pasted element. duplicate() gets away with the
+       same call because it adds exactly one and selects it immediately; this
+       adds a set, and the second node was real, clickable and undeletable. */
+    commit();
+    chrome.select(name, added.map((e) => e.id));
+    const where = payload.from && payload.from !== name ? ` from ${payload.from}` : '';
+    toast(added.length === 1 ? `Pasted ${added[0].id}${where}` : `Pasted ${added.length}${where}`,
+          undoOf(step));
+  }
+
   /* ---- keyboard ---- */
 
   const ARROWS = {
@@ -2069,6 +2138,25 @@ export function mountEditor({
       return select(inOrder().filter((r) => !find(r.id)?.locked).map((r) => r.id));
     }
 
+    /* Paste sits ABOVE the selection gate, and has to. Getting to another board
+       means clicking it, clicking it clears the selection, and everything below
+       this point returns early when nothing is selected — so pasting onto the
+       board you just moved to is exactly the case that would never fire. The
+       first version of this had the branch below the gate with a comment saying
+       it was not gated, which is how it shipped doing nothing at all. */
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
+      e.preventDefault();
+      /* One press, one paste. A page mounts an editor per board and `/editor`
+         mounts ten, and more than one of them can answer to the active name —
+         which pasted the same element twice there while behaving correctly on a
+         real page. Stamping the event is the same guard the drag layer uses for
+         a second delivery: cheap, and right however many instances are
+         listening. */
+      if (e.__agPasted) return;
+      e.__agPasted = true;
+      return pasteClipboard();
+    }
+
     const sel = selected();
     if (!sel) {
       if (ARROWS[e.key]) { e.preventDefault(); walkSelection('next'); }
@@ -2081,6 +2169,11 @@ export function mountEditor({
     if (step) { e.preventDefault(); return nudge(step[0], step[1], e.shiftKey); }
     if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
       e.preventDefault(); return duplicate(sel);
+    }
+    /* Copy needs something selected, so it lives below the gate. Paste does not
+       — see above. */
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault(); return copySelection();
     }
     if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
       e.preventDefault();
