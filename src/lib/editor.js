@@ -382,20 +382,56 @@ export function mountEditor({
     node.style.setProperty('--tilt', tiltFor(item.id).toFixed(2) + 'deg');
     node.classList.toggle('ag-empty', has(item, 'media') && !item.media?.src && !item.body && !item.title);
   }
+  /** Redraw one tile from its object. Forget what it was drawn from; paint() does the rest. */
   function repaintContent(id) {
-    const item = find(id);
-    const node = el(id);
-    if (!item || !node || !isTyped(item)) return;
-    node.innerHTML = renderElement(item, previewCtx);
-    dressTile(node, item);
-    addGrips(node);
+    drawnFrom.delete(id);
+    paint();
   }
 
   /* ---- applying a layout to the live DOM ---- */
 
+  /**
+   * What each typed tile was last drawn FROM, so paint() can tell whether it
+   * needs drawing again. Bureau re-renders everything on every change
+   * (decision 8) and never has to ask; this editor cannot, so it keeps the
+   * question cheap instead: a tile is redrawn when its content differs from
+   * what it was drawn from, and left alone otherwise — which is also what
+   * keeps a field being typed into from being replaced under the caret.
+   */
+  const drawnFrom = new Map();
+
+  /**
+   * Make the board agree with the layout. The whole of it.
+   *
+   * This is as close as an editor on Astro's markup can come to Bureau's
+   * "full re-render on every change": every fact the editor is responsible
+   * for is asserted here from the model, on every commit, rather than poked
+   * on at the moment something happened and trusted to still be right —
+   *   - which tiles exist (a typed object with no node is mounted; a node
+   *     whose object is gone is removed, so an undone add cannot leave a tile
+   *     behind and a delete does not have to remember to take one away)
+   *   - where each sits and how big it is
+   *   - what each typed tile is drawn from (redrawn when its content changed,
+   *     which is what used to be a separate `repaintContent()` every caller
+   *     had to remember)
+   *   - its face, its tilt, its decor standing, its grips
+   *   - the selection
+   *   - the checkerboard
+   * Gesture state (lifted, dragging, invalid, the ghosts) is the exception and
+   * belongs to `clearGestureState()`, because it is transient by nature and a
+   * commit mid-gesture must not take it away.
+   */
   function paint() {
     // Undo can take the selected object away underneath the selection.
     if (selected() && !find(selected())) select(null);
+
+    // Tiles whose object no longer exists. Only ones the editor drew: a slot's
+    // node is the page's markup and is never removed by the editor.
+    const live = new Set(layout.elements.map((e) => e.id));
+    for (const node of grid.querySelectorAll('.ob[id]')) {
+      if (!live.has(node.id) && drawnFrom.has(node.id)) { node.remove(); drawnFrom.delete(node.id); }
+    }
+
     for (const r of placed()) {
       /* An object made in the editor and kept in localStorage has no tile in
          the built page, so on a reload it would be in the layout, in the undo
@@ -412,7 +448,16 @@ export function mountEditor({
       node.classList.toggle('ag-derived', device === 'narrow' && r._derived);
       node.classList.add('ag-editable');
       node.classList.toggle('ag-text', isInline(r));
-      if (isTyped(r)) dressTile(node, r);
+      if (isTyped(r)) {
+        const item = find(r.id);
+        const from = JSON.stringify(contentOf(item));
+        // Never under a caret: the tile being written in is redrawn by endEdit.
+        if (drawnFrom.get(r.id) !== from && editing?.id !== r.id) {
+          node.innerHTML = renderElement(item, previewCtx) ?? '';
+          drawnFrom.set(r.id, from);
+        }
+        dressTile(node, item);
+      }
       addGrips(node);
     }
     root.dataset.agDevice = device;
@@ -541,8 +586,8 @@ export function mountEditor({
 
     if (move.kind === 'add') {
       const i = layout.elements.findIndex((e) => e.id === move.id);
-      if (i >= 0) { layout.elements.splice(i, 1); el(move.id)?.remove(); }
-      commit();
+      if (i >= 0) layout.elements.splice(i, 1);
+      commit();                                  // paint() takes the tile away
       return toast(`Removed ${move.id}`);
     }
     if (move.kind === 'remove') {
@@ -625,6 +670,7 @@ export function mountEditor({
       grid.appendChild(node);
     }
     node.innerHTML = renderElement(item, previewCtx) ?? '';
+    drawnFrom.set(item.id, JSON.stringify(contentOf(item)));
     dressTile(node, item);
     return node;
   }
@@ -682,8 +728,7 @@ export function mountEditor({
     if (index < 0) return;
     const [element] = layout.elements.splice(index, 1);
     const step = pushUndo({ kind: 'remove', index, element });
-    el(id)?.remove();
-    commit();
+    commit();                                    // paint() takes the tile away
     toast(`Deleted ${id}`, undoOf(step));
   }
 
@@ -695,7 +740,6 @@ export function mountEditor({
       if (index < 0 || !isTyped(layout.elements[index])) continue;
       const [element] = layout.elements.splice(index, 1);
       items.push({ index, element });
-      el(id)?.remove();
     }
     if (!items.length) return toast('Those are drawn by the page itself, so there is nothing to delete');
     const step = pushUndo({ kind: 'removes', items });
@@ -1883,7 +1927,11 @@ export function mountEditor({
     /* A feed shows the catalogue, so editing the catalogue changes what is on
        the board without anything on the board having been touched. */
     repaintFeeds: () => {
-      for (const e of layout.elements) if (has(e, 'feed')) repaintContent(e.id);
+      // A feed's words come from the catalogue, not from the object, so its
+      // content hash does not change when the catalogue does. Forget them all
+      // and let paint() draw them again.
+      for (const e of layout.elements) if (has(e, 'feed')) drawnFrom.delete(e.id);
+      paint();
     },
     onLock: () => { if (editing) endEdit(true); paint(); },
     resync: () => { syncDevice(); paint(); },
@@ -1894,6 +1942,15 @@ export function mountEditor({
       try { localStorage.removeItem(`doppelganger.layout.${name}`); } catch { /* ignore */ }
     },
   });
+
+  /* What the build drew, so the first paint() does not redraw every typed
+     tile: the page's own markup carries a sized srcset the preview resolver
+     does not, and throwing it away on mount would fetch every original. A
+     tile whose draft content differs from what was built IS redrawn, which is
+     what a restored draft needs. */
+  for (const e of normalizeLayout(published ?? initial).elements ?? []) {
+    if (isTyped(e) && el(e.id)) drawnFrom.set(e.id, JSON.stringify(contentOf(e)));
+  }
 
   grid.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);

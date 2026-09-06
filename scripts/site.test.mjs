@@ -330,7 +330,7 @@ test('there is one selection for the page, not one per board', () => {
   assert.match(js, /function paintSelection\(\)/);
   // …and paint() re-asserts it, which is what an undo that re-mounts a tile needs.
   const at = js.indexOf('  function paint() {');
-  assert.match(js.slice(at, at + 1500), /paintSelection\(\);/);
+  assert.match(js.slice(at, at + 4000), /paintSelection\(\);/);
 });
 
 test('every internal link in a page goes through url()', () => {
