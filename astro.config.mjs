@@ -1,4 +1,10 @@
 import { defineConfig } from 'astro/config';
+import { buildInfo } from './scripts/version.mjs';
+
+/* Which build this is, derived from the commit count rather than written down
+   — see scripts/version.mjs. Read once, here, and handed to the pages through
+   `__BUILD__` so every place that shows it is showing the same one. */
+const BUILD = buildInfo();
 
 // The deploy subpath, in one place. Both `site` and `base` come out when this
 // moves to the real domain — that is the only change needed.
@@ -18,7 +24,12 @@ export default defineConfig({
   // which Safari needed unprefixed only from 17. On an older iPhone that left
   // the whole "holding a tile must not select text" ruleset doing nothing.
   // Naming Safari 14 keeps the prefixes; nothing else about the output changes.
-  vite: { build: { cssTarget: ['chrome87', 'edge88', 'firefox78', 'safari14'] } },
+  vite: {
+    build: { cssTarget: ['chrome87', 'edge88', 'firefox78', 'safari14'] },
+    // Replaced at build time, so the number in the page cannot disagree with
+    // the commit it was built from.
+    define: { __BUILD__: JSON.stringify(BUILD) },
+  },
 
   redirects: {
     // Squarespace's contact page is /contact-1 — the "-1" is an artifact of the

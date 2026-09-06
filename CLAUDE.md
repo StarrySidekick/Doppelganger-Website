@@ -53,6 +53,30 @@ npm run widgets  # build Squarespace code blocks → widgets/dist/
 Deploy is automatic: push to `main` → GitHub Actions builds → GitHub Pages.
 Live at https://starrysidekick.github.io/Doppelganger-Website/
 
+**Which build is this?** The version IS the commit count, as `0.NN` — Bureau's
+scheme (its `persist.js`), for its reason: a number chosen by hand says nothing
+you can check. The 54th commit is `0.54`; the 100th will be `1.00`, the first
+honest claim to a 1.0 this will have made. It is derived at build time by
+`scripts/version.mjs`, so there is no number to forget to bump, and a working
+tree with uncommitted changes reads `0.54+` so a dev server is never mistaken
+for something deployable. It reaches you three ways:
+
+```bash
+curl https://starrysidekick.github.io/Doppelganger-Website/version.json
+```
+
+…that, a `<meta name="build">` in the head of every page, and the editor's bar.
+**Pressing the version in the bar asks the site what is live**, which is the
+question a publish leaves you with; the button goes amber with an arrow when
+the site has rebuilt past the page you are looking at. Publish starts watching
+on its own and says "Live now" when the deploy lands, because a commit is not a
+deploy and the wait used to be blind.
+
+**`fetch-depth: 0` in `deploy.yml` is load-bearing.** `actions/checkout`
+defaults to a shallow clone, where `git rev-list --count HEAD` answers 1 — so
+every deploy would publish `0.01` while every local build showed the truth,
+which is the exact failure the version exists to catch. A test asserts it.
+
 ## Hard rules
 
 **0. Element ids in a grid are global, exactly like keyframe names.** `compileCSS()`
@@ -126,6 +150,8 @@ src/pages/                 one file per route
 src/pages/editor.astro     standalone layout editor (replaces the prototype)
 widgets/<name>/            Squarespace code-block sources — see widgets/README.md
 scripts/build-widgets.mjs  builds each widget into one paste-ready blob
+scripts/version.mjs        the build stamp — the version is the commit count
+src/pages/version.json.js  that stamp, as a file you can curl
 ```
 
 ### The Adaptive Grid

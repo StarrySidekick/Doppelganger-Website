@@ -19,7 +19,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Full history, not the default shallow clone: the site's version IS its
+      # commit count (scripts/version.mjs), and at depth 1 `git rev-list
+      # --count` answers 1 — so every deploy would publish the same wrong
+      # number while a local build showed the right one.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22

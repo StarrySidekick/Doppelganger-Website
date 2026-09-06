@@ -70,6 +70,11 @@ const assets = asset;
 
 // The deploy subpath, so the editor can preview an already-committed image.
 const base = import.meta.env.BASE_URL;
+
+// Which build this page was made by, so the bar can say so — and can tell you
+// when the live site has rebuilt past it. Travels as data like everything else
+// site-specific: editor.js may not reach for it (hard rule 4).
+const build = __BUILD__;
 ---
 
 {/* The layout travels as data, not as define:vars — a define:vars script is
@@ -78,7 +83,7 @@ const base = import.meta.env.BASE_URL;
 <script
   type="application/json"
   class="ag-editor-data"
-  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData, works: worksData, pages, chrome })}
+  set:html={JSON.stringify({ name, layout, scope, assets, base, look: lookData, works: worksData, pages, chrome, build })}
 />
 
 <script>
@@ -88,7 +93,7 @@ const base = import.meta.env.BASE_URL;
   // splits it into its own chunk and a visitor never downloads it.
   function mountAll() {
     for (const node of document.querySelectorAll('script.ag-editor-data')) {
-      const { name, layout, scope, assets, base, look, works, pages, chrome } = JSON.parse(node.textContent);
+      const { name, layout, scope, assets, base, look, works, pages, chrome, build } = JSON.parse(node.textContent);
       const root = document.querySelector('.' + scope);
       if (!root) { console.error('[editor] no grid root for scope', scope); continue; }
 
@@ -115,7 +120,7 @@ const base = import.meta.env.BASE_URL;
             // `published` is what the build rendered; `layout` may be a draft
             // from this browser. The difference is what Publish has to send.
             root, name, scope, chrome, layout: start, published: layout, assets, base, look, pages,
-            works: catalogue,
+            works: catalogue, build,
             onChange(next) {
               try {
                 localStorage.setItem(KEY, JSON.stringify(next));
@@ -465,6 +470,19 @@ const base = import.meta.env.BASE_URL;
   }
   /* A tile being dragged over is about to have its picture replaced. */
   .ag-unlocked .ag-editable.ag-drop::after { outline: 2px solid rgba(140,255,180,.9); }
+  /* Which build this page is. Reads as a stamp rather than a button until the
+     site has moved past it, and then it asks to be pressed. */
+  .ag-version {
+    font: inherit; color: inherit; cursor: pointer;
+    background: transparent; border: 1px solid rgba(255,255,255,.2) !important;
+    border-radius: 4px; padding: 6px 8px !important; min-height: 0 !important;
+    opacity: .55; letter-spacing: .04em;
+  }
+  .ag-version:hover { opacity: 1; }
+  .ag-version.ag-behind {
+    opacity: 1; color: #0b0b0b;
+    background: #FFD27A; border-color: #FFD27A !important;
+  }
   .ag-hint { opacity: .5; }
   /* The hint is the first thing worth losing when the bar runs out of room.
      A two-line bar covers the bottom of the board you are arranging, and the

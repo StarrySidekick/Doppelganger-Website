@@ -35,6 +35,11 @@ const ogImage = image
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {/* Which build this page came from — the commit count, the commit, and when.
+      Answers "has the live site caught up with what I pushed?" from any page,
+      with no editor and no console: View Source, or curl the page and grep.
+      Same number as /version.json and the editor's bar. */}
+  <meta name="build" content={`${__BUILD__.version} · ${__BUILD__.sha} · ${__BUILD__.at}`} />
   <title>{full}</title>
   <meta name="description" content={description} />
   {noindex

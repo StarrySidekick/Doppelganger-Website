@@ -236,7 +236,8 @@ export const newLayout = (title) => ({
 
 export function mountEditor({
   root, layout: initial, published, name, scope, chrome: isChrome = false,
-  assets = {}, base = '/', look, pages = [], works = { types: [], works: [] }, onChange,
+  assets = {}, base = '/', look, pages = [], works = { types: [], works: [] },
+  build = null, onChange,
 }) {
   const grid = root.querySelector('.ag-grid');
   if (!grid) throw new Error('mountEditor: no .ag-grid inside root');
@@ -266,7 +267,7 @@ export function mountEditor({
     return { col: [r._col, r._span], row: [r._row, r._rowSpan] };
   };
 
-  const chrome = sharedChrome(look, pages, works);
+  const chrome = sharedChrome(look, pages, works, { build, base });
   const toast = chrome.toast;
   const locked = () => chrome.locked();
 
@@ -2317,9 +2318,9 @@ export function mountEditor({
  * changed, every picked image and any new page as ONE commit.
  */
 let CHROME = null;
-export const sharedChrome = (look, pages, works) => (CHROME ??= buildChrome(look, pages, works));
+export const sharedChrome = (look, pages, works, site) => (CHROME ??= buildChrome(look, pages, works, site));
 
-function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works: [] }) {
+function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works: [] }, site = {}) {
   const bar = document.createElement('div');
   bar.className = 'ag-bar';
   document.body.appendChild(bar);
@@ -2660,6 +2661,77 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       .filter(Boolean);
   }
 
+  /* ---- which build this is, and whether the live one has caught up ----
+
+     The version IS the commit count, as 0.NN — scripts/version.mjs, Bureau's
+     scheme. The bar shows the build this page came from; pressing it asks the
+     site what is live now. Those two differ exactly when something has been
+     published and rebuilt since the page was loaded, which is the one question
+     a publish leaves you with: *did it land?*
+
+     Publish itself then watches for it. A commit takes about a minute to
+     become a deploy, and before this the only way to find out was to keep
+     reloading — so the bar polls /version.json until the number moves past the
+     one this page was built from, and says so when it does. */
+  const BUILD = site.build ?? null;
+  const versionUrl = `${site.base ?? '/'}/version.json`.replace(/\/{2,}/g, '/');
+  let live = null;                 // the build the site is serving, once asked
+
+  async function askLive() {
+    const res = await fetch(`${versionUrl}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`the site said ${res.status}`);
+    return res.json();
+  }
+
+  /** Press the version: what is live, and is it this? */
+  async function checkLive() {
+    if (!BUILD) return toast('This page carries no build stamp');
+    toast('Asking the site…');
+    try {
+      live = await askLive();
+      render();
+      if (live.build === BUILD.build) return toast(`Live is ${live.version} — this page is up to date`);
+      if (live.build > BUILD.build) return toast(`Live is ${live.version}; this page is ${BUILD.version} — reload to see it`);
+      toast(`Live is still ${live.version}; this page is ${BUILD.version}`);
+    } catch (err) {
+      toast(`Could not reach ${versionUrl} — ${err.message}`);
+    }
+  }
+
+  /**
+   * Watch for the build to land after publishing.
+   *
+   * A commit is not a deploy: the Action takes about a minute, and "the site
+   * rebuilds in about a minute" was the whole of what the editor could tell
+   * you. Poll until the number moves past the one this page was built from,
+   * then say so. Bounded, because a failed Action must not leave this running
+   * for the life of the tab — and because a silence that goes on forever is
+   * indistinguishable from one that is about to end.
+   */
+  let watching = null;
+  function watchForDeploy() {
+    if (!BUILD) return;
+    clearInterval(watching);
+    const from = BUILD.build;
+    const until = Date.now() + 5 * 60 * 1000;
+    watching = setInterval(async () => {
+      try {
+        const now = await askLive();
+        live = now;
+        render();
+        if (now.build > from) {
+          clearInterval(watching); watching = null;
+          toast(`Live now — ${now.version} is up`);
+        } else if (Date.now() > until) {
+          clearInterval(watching); watching = null;
+          toast(`Still ${now.version} after five minutes — check the Actions tab`);
+        }
+      } catch {
+        if (Date.now() > until) { clearInterval(watching); watching = null; }
+      }
+    }, 15000);
+  }
+
   /* ---- files waiting to be committed that are not images: new pages ---- */
   const files = new Map();   // path -> text
   const addFile = (path, text) => { files.set(path, text); render(); };
@@ -2748,6 +2820,9 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       <button data-bar="board" title="This board's grid">Board</button>
       <button data-bar="works" title="Everything you have made">Works</button>
       <button data-bar="look" title="The site's look">Look</button>
+      ${BUILD ? `<button class="ag-version${live && live.build > BUILD.build ? ' ag-behind' : ''}" data-bar="version"
+        title="Build ${escapeAttr(BUILD.version)} · ${escapeAttr(BUILD.sha)}${live ? ` · live is ${escapeAttr(live.version)}` : ''} — press to ask the site what is live"
+        >v${escapeAttr(BUILD.version)}${live && live.build > BUILD.build ? ' ↑' : ''}</button>` : ''}
       <button data-bar="undo" title="⌘Z">Undo</button>
       <button data-bar="redo" title="⌘⇧Z">Redo</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
@@ -3055,7 +3130,8 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   }
 
   function published(url) {
-    toast('Published — the site rebuilds in about a minute');
+    toast('Published — watching for it to go live');
+    watchForDeploy();
     render();
     if (!url) return;
     const link = document.createElement('a');
@@ -3074,6 +3150,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     if (act === 'board') return openBoard();
     if (act === 'works') return openWorks();
     if (act === 'publish') return openPublish();
+    if (act === 'version') return checkLive();
     // The way out. Anything not yet published is still in this browser and is
     // still here the next time you come in — the beforeunload guard below is
     // for a picked image, which is the one thing that only lives in this tab.

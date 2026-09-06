@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { validateLayout, normalizeLayout } from '../src/lib/adaptive-grid.js';
 import { validateWorks, typesOf, worksOf, queryWorks } from '../src/lib/works.js';
 import { joinBase } from '../src/lib/assets.js';
+import { versionFrom, buildInfo } from './version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -342,4 +343,49 @@ test('every internal link in a page goes through url()', () => {
     const bare = [...src.matchAll(/href="(\/[^/"][^"]*)"/g)].map((m) => m[1]);
     assert.deepEqual(bare, [], `${f} has a link that skips url(): ${bare.join(', ')}`);
   }
+});
+
+/* ---------------- which build is this ---------------- */
+
+test('the version is the commit count, as 0.NN', () => {
+  /* Bureau's scheme (its persist.js), and for its reason: a number chosen by
+     hand says nothing you can check. The hundredth commit is the first honest
+     claim to a 1.0 this will have made. */
+  assert.equal(versionFrom(0), '0.00');
+  assert.equal(versionFrom(7), '0.07');
+  assert.equal(versionFrom(54), '0.54');
+  assert.equal(versionFrom(99), '0.99');
+  assert.equal(versionFrom(100), '1.00');
+  assert.equal(versionFrom(154), '1.54');
+  // Always two decimals, so the number sorts and reads the same at every width.
+  for (const n of [1, 9, 10, 90, 100, 250]) assert.match(versionFrom(n), /^\d+\.\d\d$/);
+});
+
+test('the build stamp says what it is', () => {
+  const b = buildInfo();
+  assert.ok(Number.isInteger(b.build) && b.build > 0, 'a commit count');
+  assert.match(b.sha, /^[0-9a-f]{7,}$/, 'the commit it was built from');
+  assert.match(b.at, /^\d{4}-\d\d-\d\dT/, 'when');
+  // A working tree with changes in it is marked, so a number read off a dev
+  // server is never mistaken for one that could be deployed.
+  assert.equal(b.version, versionFrom(b.build) + (b.dirty ? '+' : ''));
+});
+
+test('CI checks out the full history, or every deploy publishes the same wrong number', () => {
+  /* actions/checkout defaults to a SHALLOW clone, where `git rev-list --count
+     HEAD` answers 1. The version would then be 0.01 on the live site and right
+     on every local build — which is the exact failure the version exists to
+     catch, so it must not be the version's own bug. */
+  const wf = read('.github/workflows/deploy.yml');
+  assert.match(wf, /uses: actions\/checkout@v4\s*\n\s*with:\s*\n\s*fetch-depth: 0/,
+    'the deploy workflow must check out full history');
+});
+
+test('the build stamp reaches a visitor three ways', () => {
+  // The head of every page, a file you can curl, and the editor's bar. All
+  // three read the one stamp, so they cannot disagree.
+  assert.match(read('src/layouts/Base.astro'), /<meta name="build"/);
+  assert.match(read('src/pages/version.json.js'), /__BUILD__/);
+  assert.match(read('astro.config.mjs'), /define: \{ __BUILD__/);
+  assert.match(read('src/lib/editor.js'), /data-bar="version"/);
 });
