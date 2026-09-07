@@ -236,6 +236,10 @@ export const newLayout = (title) => ({
 
 export function mountEditor({
   root, layout: initial, published, name, scope, chrome: isChrome = false,
+  // The element this board's `place`/`follow` apply to — the header or footer
+  // the grid sits inside. Handed in rather than found here, so the editor never
+  // learns a site class name (hard rule 4). A page board has none.
+  frame = null,
   assets = {}, base = '/', look, pages = [], works = { types: [], works: [] },
   build = null, onChange,
 }) {
@@ -424,6 +428,17 @@ export function mountEditor({
    * commit mid-gesture must not take it away.
    */
   function paint() {
+    /* Where the board sits is part of the board, so it is asserted here with
+       everything else rather than only where it is changed. Doing it in
+       setBoard alone covered the Board panel and nothing else — a draft
+       restored from this browser rendered with the placement the BUILD
+       emitted, because mount paints and never passes through setBoard. Same
+       reason paintSelection() is called from here (decision 8): the one place
+       that asserts the board from the model is the one place it cannot be
+       forgotten. (Board changes are not on the undo stack — that is moves and
+       text edits — so this is not about undo.) */
+    paintPlacement();
+
     // Undo can take the selected object away underneath the selection.
     if (selected() && !find(selected())) select(null);
 
@@ -468,6 +483,26 @@ export function mountEditor({
     paintSelection();
     paintChecker();
     if (chrome.activeName() === name) chrome.render();
+  }
+
+  /**
+   * Where this board sits, asserted onto the page.
+   *
+   * The editor cannot re-render — the page is Astro's markup, and the frame's
+   * `data-place`/`data-follow` were written at BUILD time. So changing either
+   * in the Board panel used to change the data and nothing else: the toggle
+   * looked completely dead until you published and the site rebuilt a minute
+   * later. This is the same bargain as `paint()` — the editor asserts its own
+   * state rather than emitting it.
+   *
+   * `frame` is handed in by LayoutEditor.astro, found with `[data-place]`, so
+   * nothing here learns what a site-header is (hard rule 4). A board with no
+   * frame is a page board, which has nowhere to sit but where it is.
+   */
+  function paintPlacement() {
+    if (!frame) return;
+    frame.setAttribute('data-place', layout.place ?? 'flow');
+    frame.setAttribute('data-follow', layout.follow === true ? 'yes' : 'no');
   }
 
   function addGrips(node) {
@@ -2227,7 +2262,8 @@ export function mountEditor({
     undo: undoLast,
     redo: redoLast,
     board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
-      gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true,
+      gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows,
+      place: layout.place ?? 'flow', follow: layout.follow === true,
       title: layout.title ?? '', description: layout.description ?? '', image: layout.image ?? '' }),
     setBoard: (patch) => {
       const before = structuredClone(layout);
@@ -3006,10 +3042,23 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       <label class="ag-menu-field">Height in cells (${where}) — blank means as tall as it needs
         <input data-board="${heightKey}" type="number" min="1" max="40" value="${b[heightKey] ?? ''}" />
       </label>
+      ${a.isChrome ? `
+      <label class="ag-menu-field">Where it sits
+        <select data-board="place">
+          <option value="flow"${b.place === 'flow' ? ' selected' : ''}>In the flow — the page starts after it</option>
+          <option value="over"${b.place === 'over' ? ' selected' : ''}>Over the page — the board runs underneath it</option>
+        </select>
+      </label>` : ''}
       <label class="ag-menu-check">
-        <input data-board="sticky" type="checkbox"${b.sticky ? ' checked' : ''} />
-        Floating — follows you as you scroll
+        <input data-board="follow" type="checkbox"${b.follow ? ' checked' : ''} />
+        Follows you as you scroll
       </label>
+      ${a.isChrome ? `<div class="ag-menu-note">
+        <b>Over the page</b> takes this board out of the flow, so the page's own
+        board starts at the very top and runs underneath it. While you are
+        unlocked it is laid back into the flow so every board stays reachable —
+        press the padlock to see where it really sits.
+      </div>` : ''}
       ${a.isChrome ? '' : `
       <div class="ag-menu-sub">This page, to a search engine and a shared link</div>
       <label class="ag-menu-field">Title
@@ -3045,7 +3094,8 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       a.setBoard({
         columns: num('columns'), narrowColumns: num('narrowColumns'), gap: num('gap'),
         [heightKey]: num(heightKey),
-        sticky: menuEl.querySelector('[data-board="sticky"]').checked,
+        follow: menuEl.querySelector('[data-board="follow"]').checked,
+        ...(a.isChrome ? { place: menuEl.querySelector('[data-board="place"]').value } : {}),
         ...(a.isChrome ? {} : { title: text('title'), description: text('description'), image: text('image') }),
       });
     });

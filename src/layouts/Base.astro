@@ -158,6 +158,11 @@ const ogImage = image
      boards were emptied, as a footer floating halfway up with dead space under
      it. `flex: 1 0 auto` on the page rather than `flex: 1` so a board taller
      than the viewport is never squashed to fit. */
-  body.has-chrome { display: flex; flex-direction: column; }
+  /* `position: relative` is for chrome placed OVER the page: an absolutely
+     positioned header resolves against the nearest positioned ancestor, and
+     without this that is the viewport — so a header meant to sit on the top of
+     a long page would sit on the top of the WINDOW and scroll away wrongly,
+     which is the `follow` case pretending to be the other one. */
+  body.has-chrome { display: flex; flex-direction: column; position: relative; }
   body.has-chrome .site-main { flex: 1 0 auto; }
 </style>

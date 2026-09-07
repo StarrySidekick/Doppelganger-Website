@@ -314,9 +314,15 @@ test('a board can be given a fixed height in cells, and can float', () => {
   const fixed = compileCSS(normalizeLayout({ ...v1, rows: 3 }), 'ag-test');
   assert.match(fixed, /grid-template-rows:repeat\(3,var\(--ag-cell\)\)/);
   assert.match(fixed, /min-height:calc\(var\(--ag-cell\) \* 3/);
-  assert.deepEqual(validateLayout({ ...v1, rows: 3, sticky: true }), []);
+  assert.deepEqual(validateLayout({ ...v1, rows: 3, follow: true, place: 'over' }), []);
+  // `sticky` was the old name for `follow` and still reads, so a file written
+  // before the rename is the same layout.
+  assert.equal(normalizeLayout({ ...v1, sticky: true }).follow, true);
+  assert.equal(normalizeLayout({ ...v1, sticky: true }).sticky, undefined);
+  assert.equal(normalizeLayout(v1).place, 'flow');
   assert.match(validateLayout({ ...v1, rows: 0 }).join(), /whole number of cells/);
-  assert.match(validateLayout({ ...v1, sticky: 'yes' }).join(), /sticky must be true or false/);
+  assert.match(validateLayout({ ...v1, follow: 'yes' }).join(), /follow must be true or false/);
+  assert.match(validateLayout({ ...v1, place: 'floaty' }).join(), /place must be one of/);
 });
 
 test('packLayout repacks top to bottom in reading order, growing downward', () => {

@@ -6,7 +6,8 @@
   "reflowBelow": 700,
   "rows": 2,
   "narrowRows": 2,
-  "sticky": false,
+  "place": "flow",
+  "follow": false,
   "title": "Header",
   "elements": [
     {

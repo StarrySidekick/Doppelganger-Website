@@ -84,12 +84,29 @@ export function normalizeElement(input) {
   return out;
 }
 
+/** Where a board sits relative to the page it is chrome for. */
+export const PLACES = ['flow', 'over'];
+
 /** Normalise a whole layout, tolerating v1 input. */
 export function normalizeLayout(layout) {
   if (!layout || typeof layout !== 'object') return layout;
+  /* `sticky` was the old name for `follow`, and it had to go: it meant
+     position:sticky, and a board laid OVER the page that follows you is
+     position:fixed. A field whose name states one CSS value cannot answer a
+     question with two. Read on the way in, like `type`+`content` on an
+     element, so a file in either shape is the same layout. */
+  const { sticky, ...rest } = layout;
   return {
-    ...layout,
+    ...rest,
     version: 5,
+    /* Where a board sits relative to the page. `flow` holds its own space and
+       the page starts after it; `over` is taken out of the flow and drawn on
+       top, so the page's board runs underneath it. Only chrome offers it — a
+       page board IS the page and has nothing to lie over. */
+    place: layout.place ?? 'flow',
+    // Does it follow you down the page? Independent of `place`: in the flow
+    // that is position:sticky, over the page it is position:fixed.
+    follow: layout.follow ?? sticky ?? false,
     // Narrow may use a coarser grid than the wide one — dragging a tile with a
     // thumb across 24 columns is miserable. Defaults to the same count so an
     // existing layout is unchanged.
@@ -372,7 +389,8 @@ export function validateLayout(input, name = 'layout') {
     const v = layout[key];
     if (v != null && (!Number.isInteger(v) || v < 1)) bad(`${key} must be a whole number of cells, got ${JSON.stringify(v)}`);
   }
-  if (layout.sticky != null && typeof layout.sticky !== 'boolean') bad('sticky must be true or false');
+  if (typeof layout.follow !== 'boolean') bad('follow must be true or false');
+  if (!PLACES.includes(layout.place)) bad(`place must be one of ${PLACES.join(', ')}, got ${JSON.stringify(layout.place)}`);
   if (layout.title != null && typeof layout.title !== 'string') bad('title must be a string');
   // What a search result and a shared link say about this page. Optional;
   // Base.astro falls back to the site's own line when a board has none.

@@ -18,13 +18,22 @@ import { getLayout } from '../lib/layouts.js';
 const { part } = Astro.props;   // 'header' | 'footer'
 const layout = getLayout(part);
 const Tag = part === 'header' ? 'header' : 'footer';
-// How tall the chrome is, and whether it follows you down the page, are two
-// fields on its own layout — so both are editable rather than CSS to go and
-// find. `sticky` is position:sticky, which keeps it in the flow (fixed would
-// take its height out and the page would jump under it).
-const sticky = layout.sticky === true;
+/**
+ * How tall the chrome is, where it sits and whether it follows you are all
+ * fields on its own layout, so all three are editable rather than CSS to go
+ * and find. They are two independent questions, not one:
+ *
+ *   place   does it hold its own space (`flow`), or lie over the page (`over`)?
+ *   follow  does it stay on screen as you scroll?
+ *
+ * Emitted as attributes rather than classes so the editor can assert them live
+ * from generic code — it finds the frame with `.closest('[data-place]')` and
+ * never learns what a site-header is (hard rule 4).
+ */
+const place = layout.place ?? 'flow';
+const follow = layout.follow === true;
 ---
-<Tag class:list={[`site-${part}`, sticky && 'is-sticky']}>
+<Tag class:list={[`site-${part}`]} data-place={place} data-follow={follow ? 'yes' : 'no'}>
   <AdaptiveGrid layout={layout} name={part} chrome class={`${part}-grid`} />
 </Tag>
 
@@ -37,18 +46,51 @@ const sticky = layout.sticky === true;
     padding-inline: var(--site-gutter);
   }
   .site-header { padding-block: clamp(10px, 2vw, 22px); }
-  /* Floating rather than set: it follows you down the page. position:sticky,
-     not fixed — fixed takes the chrome out of the flow and the page jumps up
-     underneath it by exactly the header's height. */
-  .site-header.is-sticky {
-    position: sticky; top: 0; z-index: 40;
+  /* The four combinations of `place` and `follow`.
+
+     IN THE FLOW the chrome holds its own space, so the page starts after the
+     header and ends before the footer. Following, there, is position:sticky —
+     NOT fixed, which would take the height out of the flow and make the page
+     jump up underneath it by exactly the header's height.
+
+     OVER THE PAGE the chrome is out of the flow entirely and the page's own
+     board runs underneath it, which is what a header sitting on a full-bleed
+     first row needs. Absolute when it scrolls away with the page, fixed when
+     it follows — fixed is the right answer here precisely because the height
+     was never in the flow to begin with, so there is nothing to jump. */
+  .site-header[data-place="flow"][data-follow="yes"] { position: sticky; top: 0; }
+  .site-footer[data-place="flow"][data-follow="yes"] { position: sticky; bottom: 0; }
+
+  .site-header[data-place="over"], .site-footer[data-place="over"] {
+    position: absolute; left: 0; right: 0;
+  }
+  .site-header[data-place="over"] { top: 0; }
+  .site-footer[data-place="over"] { bottom: 0; margin-top: 0; }
+  .site-header[data-place="over"][data-follow="yes"] { position: fixed; }
+  .site-footer[data-place="over"][data-follow="yes"] { position: fixed; }
+
+  /* A footer over the page has no border to sit under — it is on top of the
+     board, not after it, and the rule would draw a line across the page. */
+  .site-footer[data-place="over"] { border-top: 0; }
+
+  /* Anything not simply in the flow is lifted and gets something to be read
+     against, since whatever it now covers shows through. */
+  .site-header[data-follow="yes"], .site-footer[data-follow="yes"],
+  .site-header[data-place="over"], .site-footer[data-place="over"] {
+    z-index: 40;
     background: color-mix(in srgb, var(--paper) 88%, transparent);
     backdrop-filter: blur(8px);
   }
-  .site-footer.is-sticky {
-    position: sticky; bottom: 0; z-index: 40;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    backdrop-filter: blur(8px);
+
+  /* WHILE UNLOCKED EVERY BOARD IS REACHABLE, so a board laid over the page is
+     put back into the flow to be arranged. Unlocked is the board and locked is
+     the site — and an overlaying header in edit mode would cover the page
+     board's top rows, which is exactly the "I cannot select this" that having
+     everything be an object is meant to end. Press the padlock to see the
+     truth. */
+  html.ag-unlocked .site-header[data-place="over"],
+  html.ag-unlocked .site-footer[data-place="over"] {
+    position: static; margin-top: revert;
   }
   .site-footer {
     padding-block: clamp(20px, 4vw, 44px) clamp(28px, 5vw, 60px);

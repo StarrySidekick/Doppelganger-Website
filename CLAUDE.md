@@ -231,9 +231,34 @@ Consequences worth knowing:
   8 cells, which is much taller. All three shipped layouts were re-cut by hand.
 - `rowHeight` is gone from the schema. The cell is derived, so there is nothing
   to state.
-- **`rows` fixes a board's height in cells** and `sticky` makes it follow you
-  down the page. Both are how the header and footer are sized and pinned, and
-  both are fields on the layout rather than CSS to go and find.
+- **`rows` fixes a board's height in cells.** For chrome, two more fields say
+  where it sits, and they are two questions rather than one:
+
+  | | |
+  |---|---|
+  | `place` | `flow` holds its own space, so the page starts after the header and ends before the footer. **`over` takes the chrome out of the flow and draws it on top, so the page's own board starts at the very top and runs underneath it** — what a header over a full-bleed first row needs, and what a page body forced below the header can never be |
+  | `follow` | does it stay on screen as you scroll? In the flow that is `position: sticky`; over the page it is `fixed`, which is only safe there *because* the height was never in the flow to jump |
+
+  `follow` was called `sticky`, and the name had to go: it stated one CSS value
+  and now answers a question with two. `normalizeLayout()` still reads a file
+  that says `sticky`, the way `upgradeElement()` reads a v3 element.
+
+  **While unlocked, an `over` board is laid back into the flow.** Unlocked is
+  the board and locked is the site — and chrome drawn over the page while
+  arranging covers the page board's top rows, which is the exact "I cannot
+  select this" that making everything an object was meant to end. Press the
+  padlock to see where it really sits.
+
+  **Both fields were dead until the editor asserted them.** They were written
+  into the layout while the class that acted on them was baked into the markup
+  at build time, so the Board panel changed the data and nothing on screen
+  until a publish and a rebuild — which reads as a control that does not work
+  at all. They are `data-place`/`data-follow` on the frame now, asserted by
+  `paint()` like every other piece of state the editor cannot re-render.
+  `paint()` rather than `setBoard()` deliberately: mount paints and never
+  passes through `setBoard`, so a draft restored from this browser used to
+  render with the placement the *build* emitted. All three are fields on the
+  layout rather than CSS to go and find.
 - **Nothing reflows on resize.** The whole board scales. When something genuinely
   cannot fit — a coarser grid than an object is wide — `packLayout()` repacks
   top to bottom in reading order and lets the board grow downward. It is never
@@ -714,7 +739,9 @@ Interaction follows bureau:
   page puts you on the page
 - **Board** is this grid's own geometry: how many columns across (which is how
   big one piece is), **the gap between cells**, a fixed height in cells, and
-  floating or set. **The height is the one for the board you are looking at** —
+  and, for chrome, **where it sits** — in the flow or over the page — and
+  whether it **follows you as you scroll**.
+  **The height is the one for the board you are looking at** —
   it wrote `rows` even on a phone, so the narrow height it was showing you
   could not be set at all. **Tidy** repacks it top to bottom, **Copy JSON**
   puts this board's file on the clipboard. **The header and footer are sized

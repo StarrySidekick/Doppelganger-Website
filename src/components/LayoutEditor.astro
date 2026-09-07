@@ -119,6 +119,11 @@ const build = __BUILD__;
           mountEditor({
             // `published` is what the build rendered; `layout` may be a draft
             // from this browser. The difference is what Publish has to send.
+            // Where a chrome board sits is a property of the header/footer the
+            // grid lives in, not of the grid. Found here because src/lib may
+            // not know a site class name; `[data-place]` is the generic hook
+            // SiteChrome.astro emits for exactly this.
+            frame: root.closest('[data-place]'),
             root, name, scope, chrome, layout: start, published: layout, assets, base, look, pages,
             works: catalogue, build,
             onChange(next) {

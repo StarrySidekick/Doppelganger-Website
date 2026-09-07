@@ -104,6 +104,47 @@ test('a board is continuous unless it says otherwise', () => {
   }
 });
 
+test('chrome states where it sits, and the editor can assert it live', () => {
+  /* Two independent questions, and BOTH used to be one dead checkbox: `sticky`
+     was written into the layout and the class that acted on it was baked at
+     build time, so toggling Floating changed the data and nothing on screen
+     until a publish and a rebuild a minute later. The frame carries the
+     placement as data attributes for exactly that reason — the editor asserts
+     them from paint(), and only attributes can be asserted without knowing a
+     site class name (hard rule 4). */
+  const chrome = read('src/components/SiteChrome.astro');
+  assert.match(chrome, /data-place=\{place\}/, 'the frame states where it sits');
+  assert.match(chrome, /data-follow=\{follow \? 'yes' : 'no'\}/, 'and whether it follows');
+
+  // All four combinations have to be spelled out; three of them are new and a
+  // missing one degrades silently to "in the flow".
+  for (const rule of [
+    /\[data-place="flow"\]\[data-follow="yes"\][^{]*\{[^}]*position: sticky/,
+    /\[data-place="over"\][^{]*\{[^}]*position: absolute/,
+    /\[data-place="over"\]\[data-follow="yes"\][^{]*\{[^}]*position: fixed/,
+  ]) assert.match(chrome, rule, `missing placement rule ${rule}`);
+
+  /* A board laid over the page covers the page board's top rows, so while
+     unlocked it goes back into the flow — unlocked is the board, locked is the
+     site. Without this the thing that made every page an object would put the
+     top of every page back out of reach. */
+  assert.match(chrome, /html\.ag-unlocked[\s\S]{0,160}position: static/,
+    'an over board must lie flat while unlocked, or its page is unreachable');
+
+  // `over` is absolutely positioned, which needs a positioned ancestor or it
+  // resolves against the viewport and silently becomes the `follow` case.
+  assert.match(read('src/layouts/Base.astro'), /body\.has-chrome \{[^}]*position: relative/);
+
+  // And the editor asserts it from paint(), not only from the Board panel —
+  // otherwise a draft restored from this browser renders as the build had it.
+  const js = read('src/lib/editor.js');
+  assert.match(js, /function paintPlacement\(\)/);
+  const at = js.indexOf('  function paint() {');
+  assert.match(js.slice(at, at + 900), /paintPlacement\(\);/,
+    'paint() is the one place a board asserts itself from the model');
+  assert.doesNotMatch(js, /data-board="sticky"/, 'the panel offers place and follow now');
+});
+
 /* ---------------- the catalogue ---------------- */
 
 const catalogue = JSON.parse(read('src/data/works.json'));
