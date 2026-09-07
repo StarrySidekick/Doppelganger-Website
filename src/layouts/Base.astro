@@ -116,6 +116,26 @@ const ogImage = image
   :root { --site-gutter: clamp(12px, 3vw, 40px); }
   .site-main { padding-inline: var(--site-gutter); }
 
+  /* The shell every page is now: a board, with the site's gutter around it.
+     It used to live in [...slug].astro, which was fine while that route was
+     the only board-driven page. Every page is one now — the home page
+     included — and a style block in one route is not emitted for another. */
+  .drawer-page { padding-block: clamp(12px, 3vw, 40px); }
+
+  /* A heading an `html` object can reach for. Typed objects render inside
+     AdaptiveGrid, out of reach of a page's scoped <style>, so these hang off
+     classes the object's own markup carries rather than off ids — an unscoped
+     `#works-heading` is the global-id collision hard rule 0 is about. */
+  .drawer-page .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 6cqi, 4rem);
+    line-height: 1; margin: 0;
+  }
+  .drawer-page .page-lede {
+    margin: .4em 0 0; opacity: .6;
+    font-size: clamp(.85rem, 1.4cqi, 1.05rem);
+  }
+
   body {
     margin: 0;
     background: var(--paper, var(--bg));
@@ -129,4 +149,15 @@ const ogImage = image
      the image squashes. */
   img { display: block; max-width: 100%; height: auto; }
   a { color: inherit; }
+
+  /* The column the chrome sits in: header, page, footer, top to bottom, with
+     the footer's own `margin-top: auto` pushing it to the bottom of a short
+     page. That auto margin was already written and had no flex container to
+     resolve against, so it did nothing — invisible while every page filled the
+     viewport with its own markup, and visible on EVERY page the moment the
+     boards were emptied, as a footer floating halfway up with dead space under
+     it. `flex: 1 0 auto` on the page rather than `flex: 1` so a board taller
+     than the viewport is never squashed to fit. */
+  body.has-chrome { display: flex; flex-direction: column; }
+  body.has-chrome .site-main { flex: 1 0 auto; }
 </style>

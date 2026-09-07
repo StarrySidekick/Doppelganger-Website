@@ -1,128 +1,36 @@
 ---
+/**
+ * The home page, as a board.
+ *
+ * It used to be hand-written markup carried over from the Squarespace site —
+ * a wordmark, four section buttons, a persona with mail and links flanking it
+ * — none of which was an object, so none of it could be selected, long-pressed
+ * or deleted in the editor. It is an ordinary layout now
+ * (src/data/layouts/index.json) like every other page.
+ *
+ * `/` is the one route the dynamic [...slug] route cannot make — it skips the
+ * name `index` deliberately, and a layout named `index` would build `/index`
+ * rather than `/`. So this file stays, and is the same six lines that route is.
+ */
 import Base from '../layouts/Base.astro';
-import { asset, url, srcset, sized, GAMES_URL } from '../lib/assets.js';
+import AdaptiveGrid from '../components/AdaptiveGrid.astro';
+import { getLayout } from '../lib/layouts.js';
+import { asset, url } from '../lib/assets.js';
 
-// `sizes` mirrors the CSS below so the browser can pick the right file. Without
-// it every visitor got the 2048px original of each button and a 2057x2519,
-// 9 MB persona — 15.3 MB for a page whose largest image renders at 300px.
-
-const sections = [
-  { id: 'sec-uiux',    img: asset.uiux,    href: url('uiux'),    label: 'UI & UX' },
-  { id: 'sec-music',   img: asset.music,   href: url('music'),   label: 'Music' },
-  { id: 'sec-games',   img: asset.games,   href: GAMES_URL,      label: 'Games', external: true },
-  { id: 'sec-writing', img: asset.writing, href: url('writing'), label: 'Writing' },
-];
+const layout = getLayout('index');
+// The board's own title, description and share picture, set in the Board panel
+// — the same three fields [...slug].astro reads, resolved the same way. Base
+// falls back to the site's line and wordmark when the board states none.
+const description = layout.description || undefined;
+const image = layout.image
+  ? (layout.image.startsWith('asset:') ? asset[layout.image.slice(6)]
+    : layout.image.startsWith('media:') ? url(`media/${layout.image.slice(6)}`)
+    : layout.image)
+  : undefined;
 ---
-
-<Base title="Home" path="">
-
-  <main class="stage">
-    <h1 class="wordmark">
-      <img
-        src={sized(asset.wordmark, 750)}
-        srcset={srcset(asset.wordmark, [300, 500, 750])}
-        sizes="(max-width: 808px) 210px, (max-width: 1308px) 26vw, 340px"
-        width="1000" height="619"
-        alt="StarrySidekick"
-      />
-    </h1>
-
-    <nav class="sections" aria-label="Sections">
-      {sections.map((s) => (
-        <a
-          id={s.id}
-          href={s.href}
-          rel={s.external ? 'noopener' : undefined}
-          target={s.external ? '_blank' : undefined}
-        >
-          <img
-            src={sized(s.img, 500)}
-            srcset={srcset(s.img, [300, 500, 750])}
-            sizes="(max-width: 640px) 42vw, (max-width: 1167px) 18vw, 210px"
-            width="2048" height="2048"
-            alt={s.label}
-          />
-        </a>
-      ))}
-    </nav>
-
-    <div class="persona">
-      <a class="mail" href={url('contact')} aria-label="Contact">
-        <img
-          src={sized(asset.mail, 300)}
-          srcset={srcset(asset.mail, [300, 500])}
-          sizes="(max-width: 711px) 64px, (max-width: 1422px) 9vw, 128px"
-          width="338" height="337"
-          alt="Mail"
-        />
-      </a>
-      <img
-        class="figure"
-        src={sized(asset.persona, 750)}
-        srcset={srcset(asset.persona, [300, 500, 750])}
-        sizes="(max-width: 625px) 150px, (max-width: 1250px) 24vw, 300px"
-        width="2057" height="2519"
-        alt="Hand-drawn portrait of Timothy"
-      />
-      <a class="links" href={url('links')} aria-label="Links">
-        <img
-          src={sized(asset.linksIcon, 300)}
-          srcset={srcset(asset.linksIcon, [300, 500])}
-          sizes="(max-width: 711px) 64px, (max-width: 1422px) 9vw, 128px"
-          width="650" height="898"
-          alt="Links"
-        />
-      </a>
-    </div>
+<Base title={layout.title ?? 'Home'} path="" description={description} image={image}>
+  <main class="drawer-page">
+    <h1 class="sr-only">{layout.title ?? 'Home'}</h1>
+    <AdaptiveGrid layout={layout} name="index" class="page-grid" />
   </main>
 </Base>
-
-<style>
-  .stage {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: clamp(1rem, 3vw, 2.5rem);
-    padding: clamp(5rem, 10vh, 8rem) 5vw 4rem;
-  }
-  /* The wordmark is the page's h1 — the heading is the image. */
-  .wordmark { width: clamp(210px, 26vw, 340px); margin: 0; line-height: 0; }
-
-  .sections {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: clamp(0.6rem, 2.4vw, 2.2rem);
-    width: 100%;
-    max-width: 1100px;
-  }
-  .sections a {
-    flex: 0 1 clamp(130px, 18vw, 210px);
-    transition: transform .25s ease;
-  }
-  .sections a:hover { transform: scale(1.08); }
-  .sections img { width: 100%; height: auto; }
-
-  /* The figure with mail and links flanking it, as on the original. */
-  .persona {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: clamp(0.5rem, 3vw, 3rem);
-    width: 100%;
-    max-width: 760px;
-  }
-  .persona .figure { width: clamp(150px, 24vw, 300px); height: auto; }
-  .persona .mail, .persona .links {
-    width: clamp(64px, 9vw, 128px);
-    transition: transform .25s ease;
-    margin-bottom: clamp(1rem, 4vw, 3rem);
-  }
-  .persona .mail:hover, .persona .links:hover { transform: scale(1.12); }
-
-  @media (max-width: 640px) {
-    .sections a { flex: 0 1 42%; }
-    .persona { gap: 0.25rem; }
-  }
-</style>

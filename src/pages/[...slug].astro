@@ -43,23 +43,3 @@ const image = layout.image
     <AdaptiveGrid layout={layout} name={name} class="page-grid" />
   </main>
 </Base>
-
-<style is:global>
-  /* Padding on the page, never on .ag-grid — the drag maths measures the
-     grid's own box, so padding there would shift every tile. */
-  .drawer-page { padding-block: clamp(12px, 3vw, 40px); }
-
-  /* A section page's heading. Typed objects render inside AdaptiveGrid, out of
-     reach of a scoped <style>, so these hang off classes the layout's own
-     markup carries rather than off ids — an unscoped `#works-heading` is the
-     global-id collision hard rule 0 is about. */
-  .drawer-page .page-title {
-    font-family: var(--font-display);
-    font-size: clamp(2.2rem, 6cqi, 4rem);
-    line-height: 1; margin: 0;
-  }
-  .drawer-page .page-lede {
-    margin: .4em 0 0; opacity: .6;
-    font-size: clamp(.85rem, 1.4cqi, 1.05rem);
-  }
-</style>

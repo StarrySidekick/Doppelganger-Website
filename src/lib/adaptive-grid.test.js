@@ -211,15 +211,14 @@ test('every shipped layout is valid', () => {
   }
 });
 
-test('the shipped /links geometry is what we think it is', () => {
-  const onDisk = shipped('links');
-  assert.deepEqual(
-    onDisk.elements.map((e) => [e.id, e.flow]),
-    [['card', 'full'], ['email', 'stack'], ['phone', 'stack'], ['socials', 'full'], ['qr', 'keep']]
-  );
-  // The corner navigation moved into the header layout. If it comes back here
-  // as well, the page has two home icons and nobody notices until it ships.
-  assert.equal(onDisk.elements.some((e) => e.id.startsWith('nav-')), false);
+test('no page board carries the corner navigation', () => {
+  /* The home icon and the sun live in the header layout. If either comes back
+     onto a page board the site has two of it, and because an id is a global
+     name it is the header's tile that silently loses its position. */
+  for (const name of ['index', 'links', 'works', 'film', 'games', 'writing', 'music', 'art', 'inventions', 'contact']) {
+    const ids = shipped(name).elements.map((e) => e.id);
+    assert.equal(ids.some((id) => id.startsWith('nav-') || id.startsWith('site-')), false, name);
+  }
 });
 
 test('the chrome layouts hold the site navigation', () => {
@@ -236,25 +235,13 @@ test('the chrome layouts hold the site navigation', () => {
   assert.match(footer.elements.find((e) => e.id === 'site-nav').body, /href="\/writing"/);
 });
 
-test('the shipped layout carries its own content, not the page markup', () => {
-  const e = byId(shipped('links').elements);
-
-  // The point of v3: these two were unreachable markup inside links.astro and
-  // are now editable data. If this regresses, the editor silently goes back to
-  // being able to move the email tile but not change the email.
-  assert.match(e.email.body, /TimothyVlangas@gmail\.com/);
-  assert.match(e.phone.body, /401-297-8580/);
-  // The whole line is the link, as it was in the markup this replaced. Splitting
-  // the label out of the anchor is what lost the space after "Email:".
-  assert.match(e.email.body, /^<a href="mailto:/);
-  assert.equal(e.qr.kind, 'image');
-
-  // The flip card stays a slot: it is a component with its own behaviour, and
-  // a content schema would only get in its way. Written out rather than left
-  // off, so it reads as a decision instead of a forgotten field.
-  assert.equal(e.card.kind, 'slot');
-  assert.equal(e.socials.kind, 'slot');
-});
+/* There used to be a test here asserting what /links carried: the email and
+   phone bodies as data rather than markup, the flip card and the socials nav
+   staying slots. Every page board is empty now — the boards were cleared so
+   the site could be rebuilt object by object — so there is no content left for
+   it to be about. What it was really guarding, that a layout carries its own
+   content, is covered by validateLayout below and by the object tests in
+   elements.test.js, neither of which needs a particular page to exist. */
 
 test('validateLayout catches the ways editor-written data can break', () => {
   const el = (over = {}) => ({ id: 'a', desk: { col: [1, 2], row: [1, 2] }, flow: 'stack', ...over });

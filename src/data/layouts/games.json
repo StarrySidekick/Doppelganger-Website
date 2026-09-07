@@ -6,42 +6,5 @@
   "reflowBelow": 700,
   "title": "Games",
   "description": "Games by Timothy Vlangas — design, systems and play.",
-  "elements": [
-    {
-      "id": "games-heading",
-      "kind": "html",
-      "face": "none",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          21
-        ],
-        "row": [
-          2,
-          2
-        ]
-      },
-      "body": "<h1 class=\"page-title\">Games</h1><p class=\"page-lede\">Made, played, and still being made.</p>"
-    },
-    {
-      "id": "games-feed",
-      "kind": "works",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          22
-        ],
-        "row": [
-          4,
-          16
-        ]
-      },
-      "feed": {
-        "type": "games",
-        "sort": "newest"
-      }
-    }
-  ]
+  "elements": []
 }

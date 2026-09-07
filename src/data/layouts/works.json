@@ -5,42 +5,6 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Everything",
-  "description": "Everything Timothy Vlangas has made — film, games, writing, music, art and inventions, in one list you can narrow by tag.",
-  "elements": [
-    {
-      "id": "works-heading",
-      "kind": "html",
-      "face": "none",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          21
-        ],
-        "row": [
-          2,
-          2
-        ]
-      },
-      "body": "<h1 class=\"page-title\">Everything</h1><p class=\"page-lede\">Everything I have made, in one list. Narrow it by tag.</p>"
-    },
-    {
-      "id": "works-feed",
-      "kind": "works",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          22
-        ],
-        "row": [
-          4,
-          16
-        ]
-      },
-      "feed": {
-        "sort": "newest"
-      }
-    }
-  ]
+  "description": "Everything Timothy Vlangas has made — film, games, writing, music, art and inventions.",
+  "elements": []
 }

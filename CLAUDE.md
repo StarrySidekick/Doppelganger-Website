@@ -725,10 +725,11 @@ Interaction follows bureau:
   **description** (what a search result shows under the title, and what a
   shared link says) and a **picture for a shared link** — an `asset:` key, a
   `media:` file or a URL. They are fields on the layout (`title`,
-  `description`, `image`), `[...slug].astro` hands them to `Base.astro`, and
-  a hand-written page that wraps a board passes the board's own through
-  (`links.astro` does). Base falls back to the site's line and wordmark when
-  a board has none. Header and footer do not offer them
+  `description`, `image`), and both routes that render a board hand them to
+  `Base.astro` — `[...slug].astro` for every page, and `index.astro` for `/`,
+  which is the one route the dynamic one cannot make. Base falls back to the
+  site's line and wordmark when a board has none. Header and footer do not
+  offer them
 - **Pages** is the working list of every page there is, and **a page is a
   ROUTE** — a file in `src/pages` or a layout the dynamic route turns into one.
   It used to be built from the layout files alone, which meant it listed
@@ -838,9 +839,9 @@ What's already done, so it isn't rediscovered:
   contents API and the site rebuilds; 28 assertions cover it. The gap is
   breadth, not persistence.
 - Element **content** is now editable too — text in place, image fields in the
-  settings panel — but only on `/links`, which is the one page converted to the
-  typed model. Converting another page is the same shape of work, one element
-  at a time.
+  settings panel — and it is the only kind of content the site has: every page
+  is a board and every page's boards are empty, so there is no markup left to
+  convert. See **Current state**.
 - **Header, footer and image upload are done.** Chrome is two layouts on every
   page; images are picked or dropped in the editor and committed with the
   layout.
@@ -872,9 +873,12 @@ What's already done, so it isn't rediscovered:
   in the session scratchpad drove every one of these in a real browser before
   it was committed — there is no editor test that presses anything in the
   repo, and there should be; `scripts/` is the place.
-- The remaining work to replace Squarespace is: convert `/`, `/writing`,
-  `/music` to grids and to typed content; build the six blog collections; pull
-  the assets local.
+- **Every page is a board, and every board is empty.** September 2026: the
+  four hand-written pages carried over from Squarespace were removed and the
+  page layouts cleared, so the whole site is rebuilt from the picker. That is
+  the state to expect — see **Current state**.
+- The remaining work to replace Squarespace is: fill the boards; build the six
+  blog collections; pull the assets local.
 - **The asset dependency is no longer urgent.** Every image still comes from
   Squarespace's CDN, and the `?format=` resizing that took the homepage from
   15.3 MB to 0.7 MB depends on it. While the subscription continues that is
@@ -883,60 +887,60 @@ What's already done, so it isn't rediscovered:
 
 ## Current state
 
-Built and live: `/` (home), `/links`, `/writing`, `/music`, `/contact`,
-`/editor` (the standalone layout editor, noindex). `/contact-1` redirects to
-`/contact` — that is Squarespace's slug for the page, kept working so inbound
-links survive the cutover.
+**Every page is an empty board, September 2026.** All page content was cleared
+so the site can be rebuilt object by object in the editor. This is the state to
+expect, not a build that went wrong: open any page, press the corner, and you
+get a 24-column checkerboard with nothing on it.
 
-**The new structure, September 2026.** The site is being reorganised around what
-Timothy has made rather than around page names. Six sections — film, games,
-writing, music, art, inventions — plus an everything list, all fed from one
-catalogue and narrowable by tag:
+Two things went at once, and the second is the point:
 
-| | |
-|---|---|
-| `/works` | everything, with the tag filter — the "see it all listed out" page |
-| `/film` `/games` `/art` `/inventions` | boards carrying a feed for their section |
-| `/writing` `/music` | **still the hand-written pages.** They already list the
-six writing collections and the SoundCloud sets, which is real content a feed
-would replace rather than add to. Converting them is a content decision, not an
-engine one — the `works` kind drops onto either the moment there are works to
-show |
+- **The boards were emptied** — `/`, `/works`, `/film`, `/games`, `/writing`,
+  `/music`, `/art`, `/inventions`, `/links`, `/contact` all ship
+  `"elements": []`. Their `title`, `description`, columns and gap are kept, so
+  the page still says what it is to a search result while carrying nothing.
+- **The hand-written pages went with them.** `index.astro`, `writing.astro`,
+  `music.astro` and `contact.astro` were markup carried over from the
+  Squarespace site — a wordmark, four GIF section buttons, a persona, two link
+  lists and a form — and none of it was an object. It could not be selected,
+  long-pressed, right-clicked or deleted, which is exactly the complaint. They
+  are layout files now, made into pages by `[...slug].astro`. `/links` lost its
+  two `slot` elements for the same reason: a slot can be moved but its innards
+  are markup, so the flip card and the socials nav were untouchable too.
 
-The footer is now the site map, so every section is reachable from every page.
-**The home page still carries its original section buttons** and has not been
-touched: it is hand-written markup with Squarespace GIF buttons, and choosing
-what the new sections look like there is Timothy's call, not a refactor.
-Converting `/` to a board is the obvious next step and would make it arrangeable
-like everything else.
+**Everything on a page is now an object.** There is no page markup left for a
+tile to be made of, so the rule the model is built on — hold it, and it answers
+— holds everywhere rather than mostly.
 
-The section pages are live and empty apart from three seeded works, and that is
-deliberate — the catalogue is Timothy's to fill, from the **Works** panel, and
-inventing a body of work to fill it would be worse than an honest empty state.
+**No URL changed** (hard rule 3). The build still emits `/`, `/works`, `/film`,
+`/games`, `/writing`, `/music`, `/art`, `/inventions`, `/links`, `/contact`,
+`/editor`, `/404` and the `/contact-1` redirect. `/` is the one route the
+dynamic `[...slug]` route cannot make — it skips the name `index` on purpose,
+and a layout called `index` would build `/index` — so `src/pages/index.astro`
+stays, as the same six lines that route is, reading `layouts/index.json`.
 
-Not built yet:
-- `/uiux` — 40 images, the largest remaining page
-- Blog collections — `journal`, `poems` (25 real posts), `essays-about-everything`,
-  `short-stories`, `game-design`, `expressiveaether`. Six, not five; all six
-  slugs verified live on Squarespace. Content is exported to Markdown but lives
-  on Timothy's machine, not in this repo yet.
+**Header and footer were deliberately NOT cleared.** They are chrome rather
+than page content, they are already ordinary objects that a long-press deletes
+in one gesture, and they are the only way to move between pages while building.
+Empty them from the editor if you want the blank slate to be total.
 
-Until those exist, `/uiux` and the six collection links are live 404s. They land
-on `src/pages/404.astro`, which explains the situation and offers a way back.
+Two things followed from the clearing, both of them the tests doing their job:
 
-**Those seven are declared in `PLANNED` in `scripts/site.test.mjs`, and that is
-the list that counts** — this paragraph is prose, that one is checked. Three
-tests hang off it, in both directions: an internal link that goes nowhere and is
-not on the list fails; an entry on the list that has since been *built* fails,
-so shipping `/uiux` tells you to delete the line rather than leaving a permanent
-excuse behind; and an entry nothing links to any more fails, so the list cannot
-outlive the links it excuses.
+- **`PLANNED` in `scripts/site.test.mjs` is empty.** The seven slugs it carried
+  — `/uiux` and the six writing collections — were excused because something
+  linked to them, and the only things that did were the pages just removed. A
+  plan nothing links to is a plan nobody is waiting for; put a slug back the
+  moment a link to it does. The content itself has not gone anywhere: `/uiux`
+  is still 40 images to place, and the six collections are still exported to
+  Markdown on Timothy's machine.
+- **`body` is a flex column now.** `.site-footer` has always carried
+  `margin-top: auto` and never had a flex container to resolve it against. It
+  never showed while every page filled the viewport with its own markup, and it
+  showed on every page the moment the boards were empty — the footer floating
+  halfway up with dead space beneath it.
 
-The scanner reads three spellings, because the site uses all three: a literal
-`href`, `url('literal')`, and a `slug:` field in a data array — which is how
-`/writing` writes six links at once, and which a scanner looking only for
-`url('literal')` cannot see. That blind spot was real: the first version of
-these tests passed while being unable to see the six collections at all.
+`FlipCard.astro` is kept but nothing renders it. The business card is real work
+and the component has its own shader; it comes back when there is an object
+kind that carries it, rather than as a slot in a hand-written page.
 
 ## Decisions already made — don't relitigate
 

@@ -6,42 +6,5 @@
   "reflowBelow": 700,
   "title": "Inventions",
   "description": "Inventions and tools by Timothy Vlangas.",
-  "elements": [
-    {
-      "id": "inventions-heading",
-      "kind": "html",
-      "face": "none",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          21
-        ],
-        "row": [
-          2,
-          2
-        ]
-      },
-      "body": "<h1 class=\"page-title\">Inventions</h1><p class=\"page-lede\">Tools, apps and sites — things built to be used.</p>"
-    },
-    {
-      "id": "inventions-feed",
-      "kind": "works",
-      "flow": "full",
-      "desk": {
-        "col": [
-          2,
-          22
-        ],
-        "row": [
-          4,
-          16
-        ]
-      },
-      "feed": {
-        "type": "inventions",
-        "sort": "newest"
-      }
-    }
-  ]
+  "elements": []
 }
