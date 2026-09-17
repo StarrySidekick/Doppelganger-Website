@@ -53,6 +53,11 @@ npm run build    # → dist/
 npm run preview  # serve the built output
 npm test         # layout engine, element registry, publish, widget build, and
                  # the site's own facts (scripts/site.test.mjs). node --test, no deps
+npm run test:editor  # the editor test that presses anything — a real browser
+                      # driving hold-to-drag, resize and undo. Not part of
+                      # `npm test` (needs Playwright + Chromium, which `npm ci`
+                      # in deploy.yml does not provide); see the header comment
+                      # in scripts/editor-harness.mjs
 npm run widgets  # build Squarespace code blocks → widgets/dist/
 ```
 
@@ -157,6 +162,8 @@ src/pages/editor.astro     standalone layout editor (replaces the prototype)
 widgets/<name>/            Squarespace code-block sources — see widgets/README.md
 scripts/build-widgets.mjs  builds each widget into one paste-ready blob
 scripts/version.mjs        the build stamp — the version is the commit count
+scripts/editor-harness.mjs the editor test that presses anything — Playwright,
+                            not wired into `npm test` (see its header comment)
 src/pages/version.json.js  that stamp, as a file you can curl
 ```
 
@@ -871,8 +878,17 @@ What's already done, so it isn't rediscovered:
   one (Bureau's gather); a `form` kind that emails you; a page's own title,
   description and share picture in the Board panel. Five Playwright harnesses
   in the session scratchpad drove every one of these in a real browser before
-  it was committed — there is no editor test that presses anything in the
-  repo, and there should be; `scripts/` is the place.
+  it was committed, and none of it was guarded.
+- **There is now an editor test that presses anything.** September 2026:
+  `scripts/editor-harness.mjs` — hold-to-drag, a corner-grip resize, and both
+  undo paths (the toast's own button, and Ctrl+Z), at desktop and narrow
+  widths, driven by Playwright against a real page (`npm run test:editor`).
+  It runs on `/links?edit=1` rather than the `/editor` picker: every *empty*
+  page layout hashes to the SAME scope class in `scopeFor()` — scope is
+  derived from geometry, and every empty board's geometry is identical — so
+  `/editor`'s eleven simultaneously-mounted boards make `.ag-cell`/`.ag-root`
+  collide across boards in a way a single real page never does. Worth knowing
+  on its own, not only as a reason to route around it in a test.
 - **Every page is a board, and every board is empty.** September 2026: the
   four hand-written pages carried over from Squarespace were removed and the
   page layouts cleared, so the whole site is rebuilt from the picker. That is

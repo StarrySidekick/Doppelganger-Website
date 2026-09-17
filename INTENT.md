@@ -43,10 +43,16 @@ page; the event is stamped so one press is one paste, but **the underlying
 `/editor` name collision is still there** and would bite anything else that acts
 on a keypress.
 
-**Still not answered:** there is no editor test in the repo that presses
-anything, which the README already says should exist. All of the above was
-verified by driving a browser from a scratch file, which is not the same as
-being guarded.
+**Answered 2026-09-17:** `scripts/editor-harness.mjs` (`npm run test:editor`)
+is a committed Playwright harness that presses the real editor in a real
+browser — hold-to-drag, a corner-grip resize, and undo through both paths (the
+toast's own button and Ctrl+Z), at desktop and narrow widths. It is not part
+of `npm test` (no Chromium in `npm ci`'s environment), so it does not gate a
+commit the way the rest of the suite does — it is run by hand, same as the
+smoke tests in Bureau and EveryPark. What copy/paste itself still lacks a test
+for: only the geometry it shares with everything else in `editor.js` is
+covered this way; the clipboard round-trip (⌘C / ⌘V, across boards and across
+pages) is still unguarded and would be the next thing to add here.
 
 
 ## Deliberately not next
