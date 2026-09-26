@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tokensFor, lookCSS, validateLook, normalizeLook, isDark, DEFAULT_LOOK } from './look.js';
+import { tokensFor, lookCSS, validateLook, normalizeLook, isDark, DEFAULT_LOOK, resolveLook } from './look.js';
 
 test('a look resolves to a complete token set derived from a few colours', () => {
   const t = tokensFor({ bg: '#000000', ink: '#ffffff', accent: '#ffd27a' });
@@ -34,4 +34,15 @@ test('a stored look is filled in and checked', () => {
   assert.match(validateLook({ bg: 'red' }).join(), /hex colour/);
   assert.match(validateLook({ board: ['#000'] }).join(), /two hex colours/);
   assert.match(validateLook({ font: 'comic' }).join(), /serif or display/);
+});
+
+test('the look names its pictures by key, and only a real address becomes a token', () => {
+  const look = { cursor: ['asset:cursor', 'asset:cursorOver'], sparks: 'asset:star', wiggle: true };
+  assert.deepEqual(validateLook(look), []);
+  // The editor cannot resolve asset: keys, so it must not write a broken cursor over the build's.
+  assert.equal(tokensFor(look)['--cursor'], undefined);
+  const resolved = resolveLook(look, (k) => 'https://cdn.example/' + k.slice(6) + '.png');
+  assert.equal(resolved.sparks, 'https://cdn.example/star.png');
+  assert.equal(tokensFor(resolved)['--cursor'], 'url("https://cdn.example/cursor.png"), auto');
+  assert.equal(validateLook({ cursor: ['javascript:alert(1)', 'x'] }).length, 1);
 });

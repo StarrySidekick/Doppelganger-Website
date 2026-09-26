@@ -775,7 +775,7 @@ export function mountEditor({
     if (!boxOk(layout, id, box, device)) box = freeSpot(layout, [w, want[1]], device, id);
 
     const item = { id, kind, flow: 'stack', ...extra };
-    for (const k of ['body', 'title', 'fold', 'arrange']) {
+    for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound']) {
       if (def[k] != null && item[k] == null) item[k] = structuredClone(def[k]);
     }
     if (item.body != null && !has(item, 'text')) delete item.body;
@@ -2228,11 +2228,14 @@ export function mountEditor({
     redo: redoLast,
     board: () => ({ columns: layout.columns, narrowColumns: layout.narrowColumns,
       gap: layout.gap, rows: layout.rows, narrowRows: layout.narrowRows, sticky: layout.sticky === true,
-      title: layout.title ?? '', description: layout.description ?? '', image: layout.image ?? '' }),
+      title: layout.title ?? '', description: layout.description ?? '', image: layout.image ?? '',
+      header: layout.header !== false }),
     setBoard: (patch) => {
       const before = structuredClone(layout);
       Object.assign(layout, patch);
       for (const k of ['rows', 'narrowRows', 'title', 'description', 'image']) if (layout[k] === '' || layout[k] == null) delete layout[k];
+      // Showing the header is the default, so only its absence is written down.
+      if (layout.header !== false) delete layout.header;
 
       /* A coarser grid can leave objects hanging off the right-hand edge —
          #socials spans ten columns and cannot sit on a board eight wide. That
@@ -2616,6 +2619,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     const st = document.documentElement.style;
     for (const [k, v] of Object.entries(tokensFor(look))) st.setProperty(k, v);
     document.body.classList.toggle('look-tilt', !!look.tilt);
+    document.body.classList.toggle('look-wiggle', !!look.wiggle);
   }
   function setLook(patch) {
     const next = normalizeLook({ ...look, ...patch });
@@ -2945,6 +2949,17 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
         </select>
       </label>
       <label class="ag-menu-check"><input type="checkbox" data-look="tilt"${look.tilt ? ' checked' : ''} /> Pinned — every tile leans a little</label>
+      <label class="ag-menu-check"><input type="checkbox" data-look="wiggle"${look.wiggle ? ' checked' : ''} /> Wiggle — a linked picture wiggles under the mouse</label>
+      <div class="ag-menu-note">Pictures below are an <code>asset:</code> key, a <code>media:</code> file or a URL. They show after a rebuild.</div>
+      <label class="ag-menu-field">Sparks — a picture thrown from every click (blank for none)
+        <input type="text" data-look="sparks" value="${escapeAttr(look.sparks ?? '')}" />
+      </label>
+      <label class="ag-menu-field">Pointer (blank for the browser's own)
+        <input type="text" data-look="cursor.0" value="${escapeAttr(look.cursor?.[0] ?? '')}" />
+      </label>
+      <label class="ag-menu-field">Pointer over a link
+        <input type="text" data-look="cursor.1" value="${escapeAttr(look.cursor?.[1] ?? '')}" />
+      </label>
       <div class="ag-menu-note">Saved to <code>${LOOK_PATH}</code> when you publish.</div>
     `, null);
     menu.addEventListener('input', onLookInput);
@@ -2957,7 +2972,14 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     const patch = {};
     if (key.startsWith('board.')) {
       const board = [...look.board]; board[+key.slice(6)] = t.value; patch.board = board;
-    } else if (key === 'tilt') patch.tilt = t.checked;
+    } else if (key.startsWith('cursor.')) {
+      // Typed a letter at a time; only a whole pair is a look, so wait for
+      // `change` and let two blanks mean "the browser's own pointer".
+      if (e.type !== 'change') return;
+      const cursor = [...(look.cursor ?? ['', ''])]; cursor[+key.slice(7)] = t.value.trim();
+      patch.cursor = cursor.every((c) => !c) ? null : cursor;
+    } else if (key === 'tilt' || key === 'wiggle') patch[key] = t.checked;
+    else if (key === 'sparks') { if (e.type !== 'change') return; patch.sparks = t.value.trim(); }
     else patch[key] = t.value;
     setLook(patch);
   }
@@ -3011,6 +3033,10 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
         Floating — follows you as you scroll
       </label>
       ${a.isChrome ? '' : `
+      <label class="ag-menu-check">
+        <input data-board="header" type="checkbox"${b.header ? ' checked' : ''} />
+        Show the site header on this page — after a rebuild
+      </label>
       <div class="ag-menu-sub">This page, to a search engine and a shared link</div>
       <label class="ag-menu-field">Title
         <input data-board="title" type="text" value="${escapeAttr(b.title)}" />
@@ -3046,7 +3072,10 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
         columns: num('columns'), narrowColumns: num('narrowColumns'), gap: num('gap'),
         [heightKey]: num(heightKey),
         sticky: menuEl.querySelector('[data-board="sticky"]').checked,
-        ...(a.isChrome ? {} : { title: text('title'), description: text('description'), image: text('image') }),
+        ...(a.isChrome ? {} : {
+          title: text('title'), description: text('description'), image: text('image'),
+          header: menuEl.querySelector('[data-board="header"]').checked,
+        }),
       });
     });
   }

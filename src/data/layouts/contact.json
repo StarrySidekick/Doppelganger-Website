@@ -1,10 +1,51 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Contact",
   "description": "Get in touch with Timothy Vlangas.",
-  "elements": []
+  "elements": [
+    {
+      "id": "contact-form",
+      "kind": "form",
+      "face": "none",
+      "flow": "stack",
+      "attrs": [
+        "form"
+      ],
+      "form": {
+        "key": "",
+        "fields": [
+          "first",
+          "last",
+          "email",
+          "subject",
+          "message"
+        ],
+        "button": "Submit"
+      },
+      "desk": {
+        "col": [
+          15,
+          20
+        ],
+        "row": [
+          3,
+          21
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          4,
+          26
+        ]
+      }
+    }
+  ]
 }

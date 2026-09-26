@@ -1,10 +1,568 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Home",
   "description": "Timothy Vlangas — film, games, writing, music, art and inventions.",
-  "elements": []
+  "elements": [
+    {
+      "id": "home-wordmark",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:wordmark",
+        "alt": "Starry Sidekick",
+        "width": 960,
+        "height": 594,
+        "sizes": "(max-width: 700px) 80vw, 320px",
+        "widths": [
+          300,
+          500,
+          750
+        ]
+      },
+      "attrs": [
+        "media"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          20,
+          10
+        ],
+        "row": [
+          1,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          14
+        ],
+        "row": [
+          1,
+          9
+        ]
+      }
+    },
+    {
+      "id": "home-sun",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "pin",
+      "attrs": [
+        "media"
+      ],
+      "onclick": "shuffle",
+      "media": {
+        "src": "asset:sun",
+        "alt": "Shuffle the colours — hold to put them back",
+        "width": 128,
+        "height": 128
+      },
+      "desk": {
+        "col": [
+          47,
+          2
+        ],
+        "row": [
+          2,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          15,
+          2
+        ],
+        "row": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "home-uiux",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:uiux",
+        "alt": "UI & UX",
+        "width": 1440,
+        "height": 1440,
+        "sizes": "(max-width: 700px) 42vw, 200px",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "link": "/uiux",
+      "desk": {
+        "col": [
+          10,
+          6
+        ],
+        "row": [
+          9,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          24,
+          7
+        ]
+      }
+    },
+    {
+      "id": "home-music",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:music",
+        "alt": "Music",
+        "width": 1440,
+        "height": 1440,
+        "sizes": "(max-width: 700px) 42vw, 200px",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "link": "/music",
+      "desk": {
+        "col": [
+          18,
+          6
+        ],
+        "row": [
+          8,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          24,
+          7
+        ]
+      }
+    },
+    {
+      "id": "home-games",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:games",
+        "alt": "Games",
+        "width": 1440,
+        "height": 1440,
+        "sizes": "(max-width: 700px) 42vw, 200px",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "link": "https://starry-sidekick.itch.io/composers-key",
+      "desk": {
+        "col": [
+          26,
+          6
+        ],
+        "row": [
+          8,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          32,
+          8
+        ]
+      }
+    },
+    {
+      "id": "home-writing",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:writing",
+        "alt": "Writing",
+        "width": 1440,
+        "height": 1440,
+        "sizes": "(max-width: 700px) 42vw, 200px",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "link": "/writing",
+      "desk": {
+        "col": [
+          34,
+          6
+        ],
+        "row": [
+          9,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          32,
+          8
+        ]
+      }
+    },
+    {
+      "id": "home-persona",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:persona",
+        "alt": "Hand-drawn portrait of Timothy",
+        "width": 1440,
+        "height": 1763,
+        "sizes": "(max-width: 700px) 66vw, 300px",
+        "widths": [
+          300,
+          500,
+          750
+        ]
+      },
+      "attrs": [
+        "media"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          20,
+          10
+        ],
+        "row": [
+          15,
+          12
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          12
+        ],
+        "row": [
+          10,
+          14
+        ]
+      }
+    },
+    {
+      "id": "home-mail",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:mail",
+        "alt": "Contact",
+        "width": 324,
+        "height": 323,
+        "sizes": "100px",
+        "widths": [
+          300
+        ]
+      },
+      "link": "/contact",
+      "desk": {
+        "col": [
+          17,
+          3
+        ],
+        "row": [
+          22,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          3
+        ],
+        "row": [
+          12,
+          4
+        ]
+      }
+    },
+    {
+      "id": "home-links",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:linksIcon",
+        "alt": "Links",
+        "width": 624,
+        "height": 862,
+        "sizes": "100px",
+        "widths": [
+          300
+        ]
+      },
+      "link": "/links",
+      "desk": {
+        "col": [
+          30,
+          2
+        ],
+        "row": [
+          22,
+          4
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          3
+        ],
+        "row": [
+          19,
+          4
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-1",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          7,
+          4
+        ],
+        "row": [
+          3,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          13,
+          4
+        ],
+        "row": [
+          41,
+          4
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-2",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          13,
+          2
+        ],
+        "row": [
+          22,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          1
+        ],
+        "row": [
+          43,
+          1
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-3",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          5,
+          1
+        ],
+        "row": [
+          24,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          7,
+          2
+        ],
+        "row": [
+          46,
+          1
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-4",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          46,
+          1
+        ],
+        "row": [
+          22,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          15,
+          1
+        ],
+        "row": [
+          8,
+          1
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-5",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          42,
+          2
+        ],
+        "row": [
+          26,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          3
+        ],
+        "row": [
+          43,
+          3
+        ]
+      }
+    },
+    {
+      "id": "home-sparkle-6",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:sparkle",
+        "alt": ""
+      },
+      "attrs": [
+        "media",
+        "decor"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          37,
+          2
+        ],
+        "row": [
+          21,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          3,
+          2
+        ],
+        "row": [
+          48,
+          2
+        ]
+      }
+    }
+  ],
+  "header": false
 }

@@ -36,7 +36,9 @@ const sticky = layout.sticky === true;
     width: 100%;
     padding-inline: var(--site-gutter);
   }
-  .site-header { padding-block: clamp(10px, 2vw, 22px); }
+  /* 20px above, as the Squarespace logo sat 20px from the top; nothing below,
+     because the page's board starts where the header's ends. */
+  .site-header { padding-block: 20px 0; }
   /* Floating rather than set: it follows you down the page. position:sticky,
      not fixed — fixed takes the chrome out of the flow and the page jumps up
      underneath it by exactly the header's height. */
@@ -56,18 +58,9 @@ const sticky = layout.sticky === true;
     border-top: 1px solid rgba(255, 255, 255, .12);
   }
 
-  .header-grid #site-home,
-  .header-grid #site-sun,
-  .header-grid #site-wordmark {
-    display: flex; align-items: center;
-  }
-  .header-grid #site-home { justify-content: flex-start; }
-  .header-grid #site-sun { justify-content: flex-end; }
-  .header-grid #site-wordmark { justify-content: center; }
-
-  .header-grid #site-home img,
-  .header-grid #site-sun img { width: clamp(38px, 5cqi, 78px); height: auto; }
-  .header-grid #site-wordmark img { width: 100%; max-width: 380px; height: auto; }
+  /* The home icon and the sun wear the cut-out face, which fits each picture
+     inside its box — so their size is their box, set in the editor, and there
+     is no CSS here to go and find. */
 
   /* align-self, not display:flex — flex would make each word and link its own
      flex item and collapse the spaces between them. That exact bug ate the

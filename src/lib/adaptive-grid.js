@@ -373,6 +373,8 @@ export function validateLayout(input, name = 'layout') {
     if (v != null && (!Number.isInteger(v) || v < 1)) bad(`${key} must be a whole number of cells, got ${JSON.stringify(v)}`);
   }
   if (layout.sticky != null && typeof layout.sticky !== 'boolean') bad('sticky must be true or false');
+  // A page may go without the site header, as Squarespace's home page did.
+  if (layout.header != null && typeof layout.header !== 'boolean') bad('header must be true or false');
   if (layout.title != null && typeof layout.title !== 'string') bad('title must be a string');
   // What a search result and a shared link say about this page. Optional;
   // Base.astro falls back to the site's own line when a board has none.

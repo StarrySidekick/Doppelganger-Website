@@ -1,10 +1,45 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Music",
   "description": "Music by Timothy Vlangas — songs and scores.",
-  "elements": []
+  "elements": [
+    {
+      "id": "music-player",
+      "kind": "player",
+      "face": "none",
+      "flow": "stack",
+      "sound": {
+        "src": "https://api.soundcloud.com/playlists/1794732483?secret_token=s-yNczkEJ2C5o",
+        "title": "Their Forest, Aflame",
+        "prev": "asset:skipLeft",
+        "play": "asset:play",
+        "pause": "asset:pause",
+        "next": "asset:skipRight"
+      },
+      "desk": {
+        "col": [
+          16,
+          18
+        ],
+        "row": [
+          7,
+          13
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          6,
+          15
+        ]
+      }
+    }
+  ]
 }

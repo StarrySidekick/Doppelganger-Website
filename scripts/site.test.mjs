@@ -154,13 +154,13 @@ test('every link in the footer goes somewhere that exists', () => {
    line rather than leaving a permanent excuse behind. */
 
 const PLANNED = new Set([
-  /* Empty, and that is the third test below doing its job rather than an
-     oversight. The seven entries that used to sit here — /uiux and the six
-     writing collections — were excused because something linked to them, and
-     the only things that did were the hand-written pages carried over from
-     Squarespace. Those pages are boards now, and every board starts empty, so
-     nothing links to those slugs any more. An entry nothing links to is a plan
-     nobody is waiting for. Put a slug back the moment a link to it does. */
+  /* Back, because something links to them again. The home page's UI & UX
+     button and the bookcase on /writing were rebuilt as objects from the live
+     Squarespace site (September 2026), and both point where Squarespace's did.
+     The pages themselves are still parked (INTENT.md): /uiux is 40 images to
+     place and the six collections are Markdown on Timothy's machine. */
+  'uiux',
+  'game-design', 'essays-about-everything', 'expressiveaether', 'short-stories', 'journal', 'poems',
 ]);
 
 const routeExists = (slug) =>

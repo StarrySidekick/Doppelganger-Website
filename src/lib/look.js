@@ -18,7 +18,19 @@ export const DEFAULT_LOOK = {
   board: ['#0c0c0c', '#161616'],   // the two checkerboard squares, edit mode only
   tilt: false,                     // pinned: every tile leans a degree or two
   font: 'serif',                   // 'serif' | 'display' — the site's two faces
+  wiggle: false,                   // a linked picture wiggles under the mouse
+  sparks: '',                      // a picture thrown from every click, or none
+  cursor: null,                    // [pointer, pointer over something], or the browser's own
 };
+
+/**
+ * Is this a picture address a stylesheet can use as it stands? A look stores
+ * `asset:` keys like any layout does, and only the site knows what those are —
+ * so the build resolves them first, and the editor, which cannot, leaves the
+ * build's own value alone rather than writing a broken one over it.
+ */
+const usable = (u) => typeof u === 'string' && /^(https:\/\/|\/)/.test(u);
+const cssUrl = (u) => `url("${String(u).replace(/["\\\n]/g, '')}")`;
 
 const lum = (hex) => {
   const h = String(hex).replace('#', '');
@@ -58,6 +70,21 @@ export function tokensFor(look) {
     '--board-1':  l.board[0],
     '--board-2':  l.board[1],
     '--body-font': l.font === 'display' ? 'var(--font-display)' : 'var(--font-body)',
+    ...(Array.isArray(l.cursor) && usable(l.cursor[0]) ? { '--cursor': `${cssUrl(l.cursor[0])}, auto` } : {}),
+    ...(Array.isArray(l.cursor) && usable(l.cursor[1]) ? { '--cursor-over': `${cssUrl(l.cursor[1])}, pointer` } : {}),
+  };
+}
+
+/**
+ * The same look with its picture keys turned into addresses, by the caller's
+ * resolver — the site's assets are not this file's business (hard rule 4).
+ */
+export function resolveLook(look, resolve) {
+  const l = normalizeLook(look);
+  return {
+    ...l,
+    sparks: l.sparks ? resolve(l.sparks) : '',
+    cursor: Array.isArray(l.cursor) ? l.cursor.map((c) => (c ? resolve(c) : c)) : null,
   };
 }
 
@@ -78,5 +105,13 @@ export function validateLook(look, name = 'look') {
     }
   }
   if (look?.font != null && !['serif', 'display'].includes(look.font)) out.push(`${name}.font must be serif or display`);
+  if (look?.wiggle != null && typeof look.wiggle !== 'boolean') out.push(`${name}.wiggle must be true or false`);
+  if (look?.sparks != null && typeof look.sparks !== 'string') out.push(`${name}.sparks must be a picture address, or empty`);
+  if (look?.cursor != null && (!Array.isArray(look.cursor) || look.cursor.length !== 2 || !look.cursor.every((c) => typeof c === 'string'))) {
+    out.push(`${name}.cursor must be two picture addresses: the pointer, and the pointer over something`);
+  }
+  for (const u of [look?.sparks, ...(Array.isArray(look?.cursor) ? look.cursor : [])]) {
+    if (typeof u === 'string' && /javascript:|["<>]/i.test(u)) out.push(`${name} has a picture address that is not one: ${JSON.stringify(u)}`);
+  }
   return out;
 }

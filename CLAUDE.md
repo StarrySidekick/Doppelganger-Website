@@ -271,6 +271,8 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `fold` | a folded size and an open size, toggled live — this is the dropdown | `fold: {cols, rows}` |
 | `holds` | holds other objects and lays them out by a rule | `items`, `arrange` |
 | `feed` | **shows the works, filtered** — a list that is true rather than one you wrote | `feed: {type, tag, sort, limit, chips}` |
+| `spin` | two sides turning on their own; the object's picture is the front | `spin: {back, sheen, seconds}` |
+| `sound` | plays a SoundCloud track or playlist through their widget, hidden, driven by the object's own buttons. **The iframe is never stored or pre-rendered** — `interact.js` makes it on a page that has a player, and `sound.src` must be a SoundCloud address, because it becomes an iframe src | `sound: {src, title, play, pause, prev, next}` |
 | `decor` | **stands on the board rather than in it** — the one thing allowed to overlap, and nothing makes room for it (Bureau's decision 86). The sun, the holo, the business card. `boxOk` and `validateLayout` let it lie across anything and anything across it; Tidy leaves it where it stands; it draws at `z-index: 2`, unclipped | — |
 
 | kind | attributes | face | made from the picker |
@@ -284,6 +286,8 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `works` | feed, text | plain | yes — **a section page, or a strip of recent work** |
 | `html` | text (raw markup) | plain | no, a tool |
 | `form` | form, text | card | yes — **fields that email you.** The web layer's first kind |
+| `card` | media, spin | plain | yes — **the business card**: front, back, a shimmer, turning on its own |
+| `player` | sound | plain | yes — **a SoundCloud playlist with buttons of your own**, the /music player |
 | `slot` | — | — | no, written by code |
 
 **What a click does is a field**, `onclick`, asked of every object — Bureau's
@@ -405,6 +409,43 @@ cannot reach them.** Pass a class (`<AdaptiveGrid class="links-grid">`) and hang
 the rules off that in an `is:global` block. **`scopeFor()` hashes geometry
 only**, so fixing a typo does not rename every rule in the compiled CSS.
 
+### The Squarespace pieces, as objects (September 2026)
+
+The live site was measured in a real browser at 1440 and 390 wide and rebuilt
+on the boards: `/`, `/links`, `/writing`, `/music`, `/contact`, plus the
+header. Everything it was made of that had no object is now a general piece
+of the tool rather than site code:
+
+- **Faces `cutout` and `lettering`.** A cut-out fits a picture whole inside
+  its box, never cropped, nothing behind it — how a Squarespace image block
+  drew every GIF here. Lettering is words in the display face, centred.
+- **`media.over`** — a second picture laid over the first. The bookcase's
+  books are an animated layer over a still shelf.
+- **`arrange: 'carousel'`** — a holder shows one item at a time over its own
+  picture, with back / Go / forward keys (`controls: {prev, go, next}`). An
+  item with `area: [left, top, width, height]` in percent of the picture is a
+  hotspot: point at it and it shows, press it and you go. That is /writing.
+- **`onclick: 'shuffle'`** — the sun. A press tints the whole page at random,
+  a three-second hold puts it back, remembered per page. Never while editing:
+  a filter on `<body>` would make body the containing block of the fixed bar.
+- **Form fields `first` and `last`**, drawn side by side.
+- **`header: false` on a page's layout** hides the site header — Squarespace's
+  home page did (its custom CSS says `body.homepage #header{display:none}`)
+  and drew its own sun. A tick in the Board panel.
+
+**The page boards are 48 columns on a desk and 16 on a phone**, and so are the
+header and footer (a test holds header and footer to the same count). At 1440
+that is a 28.8px cell, fine enough that a box measured off the live site lands
+within about 15px of where it was; 24 columns could only hit every 58px. The
+footer was doubled exactly, so it looks as it did.
+
+**What still differs, knowingly:** the bookcase starts under our header rather
+than tucked up behind it, so it sits ~86px lower; the contact form wears the
+tool's dark fields, not Squarespace's white ones, and has no Web3Forms key yet;
+the footer exists here and not there; the home page's hidden lower section
+(cassette, a second card, "Dark Piano") is not rebuilt because a visitor never
+sees it; Spotify on /links is left out because it sat hidden under the QR code.
+
 ### The look
 
 `src/data/look.json` is the site's dressing: page, ink and accent colours, the
@@ -414,6 +455,15 @@ derives a full token set from those few values the way Bureau's `look.js` does
 (its decision 33), so the second and third tints of a colour agree with the
 first by construction. `Base.astro` emits them on `:root`; the editor's gear
 writes the same tokens live and publishes the file with everything else.
+
+Three more fields carry the Squarespace site's manner: **`wiggle`** (a linked
+picture wiggles under a mouse), **`sparks`** (a picture thrown five at a time
+from every click — the star) and **`cursor`** (`[pointer, pointer over a
+link]`). The pictures are `asset:` keys; `resolveLook()` turns them into
+addresses in `Base.astro`, because `look.js` may not know the site's assets
+(hard rule 4). The editor cannot resolve them, so `tokensFor()` only emits a
+cursor token for a real address and the build's own value stands. None of the
+three apply while the board is unlocked.
 
 ### Header and footer are layouts too
 
@@ -520,7 +570,8 @@ bottom with a safe-area inset, every button is at least 34px tall, and it lost
 six controls (two device tabs, three grid tabs, Add image) to fit. A 24px
 button is a miss.
 
-**All three boards share one gutter**, `--site-gutter` on `:root`. Header, page
+**All three boards share one gutter**, `--site-gutter` on `:root` —
+`max(23px, 2vw)`, which is Squarespace's own, measured. Header, page
 and footer are separate grids and only read as one board if they are the same
 width — otherwise their columns do not line up and their cells are different
 sizes, which was most of "the grid looks weird on mobile".
@@ -887,7 +938,16 @@ What's already done, so it isn't rediscovered:
 
 ## Current state
 
-**Every page is an empty board, September 2026.** All page content was cleared
+**Five pages are the Squarespace site again, as objects — 26 September 2026.**
+`/`, `/links`, `/writing`, `/music` and `/contact` were rebuilt from positions
+measured off the live site; see "The Squarespace pieces, as objects" above.
+`/uiux` and the six writing collections are linked again (the home button and
+the bookcase) and so are back on `PLANNED` in `scripts/site.test.mjs`; they are
+404s here until built. `/works`, `/film`, `/games`, `/art` and `/inventions`
+are still empty boards — `/games` was empty on Squarespace too. What follows
+describes the clearing that came before, and still holds for those.
+
+**Every page was an empty board, September 2026.** All page content was cleared
 so the site can be rebuilt object by object in the editor. This is the state to
 expect, not a build that went wrong: open any page, press the corner, and you
 get a 24-column checkerboard with nothing on it.

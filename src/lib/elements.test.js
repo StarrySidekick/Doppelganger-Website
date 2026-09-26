@@ -105,7 +105,7 @@ test('attribute values cannot break out of their attribute', () => {
 });
 
 test('the settings fields follow the attributes, not the kind name', () => {
-  assert.deepEqual(fieldsOf({ kind: 'image' }).map((f) => f.key), ['media.src', 'media.alt', 'link', 'title', 'onclick']);
+  assert.deepEqual(fieldsOf({ kind: 'image' }).map((f) => f.key), ['media.src', 'media.alt', 'media.over', 'link', 'title', 'onclick']);
   assert.deepEqual(fieldsOf({ kind: 'note' }).map((f) => f.key), ['onclick']);
   assert.deepEqual(fieldsOf({ kind: 'html' }).map((f) => f.key), ['body', 'onclick']);
   // Every object can be told what a click does, because that is a field like
@@ -369,4 +369,60 @@ test('toItem strips geometry and fromItem gives it back a place', () => {
   assert.match(html, /ar-row/);
   assert.match(html, /href="\/links"/);
   assert.match(html, /href="https:\/\/x\.y"/);
+});
+
+/* ------------------------------------------------------------------ *
+ * The pieces the Squarespace site was made of
+ * ------------------------------------------------------------------ */
+
+test('a spinning card draws two sides, its back defaulting to the front', () => {
+  const html = renderElement({ kind: 'card', media: { src: 'front.png', alt: 'Card' }, spin: { sheen: 'holo.jpg', seconds: 4 } }, ctx);
+  assert.match(html, /class="ob-spin"/);
+  assert.match(html, /--spin-s:4s/);
+  assert.match(html, /ob-spin-back[^>]*><img src="front\.png"/);
+  assert.match(html, /--sheen:url\(&quot;holo\.jpg&quot;\)/);
+  assert.deepEqual(checkElement({ kind: 'card', spin: { seconds: -1 } }), ['element.spin.seconds must be a positive number']);
+});
+
+test('a player never draws an iframe, and only takes a SoundCloud address', () => {
+  const ok = { kind: 'player', sound: { src: 'https://soundcloud.com/someone/sets/x', title: 'T' } };
+  const html = renderElement(ok, ctx);
+  assert.doesNotMatch(html, /<iframe/i, 'the widget is made by interact.js, never stored or pre-rendered');
+  assert.match(html, /data-player data-src="https:\/\/soundcloud\.com\/someone\/sets\/x"/);
+  assert.deepEqual(checkElement(ok), []);
+  const bad = { kind: 'player', sound: { src: 'https://evil.example/frame' } };
+  assert.equal(checkElement(bad).length, 1);
+  assert.match(renderElement(bad, ctx), /data-src=""/, 'a foreign address is not handed to the widget');
+});
+
+test('a carousel shows its first frame, and a hotspot is a real link', () => {
+  const o = {
+    kind: 'list', attrs: ['holds', 'media'], arrange: 'carousel',
+    media: { src: 'shelf.png', width: 100, height: 120 },
+    controls: { prev: 'l.gif', next: 'r.gif', go: 'go.gif' },
+    items: [
+      { kind: 'note', attrs: ['media', 'link'], media: { src: 'a.gif' }, link: '/poems', title: 'Poems', area: [10, 20, 30, 40] },
+      { kind: 'note', attrs: ['media', 'link'], media: { src: 'b.gif' }, link: 'https://x.example' },
+    ],
+  };
+  assert.deepEqual(checkElement(o), []);
+  const html = renderElement(o, ctx);
+  assert.match(html, /aspect-ratio:100 \/ 120/);
+  assert.match(html, /data-item="0" data-href="[^"]*poems" data-current/);
+  assert.match(html, /data-item="1" data-href="https:\/\/x\.example" data-ext>/);
+  assert.match(html, /<a class="ob-spot" data-spot="0" href="[^"]*poems"[^>]*left:10%;top:20%;width:30%;height:40%/);
+  assert.equal((html.match(/class="ob-spot"/g) || []).length, 1, 'an item with no area is not a hotspot');
+  assert.equal((html.match(/data-car=/g) || []).length, 3);
+  assert.equal(checkElement({ ...o, items: [{ ...o.items[0], area: [0, 0, 200, 1] }] }).length, 1);
+});
+
+test('a shuffle click is a button, and a picture can carry another over it', () => {
+  const html = renderElement({ kind: 'image', face: 'cutout', onclick: 'shuffle', media: { src: 'sun.gif', alt: 'Sun', over: 'glow.gif' } }, ctx);
+  assert.match(html, /^<button class="ob-shuffle" type="button" data-shuffle aria-label="Sun">/);
+  assert.match(html, /class="ob-img ob-over" src="glow\.gif"/);
+});
+
+test('a first and a last name share a row', () => {
+  const html = renderElement({ kind: 'form', form: { key: 'k', fields: ['first', 'last', 'email'] } }, ctx);
+  assert.match(html, /<div class="ob-pair"><label class="ob-field">First name <input type="text" name="first"/);
 });

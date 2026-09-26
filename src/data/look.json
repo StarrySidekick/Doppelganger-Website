@@ -4,5 +4,8 @@
   "accent": "#ffd27a",
   "board": ["#0c0c0c", "#171717"],
   "tilt": false,
-  "font": "serif"
+  "font": "serif",
+  "wiggle": true,
+  "sparks": "asset:star",
+  "cursor": ["asset:cursor", "asset:cursorOver"]
 }

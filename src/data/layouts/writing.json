@@ -1,10 +1,170 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Writing",
-  "description": "Writing by Timothy Vlangas — poems, essays, journals and stories.",
-  "elements": []
+  "description": "Writing by Timothy Vlangas \u2014 poems, essays, journals and stories.",
+  "elements": [
+    {
+      "id": "writing-bookcase",
+      "kind": "list",
+      "attrs": [
+        "holds",
+        "media"
+      ],
+      "face": "none",
+      "flow": "keep",
+      "arrange": "carousel",
+      "media": {
+        "src": "asset:bookcase",
+        "over": "asset:books",
+        "alt": "A bookcase of everything written",
+        "width": 1452,
+        "height": 1505
+      },
+      "controls": {
+        "prev": "asset:arrowLeft",
+        "go": "asset:go",
+        "next": "asset:arrowRight"
+      },
+      "items": [
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Game Design",
+          "link": "/game-design",
+          "media": {
+            "src": "asset:bookCover1"
+          },
+          "area": [
+            31.6,
+            0,
+            9.2,
+            18
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Essays",
+          "link": "/essays-about-everything",
+          "media": {
+            "src": "asset:bookCover2"
+          },
+          "area": [
+            31.6,
+            27,
+            13.8,
+            20
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Expressive Aether",
+          "link": "/expressiveaether",
+          "media": {
+            "src": "asset:bookCover3"
+          },
+          "area": [
+            50,
+            30,
+            12,
+            20
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Short Stories",
+          "link": "/short-stories",
+          "media": {
+            "src": "asset:bookCover4"
+          },
+          "area": [
+            63.8,
+            30,
+            13.8,
+            18
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Journal",
+          "link": "/journal",
+          "media": {
+            "src": "asset:bookCover5"
+          },
+          "area": [
+            31.6,
+            62,
+            27.7,
+            12
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Poems",
+          "link": "/poems",
+          "media": {
+            "src": "asset:bookCover6"
+          },
+          "area": [
+            59.2,
+            55,
+            5.5,
+            18
+          ]
+        }
+      ],
+      "desk": {
+        "col": [
+          14,
+          22
+        ],
+        "row": [
+          1,
+          24
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          1,
+          18
+        ]
+      }
+    }
+  ]
 }

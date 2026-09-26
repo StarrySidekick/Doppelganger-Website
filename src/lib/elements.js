@@ -106,11 +106,45 @@ export const ATTRS = {
      the hand-written /contact already uses. The key is public by design — it
      is in the page for anyone to read — so it is data like everything else. */
   form:      { label: 'Form',      says: 'Fields that email you when sent — needs a free Web3Forms key', field: 'form' },
+  /* A card with two sides that turns on its own. The business card on /links
+     was a hand-written component with its own shader, which is exactly why it
+     could not be held, moved or deleted in the editor. As an attribute, the
+     picture it already carries is the front and `spin` says what is on the
+     back, what shimmers across it, and how long a turn takes. */
+  spin:      { label: 'Spins',     says: 'A card with two sides, turning on its own', field: 'spin' },
+  /* A playlist with its own buttons. Audio cannot be committed (git keeps it
+     forever), so a sound lives on SoundCloud and this plays it through their
+     widget, hidden, with whatever buttons you give it. The widget is only
+     loaded by interact.js on a page that has one of these. */
+  sound:     { label: 'Plays',     says: 'Plays a SoundCloud playlist with buttons of your own', field: 'sound' },
+};
+
+/** What a spinning card is made of. Always complete. */
+export const spinOf = (o) => ({
+  back: typeof o?.spin?.back === 'string' ? o.spin.back : '',
+  sheen: typeof o?.spin?.sheen === 'string' ? o.spin.sheen : '',
+  seconds: Number.isFinite(o?.spin?.seconds) && o.spin.seconds > 0 ? o.spin.seconds : 5,
+});
+
+/**
+ * Where a player's sound lives. Only SoundCloud, because it is the one place
+ * this site's music is, and because the address ends up as an iframe src —
+ * a field that can say "any URL" there is a field that can frame anything.
+ */
+export const SOUND_HOSTS = /^https:\/\/(soundcloud\.com|api\.soundcloud\.com|on\.soundcloud\.com)\//;
+export const soundOf = (o) => {
+  const s = o?.sound ?? {};
+  const str = (k) => (typeof s[k] === 'string' ? s[k] : '');
+  return { src: str('src'), title: str('title'), play: str('play'), pause: str('pause'), prev: str('prev'), next: str('next') };
 };
 
 /** The fields a form may ask for, in the order they usually come. */
 export const FORM_FIELDS = {
   name:    { label: 'Name',    type: 'text' },
+  /* A first and a last name, the way the Squarespace contact form asks. Two
+     in a row are drawn side by side. */
+  first:   { label: 'First name', type: 'text' },
+  last:    { label: 'Last name',  type: 'text' },
   email:   { label: 'Email',   type: 'email' },
   subject: { label: 'Subject', type: 'text' },
   message: { label: 'Message', type: 'textarea' },
@@ -123,7 +157,7 @@ export const formOf = (o) => ({
 });
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'decor'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'spin', 'sound', 'decor'];
 
 /** Does it stand above the board rather than take a place on it? */
 export const isDecor = (o) => has(o, 'decor');
@@ -145,6 +179,10 @@ export const CLICKS = {
   page: 'Go to a page on this site',
   url:  'Open a web address',
   fold: 'Fold it open and shut',
+  /* The sun on the Squarespace site: press it and the whole page takes on a
+     random tint, hold it for three seconds and the tint is gone. Remembered
+     per page. A mood, not a setting — see interact.js. */
+  shuffle: 'Shuffle the page\'s colours (hold to put them back)',
 };
 
 /** What a click on this object does. */
@@ -173,6 +211,11 @@ export const ARRANGES = {
   row:       'Side by side',
   grid:      'A wrapping grid',
   accordion: 'Titles, opening one at a time',
+  /* One thing at a time over the holder's own picture, with arrows either
+     side and a Go between them — the bookcase on /writing. An item with an
+     `area` is also a hotspot on the picture: point at it and it is shown,
+     press it and you go. */
+  carousel:  'One at a time, with arrows',
 };
 
 export const arrangeOf = (o) => (ARRANGES[o?.arrange] ? o.arrange : 'stack');
@@ -235,10 +278,12 @@ export const KINDS = {
   works:  { label: 'Works',         says: 'The things you have made, filtered by tag', attrs: ['feed', 'text'],              face: 'none',    size: [14, 10] },
   html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
   form:   { label: 'Contact form',  says: 'Fields that email you when sent',         attrs: ['form', 'text'],              face: 'card',    size: [10, 9], form: { key: '', fields: ['name', 'email', 'message'], button: 'Send' } },
+  card:   { label: 'Spinning card', says: 'Two sides, turning on its own',           attrs: ['media', 'spin'],             face: 'none',    size: [6, 6], spin: { seconds: 5 } },
+  player: { label: 'Player',        says: 'A SoundCloud playlist with its own buttons', attrs: ['sound'],                  face: 'none',    size: [12, 8], sound: { src: '' } },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form'];
+export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form', 'card', 'player'];
 
 /* ------------------------------------------------------------------ *
  * Faces — how a thing draws
@@ -258,6 +303,12 @@ export const FACES = {
   front:   { label: 'Drawer front', says: 'A drawer front with a pull' },
   spine:   { label: 'Book spine',   says: 'A spine, the name running up it' },
   panel:   { label: 'Panel',        says: 'A flat panel with a hairline edge' },
+  /* The two this site is mostly made of. A cut-out is a drawing on the page
+     with nothing behind it — shown whole, never cropped, however its box is
+     shaped. Lettering is words set large in the display face and centred,
+     the way the Squarespace headings were. */
+  cutout:  { label: 'Cut-out',      says: 'The picture whole, never cropped, nothing behind it' },
+  lettering: { label: 'Lettering',  says: 'Words in the display face, large and centred' },
 };
 
 /* ------------------------------------------------------------------ *
@@ -358,8 +409,22 @@ export function makeItem({ title = '', body = '', link = '', src = '' } = {}) {
 export function fieldsOf(o) {
   const out = [];
   if (has(o, 'media')) {
-    out.push({ key: 'media.src', label: 'Picture', kind: 'text' });
+    out.push({ key: 'media.src', label: has(o, 'spin') ? 'Front' : 'Picture', kind: 'text' });
     out.push({ key: 'media.alt', label: 'Alt text', kind: 'text' });
+    out.push({ key: 'media.over', label: 'A picture laid over it (optional)', kind: 'text' });
+  }
+  if (has(o, 'spin')) {
+    out.push({ key: 'spin.back', label: 'Back (blank shows the front)', kind: 'text' });
+    out.push({ key: 'spin.sheen', label: 'Shimmer across it (optional)', kind: 'text' });
+    out.push({ key: 'spin.seconds', label: 'Seconds a turn takes', kind: 'number' });
+  }
+  if (has(o, 'sound')) {
+    out.push({ key: 'sound.src', label: 'SoundCloud address — a track or a playlist', kind: 'text' });
+    out.push({ key: 'sound.title', label: 'Title until the first track loads', kind: 'text' });
+    out.push({ key: 'sound.play', label: 'Play button picture', kind: 'text' });
+    out.push({ key: 'sound.pause', label: 'Pause button picture', kind: 'text' });
+    out.push({ key: 'sound.prev', label: 'Previous button picture', kind: 'text' });
+    out.push({ key: 'sound.next', label: 'Next button picture', kind: 'text' });
   }
   if (has(o, 'container') || has(o, 'link')) {
     out.push({ key: 'link', label: has(o, 'container') ? 'Opens the page' : 'Goes to', kind: 'text' });
@@ -380,11 +445,16 @@ export function fieldsOf(o) {
        only way to put anything in one was to write the JSON by hand. `holds`
        declared `items` as its field all along; this is the field. */
     out.push({ key: 'items', label: 'What it holds', kind: 'items' });
+    if (arrangeOf(o) === 'carousel') {
+      out.push({ key: 'controls.prev', label: 'Previous arrow picture', kind: 'text' });
+      out.push({ key: 'controls.go', label: 'Go button picture', kind: 'text' });
+      out.push({ key: 'controls.next', label: 'Next arrow picture', kind: 'text' });
+    }
   }
   if (has(o, 'feed')) out.push({ key: 'feed', label: 'Shows', kind: 'feed' });
   if (has(o, 'form')) {
     out.push({ key: 'form.key', label: 'Web3Forms access key', kind: 'text' });
-    out.push({ key: 'form.fields', label: 'Asks for (name, email, subject, message)', kind: 'list' });
+    out.push({ key: 'form.fields', label: `Asks for (${Object.keys(FORM_FIELDS).join(', ')})`, kind: 'list' });
     out.push({ key: 'form.button', label: 'The button says', kind: 'text' });
   }
   // What a click does is a field like any other, so an invented combination
@@ -417,26 +487,42 @@ export function setField(o, key, value) {
  * Rendering
  * ------------------------------------------------------------------ */
 
+/** A picture an object names by address alone — a button's art, a card's back. */
+const srcOf = (src, ctx) => (src ? (ctx.image?.({ src }) ?? { src }).src : '');
+
+/**
+ * An object's picture, and the one laid over it if it has one. `over` is a
+ * second picture the same size, drawn on top — an animated layer over a still,
+ * which is how the bookcase's books move while its shelves do not.
+ */
+function mediaHtml(o, ctx, linked = false) {
+  if (!has(o, 'media') || !o.media?.src) return '';
+  const r = ctx.image?.(o.media) ?? { src: o.media.src };
+  // Inside a labelled link the image is decorative; the anchor carries the
+  // name, and naming both makes a screen reader say it twice.
+  const alt = linked ? '' : (o.media.alt ?? '');
+  const attrs = [
+    `src="${escapeHtml(r.src)}"`,
+    r.srcset ? `srcset="${escapeHtml(r.srcset)}"` : '',
+    r.sizes ? `sizes="${escapeHtml(r.sizes)}"` : '',
+    o.media.width ? `width="${escapeHtml(o.media.width)}"` : '',
+    o.media.height ? `height="${escapeHtml(o.media.height)}"` : '',
+    `alt="${escapeHtml(alt)}"`,
+    !linked && !o.media.alt ? 'aria-hidden="true"' : '',
+  ].filter(Boolean).join(' ');
+  const over = typeof o.media.over === 'string' && o.media.over
+    ? `<img class="ob-img ob-over" src="${escapeHtml(srcOf(o.media.over, ctx))}" alt="" aria-hidden="true" />`
+    : '';
+  return `<img class="ob-img" ${attrs} />${over}`;
+}
+
 /** The picture, title and words an object shows — its inside, without its shell. */
 function inner(o, ctx, { linked = false, depth = 0 } = {}) {
   const parts = [];
 
-  if (has(o, 'media') && o.media?.src) {
-    const r = ctx.image?.(o.media) ?? { src: o.media.src };
-    // Inside a labelled link the image is decorative; the anchor carries the
-    // name, and naming both makes a screen reader say it twice.
-    const alt = linked ? '' : (o.media.alt ?? '');
-    const attrs = [
-      `src="${escapeHtml(r.src)}"`,
-      r.srcset ? `srcset="${escapeHtml(r.srcset)}"` : '',
-      r.sizes ? `sizes="${escapeHtml(r.sizes)}"` : '',
-      o.media.width ? `width="${escapeHtml(o.media.width)}"` : '',
-      o.media.height ? `height="${escapeHtml(o.media.height)}"` : '',
-      `alt="${escapeHtml(alt)}"`,
-      !linked && !o.media.alt ? 'aria-hidden="true"' : '',
-    ].filter(Boolean).join(' ');
-    parts.push(`<img class="ob-img" ${attrs} />`);
-  }
+  // A carousel draws its holder's picture inside its own stage, as the thing
+  // the frames are laid over; everything else draws it first, here.
+  if (!(has(o, 'holds') && arrangeOf(o) === 'carousel')) parts.push(mediaHtml(o, ctx, linked));
 
   if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds') || has(o, 'feed'))) {
     parts.push(`<span class="ob-title" data-edit="title">${escapeHtml(o.title)}</span>`);
@@ -526,13 +612,22 @@ function renderFeed(o, ctx) {
 function renderForm(o) {
   const f = formOf(o);
   const ready = !!f.key;
-  const controls = f.fields.filter((k) => FORM_FIELDS[k]).map((k) => {
+  const field = (k) => {
     const d = FORM_FIELDS[k];
     const control = d.type === 'textarea'
       ? `<textarea name="${k}" rows="5" required></textarea>`
       : `<input type="${d.type}" name="${k}" required />`;
     return `<label class="ob-field">${escapeHtml(d.label)} ${control}</label>`;
-  }).join('');
+  };
+  const wanted = f.fields.filter((k) => FORM_FIELDS[k]);
+  // First and last name, one after the other, share a row.
+  let controls = '';
+  for (let i = 0; i < wanted.length; i++) {
+    if (wanted[i] === 'first' && wanted[i + 1] === 'last') {
+      controls += `<div class="ob-pair">${field('first')}${field('last')}</div>`;
+      i++;
+    } else controls += field(wanted[i]);
+  }
   return `<form class="ob-form" action="${FORM_ENDPOINT}" method="POST" data-form${ready ? '' : ' data-unready'}>
     <input type="hidden" name="access_key" value="${escapeHtml(f.key)}" />
     <input type="checkbox" name="botcheck" class="ob-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
@@ -542,9 +637,50 @@ function renderForm(o) {
   </form>`;
 }
 
+/**
+ * A carousel: the holder's own picture, one of its items laid over it at a
+ * time, and three keys — back, go, forward. interact.js does the turning.
+ *
+ * The frames are not links. On the bookcase every cover fills the whole
+ * picture, so a frame that was a link would swallow every hotspot under it;
+ * Go and the hotspots are the ways out, which is how the Squarespace block
+ * behaved.
+ */
+function renderCarousel(o, ctx) {
+  const items = itemsOf(o);
+  const c = o.controls ?? {};
+  const key = (act, src, label, glyph) =>
+    `<button class="ob-car-key" type="button" data-car="${act}" aria-label="${label}">`
+    + (src ? `<img src="${escapeHtml(srcOf(src, ctx))}" alt="" />` : `<span>${glyph}</span>`) + '</button>';
+  const hrefOf = (it) => (goesSomewhere(it) ? (ctx.link?.(it.link) ?? it.link) : '');
+  const frames = items.map((it, i) => {
+    const href = hrefOf(it);
+    const ext = href && clickOf(it) === 'url' ? ' data-ext' : '';
+    return `<div class="ob-item ob-frame fc-${faceOf(it)}" data-item="${i}"${href ? ` data-href="${escapeHtml(href)}"` : ''}${ext}${i === 0 ? ' data-current' : ''}>`
+      + `${mediaHtml(it, ctx)}${it.title ? `<span class="ob-title">${escapeHtml(it.title)}</span>` : ''}</div>`;
+  }).join('');
+  const spots = items.map((it, i) => {
+    const a = it.area;
+    const href = hrefOf(it);
+    if (!href || !Array.isArray(a) || a.length !== 4 || !a.every(Number.isFinite)) return '';
+    const ext = clickOf(it) === 'url' ? ' target="_blank" rel="noopener"' : '';
+    return `<a class="ob-spot" data-spot="${i}" href="${escapeHtml(href)}" aria-label="${escapeHtml(it.title ?? `Item ${i + 1}`)}"`
+      + ` style="left:${a[0]}%;top:${a[1]}%;width:${a[2]}%;height:${a[3]}%"${ext}></a>`;
+  }).join('');
+  // The stage takes the picture's own shape, so a hotspot's percentages mean
+  // the same place on the drawing however big the tile is.
+  const w = Number(o.media?.width), h = Number(o.media?.height);
+  const ratio = w > 0 && h > 0 ? ` style="aspect-ratio:${w} / ${h}"` : '';
+  return `<div class="ob-holds ar-carousel" data-arrange="carousel" data-carousel>`
+    + `<div class="ob-car-stage"${ratio}>${mediaHtml(o, ctx)}${frames}${spots}`
+    + `<div class="ob-car-keys">${key('-1', c.prev, 'Previous', '&lsaquo;')}${key('go', c.go, 'Go', 'Go')}${key('1', c.next, 'Next', '&rsaquo;')}</div>`
+    + `</div></div>`;
+}
+
 function renderHolder(o, ctx, depth) {
   const items = itemsOf(o);
   const arrange = arrangeOf(o);
+  if (arrange === 'carousel' && depth === 0) return renderCarousel(o, ctx);
   if (!items.length) return `<div class="ob-holds ar-${arrange}" data-arrange="${arrange}"></div>`;
   // Depth 1: a holder inside a holder would be a layout engine, and the board
   // is the layout engine. An item that holds is drawn as its title alone.
@@ -600,9 +736,55 @@ export function renderElement(o, ctx = {}) {
       + `<div class="ob-fold" hidden>${inner(o, ctx)}<div class="ob-body" data-edit="body">${body}</div></div>`;
   }
 
+  if (has(o, 'spin')) return wrapClick(o, ctx, renderSpin(o, ctx));
+  if (has(o, 'sound')) return renderPlayer(o, ctx);
+
   const linked = goesSomewhere(o);
-  const guts = inner(o, ctx, { linked });
-  return linked ? linkWrap(o, ctx, guts) : guts;
+  return wrapClick(o, ctx, inner(o, ctx, { linked }));
+}
+
+/** An object's inside, made into whatever its click is: a link, a shuffle, or nothing. */
+function wrapClick(o, ctx, guts) {
+  if (goesSomewhere(o)) return linkWrap(o, ctx, guts);
+  if (clickOf(o) === 'shuffle') {
+    const label = o.media?.alt || o.title || 'Shuffle the colours';
+    return `<button class="ob-shuffle" type="button" data-shuffle aria-label="${escapeHtml(label)}">${guts}</button>`;
+  }
+  return guts;
+}
+
+/** Two sides and a shimmer. The turning is CSS — see faces.css. */
+function renderSpin(o, ctx) {
+  const s = spinOf(o);
+  const front = o.media?.src ? (ctx.image?.(o.media) ?? { src: o.media.src }).src : '';
+  const back = s.back ? srcOf(s.back, ctx) : front;
+  const sheen = s.sheen ? srcOf(s.sheen, ctx) : '';
+  const style = `--spin-s:${s.seconds}s` + (sheen ? `;--sheen:url(&quot;${escapeHtml(sheen)}&quot;)` : '');
+  const side = (cls, src, alt) =>
+    `<div class="ob-spin-side ${cls}${sheen ? ' ob-sheen' : ''}">${src ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />` : ''}</div>`;
+  return `<div class="ob-spin" style="${style}"><div class="ob-spin-card">`
+    + side('ob-spin-front', front, o.media?.alt ?? '') + side('ob-spin-back', back, '')
+    + `</div></div>`;
+}
+
+/**
+ * A player. The SoundCloud widget itself is NOT drawn here: interact.js makes
+ * it, hidden, when the page loads, so the editor's preview never starts
+ * loading a stranger's iframe and a stored layout never contains one.
+ */
+function renderPlayer(o, ctx) {
+  const s = soundOf(o);
+  const key = (act, src, label, glyph, extra = '') =>
+    `<button class="ob-play-key" type="button" data-play-act="${act}" aria-label="${label}">`
+    + (src ? `<img src="${escapeHtml(srcOf(src, ctx))}" alt=""${extra} />` : `<span${extra}>${glyph}</span>`) + '</button>';
+  const pause = s.pause ? ` data-pause="${escapeHtml(srcOf(s.pause, ctx))}"` : '';
+  const play = s.play ? ` data-play="${escapeHtml(srcOf(s.play, ctx))}"` : '';
+  return `<div class="ob-player" data-player data-src="${escapeHtml(SOUND_HOSTS.test(s.src) ? s.src : '')}">`
+    + `<div class="ob-play-title" aria-live="polite">${escapeHtml(s.title)}</div>`
+    + `<input class="ob-play-scrub" type="range" min="0" max="1000" step="1" value="0" aria-label="Position in the track" />`
+    + `<div class="ob-play-keys">${key('prev', s.prev, 'Previous track', '&#9198;')}`
+    + `${key('toggle', s.play, 'Play or pause', '&#9654;', play + pause)}`
+    + `${key('next', s.next, 'Next track', '&#9197;')}</div></div>`;
 }
 
 /** Problems with one object's kind, attributes and fields. Empty means fine. */
@@ -620,7 +802,7 @@ export function checkElement(o, at = 'element') {
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form', 'spin', 'sound']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -672,6 +854,44 @@ export function checkElement(o, at = 'element') {
     if (o.arrange != null && !ARRANGES[o.arrange]) out.push(`${at}.arrange ${JSON.stringify(o.arrange)} is not one of ${Object.keys(ARRANGES).join(', ')}`);
     if (o.items != null && !Array.isArray(o.items)) out.push(`${at}.items must be an array`);
     else for (const [i, it] of itemsOf(o).entries()) out.push(...checkElement(it, `${at}.items[${i}]`));
+  }
+  if (has(o, 'media') && o.media?.over != null) {
+    if (typeof o.media.over !== 'string') out.push(`${at}.media.over must be a string`);
+    const why = unsafeHtml(o.media.over);
+    if (why) out.push(`${at}.media.over contains ${why}`);
+  }
+  if (has(o, 'spin') && o.spin != null) {
+    if (typeof o.spin !== 'object' || Array.isArray(o.spin)) out.push(`${at}.spin must be an object`);
+    else {
+      for (const k of ['back', 'sheen']) {
+        if (o.spin[k] != null && typeof o.spin[k] !== 'string') out.push(`${at}.spin.${k} must be a string`);
+        const why = unsafeHtml(o.spin[k]);
+        if (why) out.push(`${at}.spin.${k} contains ${why}`);
+      }
+      if (o.spin.seconds != null && (!Number.isFinite(o.spin.seconds) || o.spin.seconds <= 0)) out.push(`${at}.spin.seconds must be a positive number`);
+    }
+  }
+  if (has(o, 'sound') && o.sound != null) {
+    if (typeof o.sound !== 'object' || Array.isArray(o.sound)) out.push(`${at}.sound must be an object`);
+    else {
+      for (const k of ['src', 'title', 'play', 'pause', 'prev', 'next']) {
+        if (o.sound[k] != null && typeof o.sound[k] !== 'string') out.push(`${at}.sound.${k} must be a string`);
+        const why = unsafeHtml(o.sound[k]);
+        if (why) out.push(`${at}.sound.${k} contains ${why}`);
+      }
+      if (o.sound.src && !SOUND_HOSTS.test(o.sound.src)) out.push(`${at}.sound.src must be a SoundCloud address (https://soundcloud.com/…)`);
+    }
+  }
+  if (has(o, 'holds') && o.controls != null) {
+    if (typeof o.controls !== 'object' || Array.isArray(o.controls)) out.push(`${at}.controls must be an object`);
+    else for (const [k, v] of Object.entries(o.controls)) {
+      if (!['prev', 'next', 'go'].includes(k)) out.push(`${at}.controls.${k} is not one of prev, next, go`);
+      else if (typeof v !== 'string') out.push(`${at}.controls.${k} must be a string`);
+      else { const why = unsafeHtml(v); if (why) out.push(`${at}.controls.${k} contains ${why}`); }
+    }
+  }
+  if (o?.area != null && (!Array.isArray(o.area) || o.area.length !== 4 || !o.area.every((n) => Number.isFinite(n) && n >= 0 && n <= 100))) {
+    out.push(`${at}.area must be four percentages: left, top, width, height`);
   }
   if (has(o, 'form') && o.form != null) {
     if (typeof o.form !== 'object') out.push(`${at}.form must be an object`);
@@ -748,7 +968,7 @@ export function setKind(o, kind) {
   // face is the honest default, and the face picker is right there.
   delete o.face;
   // Fill in whatever the new kind cannot do without, and only that.
-  for (const k of ['body', 'title', 'fold', 'arrange', 'form']) {
+  for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound']) {
     if (KINDS[kind][k] != null && o[k] == null) o[k] = structuredClone(KINDS[kind][k]);
   }
   /* Nothing is DELETED here, and that is the point of the whole function. A

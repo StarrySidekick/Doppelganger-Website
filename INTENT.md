@@ -49,13 +49,21 @@ verified by driving a browser from a scratch file, which is not the same as
 being guarded.
 
 
+**Asked for 2026-09-26, in his words: "replicate our website as close as we
+can, sort of on top of our new bureau style system … as close as possible."**
+Done for the five pages that had content on Squarespace. Everything that was a
+code block there became a general object here (card, player, carousel,
+shuffle), so it counts for the tool as much as the site. What is left of
+parity: the bookcase's vertical position, the contact form's dressing and key,
+and the pages below.
+
 ## Deliberately not next
 
 - **`/uiux` and the six blog collections.** Still 404s, still on `PLANNED` in
   `scripts/site.test.mjs`, and deliberately parked. Do not spend a session on
   routes he has deprioritised.
-- **Content parity with Squarespace.** Blog content import is coming, but it is
-  behind the tool.
+- **Blog content import.** Still behind the tool. (Page parity was asked for
+  and done on 2026-09-26 — see above.)
 
 ## Worth knowing
 

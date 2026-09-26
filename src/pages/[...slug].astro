@@ -37,7 +37,7 @@ const image = layout.image
     : layout.image)
   : undefined;
 ---
-<Base title={title} path={`/${name}`} description={description} image={image}>
+<Base title={title} path={`/${name}`} description={description} image={image} header={layout.header !== false}>
   <main class="drawer-page">
     <h1 class="sr-only">{title}</h1>
     <AdaptiveGrid layout={layout} name={name} class="page-grid" />

@@ -24,6 +24,44 @@ export const asset = {
   cardFront: CDN + '65f4b890ba886409c5d454ee/1710536848659/Business_Card_Front_Blue.png',
   cardBack:  CDN + '65f4b9c2bb62673336cf473c/1710537154891/Business_Card_Back.png',
   holo:      CDN + '65f4c128f5898d008359bc18/1710539049134/Holo+Small.jpg',
+
+  // The rest of the Squarespace site, measured off the live pages September
+  // 2026 so the boards could be rebuilt as objects. Same rule as above:
+  // images.squarespace-cdn.com resizes, static1 does not.
+  backstage:    IMG + 'ca491940-f2b3-45e0-83fb-8bdfdeb1a395/download.png',
+  linkedin:     IMG + '8bf292a4-4170-477b-ac8a-f2bfa5b74498/Untitled_Artwork+43.png',
+  soundcloudIcon: IMG + '9b0549c0-5d36-4de0-ae08-73e0b55f1cb5/Untitled_Artwork+34.png',
+  youtube:      IMG + '30957ea8-5fc7-49a8-b89c-59292cd77635/Untitled_Artwork+41.png',
+
+  bookcase:     CDN + '65c16630d546017619f83037/1707173425378/Bookcase.png',
+  books:        CDN + '65c1685598e48a59f972d824/1707173973476/Books.gif',
+  bookCover1:   CDN + '65c1be87d5460176190bc005/1707196039716/Book_Cover_1.gif',
+  bookCover2:   CDN + '65c1be87468eb90c91481b2e/1707196039716/Book_Cover_2.gif',
+  bookCover3:   CDN + '65c1be87e05c5f0a08c895ea/1707196039709/Book_Cover_3.gif',
+  bookCover4:   CDN + '65c1be872731095de8ef54ce/1707196039708/Book_Cover_4.gif',
+  bookCover5:   CDN + '65c1c88ed736531a291eda02/1707198606709/Book_Cover_5.gif',
+  bookCover6:   CDN + '65c1be87bea3613accd6df46/1707196039600/Book_Cover_6.gif',
+  arrowLeft:    CDN + '65c1b0880c1dbe3dd70098a6/1707192456950/Arrow_Left.gif',
+  arrowRight:   CDN + '65c1b088e6a9694984f0db30/1707192456993/Arrow_Right.gif',
+  go:           CDN + '65c1b0883949f25c0b3b0329/1707192456980/Go.gif',
+
+  skipLeft:     CDN + '65f4df42b435f55330df9336/1710546754045/Arrow_Skip_Left.gif',
+  skipRight:    CDN + '65f4df425f42d43d529bbe8b/1710546754047/Arrow_Skip_Right.gif',
+  play:         CDN + '65f4dab481119573af1a1e61/1710545588272/Arrow_Right+2.gif',
+  pause:        CDN + '65f4f42702bb687ab122e639/1710552103399/Pause.gif',
+
+  // The site's own pointer, and the star a click throws.
+  star:         CDN + '65c1730a3dfa56218f95fc91/1707176714824/Star.png',
+  cursor:       CDN + '658a48cb06fdfa7abb78a76a/1703561419043/Cursor_-_Empty.png',
+  cursorOver:   CDN + '658a48c7549719130fedf014/1703561415052/Cursor_-_Solid.png',
+};
+
+/** An `asset:` key, a `media:` file or an address, as the address it names. */
+export const resolveAsset = (ref) => {
+  if (typeof ref !== 'string') return ref;
+  if (ref.startsWith('asset:')) return asset[ref.slice(6)] ?? '';
+  if (ref.startsWith('media:')) return url('media/' + ref.slice(6));
+  return ref;
 };
 
 export const GAMES_URL = 'https://starry-sidekick.itch.io/composers-key';

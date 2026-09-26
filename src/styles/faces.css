@@ -27,6 +27,29 @@
 /* ---- plain: the content as it is ------------------------------------ */
 .fc-none { overflow: visible; }
 
+/* ---- cut-out: a drawing on the page, whole -------------------------
+   Nothing behind it and nothing cropped: the picture is fitted inside its box
+   whatever shape the box is, which is how a Squarespace image block drew
+   every GIF on this site. Not clipped either, so a wiggle can lean out. */
+.fc-cutout { overflow: visible; }
+.fc-cutout .ob-link, .fc-cutout .ob-shuffle { display: block; width: 100%; height: 100%; }
+.fc-cutout .ob-img { width: 100%; height: 100%; object-fit: contain; }
+.fc-cutout .ob-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* A picture laid over another, the same size. */
+.ob .ob-over { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+/* ---- lettering: words in the display face, large and centred -------- */
+.fc-lettering {
+  overflow: visible;
+  display: grid; place-items: center; text-align: center;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(24px, 2.37cqi, 48px);
+  line-height: 1.15;
+}
+.fc-lettering .ob-body a { text-decoration: none; }
+.fc-lettering .ob-body a:hover { text-decoration: underline; }
+
 /* ---- card ---------------------------------------------------------- */
 .fc-card {
   background: var(--paper-2);
@@ -186,6 +209,7 @@
    button is the same plaque a button object wears. */
 .ob-form { display: grid; gap: clamp(6px, 1cqi, 12px); align-content: start; height: 100%; overflow: auto; }
 .ob-form .ob-field { display: grid; gap: 3px; font-size: clamp(.8rem, 1.3cqi, 1rem); }
+.ob-form .ob-pair { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(6px, 1cqi, 12px); }
 .ob-form input, .ob-form textarea {
   font: inherit; font-family: var(--body-font, inherit);
   background: color-mix(in srgb, var(--ink) 6%, transparent);
@@ -302,6 +326,147 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
   opacity: .6; margin-bottom: 6px;
 }
 
+/* ================= a spinning card ==================================
+   Two sides turning on their own, and a shimmer drifting across both. Ported
+   from the Squarespace custom CSS and FlipCard.astro. Keyframe names carry a
+   prefix — a bare `spin` collided with Squarespace's own and turned this card
+   on the wrong axis for months (hard rule 1). */
+.ob:has(> .ob-spin), .ob:has(> .ob-link > .ob-spin) { overflow: visible; }
+.ob-spin {
+  width: 100%; height: 100%;
+  display: grid; place-items: center;
+  perspective: 1000px;
+  container-type: size;
+}
+.ob-spin-card {
+  width: min(100cqw, 100cqh); aspect-ratio: 1;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: obCardSpinY var(--spin-s, 5s) infinite linear;
+}
+.ob-spin-side { position: absolute; inset: 0; backface-visibility: hidden; overflow: hidden; }
+.ob-spin-front { z-index: 2; }
+.ob-spin-back { transform: rotateY(180deg); }
+.ob-spin-side img { width: 100%; height: 100%; object-fit: cover; }
+.ob-spin-side.ob-sheen::after {
+  content: ''; position: absolute;
+  top: -54%; left: -36%; width: 179%; height: 179%;
+  background-image: var(--sheen); background-size: cover;
+  opacity: .4; pointer-events: none;
+  animation: obSheenDrift 10s infinite linear;
+}
+@keyframes obCardSpinY { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+@keyframes obSheenDrift { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ================= a carousel =======================================
+   The holder's picture, one frame over it, and three keys along the lower
+   edge of the picture — the bookcase. The stage takes the picture's own shape
+   (set inline from media.width/height) so a hotspot means the same place on
+   the drawing at any size. The keys hang below the stage, as on Squarespace,
+   so the tile is drawn unclipped. */
+.ob:has(> .ob-holds.ar-carousel) { overflow: visible; display: block; }
+.ob-holds.ar-carousel { display: block; height: auto; overflow: visible; position: relative; }
+.ar-carousel .ob-car-stage { position: relative; width: 100%; }
+.ar-carousel .ob-car-stage > .ob-img,
+.ar-carousel .ob-frame,
+.ar-carousel .ob-frame .ob-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.ar-carousel .ob-car-stage > .ob-img:first-child { position: relative; }
+.ar-carousel .ob-frame { display: none; pointer-events: none; }
+.ar-carousel .ob-frame[data-current] { display: block; }
+.ar-carousel .ob-frame .ob-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.ar-carousel .ob-spot { position: absolute; z-index: 3; }
+.ar-carousel .ob-car-keys {
+  position: absolute; left: 0; right: 0; top: 90%; z-index: 4;
+  display: flex; justify-content: center; gap: 4%;
+}
+.ob-car-key {
+  width: 18%; aspect-ratio: 1; padding: 0; border: 0; background: none;
+  color: var(--ink); font: inherit; font-size: clamp(1rem, 3cqi, 2.4rem);
+  cursor: pointer; transition: transform .2s ease;
+}
+.ob-car-key img { width: 100%; height: 100%; object-fit: contain; }
+.ob-car-key:hover { transform: scale(1.2); }
+.ob-car-key:active { transform: scale(.85); }
+
+/* ================= a player =========================================
+   A title, a scrubber, and three keys, sized off the tile itself (a size
+   container) so the same object reads right on a desk and a phone. */
+.ob:has(> .ob-player) { container-type: size; }
+.ob-player {
+  height: 100%;
+  /* Title at the top, keys at the bottom, the scrubber between — spread over
+     whatever box the player was given, as the Squarespace block was. */
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  gap: 12px;
+  text-align: center;
+}
+.ob-play-title {
+  font-family: Baskerville, 'Libre Baskerville', var(--font-body, serif);
+  font-size: clamp(22px, 7cqw, 40px); letter-spacing: .09em; line-height: 1.2;
+  min-height: 1.2em;
+}
+.ob-play-scrub {
+  -webkit-appearance: none; appearance: none;
+  width: 96%; height: 10px; margin: 0;
+  background: var(--ink); opacity: .5; outline: none;
+  transition: opacity .2s; cursor: pointer;
+}
+.ob-play-scrub:hover { opacity: 1; }
+.ob-play-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); cursor: pointer; }
+.ob-play-scrub::-moz-range-thumb { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--ink); cursor: pointer; }
+.ob-play-keys { display: flex; justify-content: center; gap: 7.5cqw; }
+.ob-play-key {
+  width: clamp(48px, 25cqw, 128px); aspect-ratio: 1; padding: 0; border: 0; background: none;
+  color: var(--ink); font-size: clamp(1.4rem, 8cqw, 3rem); cursor: pointer;
+  transition: transform .2s ease;
+}
+.ob-play-key img { width: 100%; height: 100%; object-fit: contain; }
+.ob-play-key:hover { transform: scale(1.1); }
+.ob-play-key:active { transform: scale(.9); }
+.ob-player iframe { display: none; }
+
+/* ================= the shuffle ======================================
+   A press tints the page (interact.js). The thing you press turns slowly,
+   the way the sun always has — it reads as a dial rather than a picture. */
+.ob-shuffle {
+  display: block; width: 100%; height: 100%;
+  padding: 0; border: 0; background: none; color: inherit; cursor: pointer;
+  transition: transform .3s ease;
+}
+.ob-shuffle:hover { transform: scale(1.2); }
+.ob-shuffle:active { transform: scale(.85); }
+.ob-shuffle .ob-img { animation: obDialTurn 24s infinite linear; }
+@keyframes obDialTurn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* A tint on <body> makes body the containing block for everything fixed —
+   the editor's bar included — so edit mode never wears one. */
+html.ag-editing body { filter: none !important; }
+
+/* ================= sparks ============================================
+   Thrown from a click when the look names a picture. */
+.ob-spark {
+  position: fixed; left: 0; top: 0; z-index: 9999;
+  width: 32px; height: auto; pointer-events: none;
+}
+
+/* ================= the look's motion and pointer ====================
+   Both are the look, not a face: every linked picture on the site wiggles
+   under a mouse (look.wiggle), and the pointer is the site's own drawing when
+   the look names one. Neither applies while the board is unlocked, where a
+   tile under the pointer is something to pick up, not to admire. */
+@media (hover: hover) and (pointer: fine) {
+  html:not(.ag-unlocked) body.look-wiggle .ob a.ob-link:hover .ob-img:not(.ob-over) { animation: obWiggle 1.2s infinite linear; }
+  html:not(.ag-unlocked) body.look-wiggle .ob a.ob-link:active .ob-img:not(.ob-over) { animation: none; transform: scale(.85); }
+}
+@keyframes obWiggle {
+  0%   { transform: rotate(0deg) scale(.9); }
+  25%  { transform: rotate(-5deg) scale(.9); }
+  50%  { transform: rotate(0deg) scale(.9); }
+  75%  { transform: rotate(5deg) scale(.9); }
+  100% { transform: rotate(0deg) scale(.9); }
+}
+html:not(.ag-unlocked) body { cursor: var(--cursor, auto); }
+html:not(.ag-unlocked) body :is(a, button, input, img):hover { cursor: var(--cursor-over, pointer); }
+
 /* ---- pinned: every tile leans a degree or two (Bureau decision 75) ----
    The angle is a hash of the object's id so it never changes between renders.
    Set on the tile as --tilt by AdaptiveGrid. */
@@ -310,5 +475,7 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
 
 @media (prefers-reduced-motion: reduce) {
   .look-tilt .ob { transform: none; }
+  .ob-spin-card, .ob-spin-side::after, .ob-shuffle .ob-img { animation: none; }
+  body.look-wiggle .ob a.ob-link:hover .ob-img { animation: none; }
   .ob-tab::after { transition: none; }
 }

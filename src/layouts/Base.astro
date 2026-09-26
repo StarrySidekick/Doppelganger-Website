@@ -1,7 +1,7 @@
 ---
-import { PROD_ORIGIN, asset, sized, url } from '../lib/assets.js';
+import { PROD_ORIGIN, asset, sized, url, resolveAsset } from '../lib/assets.js';
 import SiteChrome from '../components/SiteChrome.astro';
-import { lookCSS, validateLook, normalizeLook } from '../lib/look.js';
+import { lookCSS, validateLook, resolveLook } from '../lib/look.js';
 import lookData from '../data/look.json';
 import '../styles/faces.css';
 
@@ -9,7 +9,9 @@ import '../styles/faces.css';
 // fails the build here rather than shipping a page with no colours.
 const lookProblems = validateLook(lookData, 'look.json');
 if (lookProblems.length) throw new Error('Invalid look:\n  ' + lookProblems.join('\n  '));
-const look = normalizeLook(lookData);
+// The look names its pictures (sparks, pointer) the way a layout does, by
+// asset: key; only the site knows what those are, so they are resolved here.
+const look = resolveLook(lookData, resolveAsset);
 
 const {
   title,
@@ -19,6 +21,9 @@ const {
   // The picture a shared link shows. A board may name its own; the wordmark
   // is what every other page shows.
   image = null,
+  // A page may go without the site header — Squarespace's home page did, and
+  // drew its own sun instead. A field on the page's layout, set in Board.
+  header = true,
 } = Astro.props;
 const full = `${title} — StarrySidekick.com`;
 
@@ -74,11 +79,11 @@ const ogImage = image
   />
   <style is:inline set:html={lookCSS(look)}></style>
 </head>
-<body class:list={["has-chrome", look.tilt && "look-tilt"]}>
+<body class:list={["has-chrome", look.tilt && "look-tilt", look.wiggle && "look-wiggle"]} data-sparks={look.sparks || undefined}>
   <!-- Header and footer are layouts, not markup, so they can be arranged and
        reworded in the editor like anything else. Every page gets them; pages no
        longer opt in one at a time. -->
-  <SiteChrome part="header" />
+  {header && <SiteChrome part="header" />}
   <main class="site-main"><slot /></main>
   <SiteChrome part="footer" />
   <script>
@@ -113,14 +118,19 @@ const ogImage = image
      three separate grids, and they only read as ONE board if they are the same
      width — otherwise their columns do not line up and their cells are
      different sizes, which is most of what "the grid looks weird" was. */
-  :root { --site-gutter: clamp(12px, 3vw, 40px); }
+  /* Squarespace's own gutter, measured: its grid's first column starts 2% of
+     the window in on a desk and 23px in on a phone. Matching it is what lets a
+     box measured off the live site land in the same place here. */
+  :root { --site-gutter: max(23px, 2vw); }
   .site-main { padding-inline: var(--site-gutter); }
 
   /* The shell every page is now: a board, with the site's gutter around it.
      It used to live in [...slug].astro, which was fine while that route was
      the only board-driven page. Every page is one now — the home page
      included — and a style block in one route is not emitted for another. */
-  .drawer-page { padding-block: clamp(12px, 3vw, 40px); }
+  /* No space above: the board starts where the header ends, as a Squarespace
+     page's first section did. Below, room before the footer. */
+  .drawer-page { padding-block: 0 clamp(12px, 3vw, 40px); }
 
   /* A heading an `html` object can reach for. Typed objects render inside
      AdaptiveGrid, out of reach of a page's scoped <style>, so these hang off

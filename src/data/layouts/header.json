@@ -1,11 +1,11 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
-  "rows": 2,
-  "narrowRows": 2,
+  "rows": 3,
+  "narrowRows": 3,
   "sticky": false,
   "title": "Header",
   "elements": [
@@ -13,25 +13,25 @@
       "id": "site-home",
       "kind": "image",
       "flow": "pin",
-      "face": "none",
+      "face": "cutout",
       "desk": {
         "col": [
           1,
-          2
+          3
         ],
         "row": [
           1,
-          2
+          3
         ]
       },
       "narrow": {
         "col": [
           1,
-          2
+          3
         ],
         "row": [
           1,
-          2
+          3
         ]
       },
       "media": {
@@ -39,7 +39,7 @@
         "alt": "Home",
         "width": 480,
         "height": 480,
-        "sizes": "120px",
+        "sizes": "90px",
         "widths": [
           100,
           300
@@ -49,75 +49,40 @@
       "onclick": "page"
     },
     {
-      "id": "site-wordmark",
-      "kind": "image",
-      "flow": "keep",
-      "face": "none",
-      "desk": {
-        "col": [
-          9,
-          8
-        ],
-        "row": [
-          1,
-          2
-        ]
-      },
-      "narrow": {
-        "col": [
-          3,
-          4
-        ],
-        "row": [
-          1,
-          2
-        ]
-      },
-      "media": {
-        "src": "asset:wordmark",
-        "alt": "Starry Sidekick",
-        "sizes": "(max-width: 700px) 50vw, 380px",
-        "widths": [
-          300,
-          500,
-          750
-        ]
-      },
-      "link": "/",
-      "onclick": "page"
-    },
-    {
       "id": "site-sun",
       "kind": "image",
       "flow": "pin",
-      "face": "none",
+      "face": "cutout",
       "desk": {
         "col": [
-          23,
-          2
+          46,
+          3
         ],
         "row": [
           1,
-          2
+          3
         ]
       },
       "narrow": {
         "col": [
-          7,
-          2
+          14,
+          3
         ],
         "row": [
           1,
-          2
+          3
         ]
       },
       "media": {
         "src": "asset:sun",
-        "alt": "",
+        "alt": "Shuffle the colours — hold to put them back",
         "width": 128,
         "height": 128
       },
-      "onclick": "none"
+      "onclick": "shuffle",
+      "attrs": [
+        "media"
+      ]
     }
   ]
 }

@@ -224,7 +224,9 @@ test('no page board carries the corner navigation', () => {
 test('the chrome layouts hold the site navigation', () => {
   const header = shipped('header');
   const footer = shipped('footer');
-  assert.deepEqual(header.elements.map((e) => e.id), ['site-home', 'site-wordmark', 'site-sun']);
+  // The home icon and the sun, as on Squarespace. The wordmark is the home
+  // page's own, and the home page goes without the header altogether.
+  assert.deepEqual(header.elements.map((e) => e.id), ['site-home', 'site-sun']);
   // Header and footer ids must not collide with each other or with a page's:
   // they end up in one document, where an id is a global name.
   const all = [...header.elements, ...footer.elements, ...shipped('links').elements].map((e) => e.id);
