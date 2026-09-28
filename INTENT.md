@@ -57,6 +57,14 @@ shuffle), so it counts for the tool as much as the site. What is left of
 parity: the bookcase's vertical position, the contact form's dressing and key,
 and the pages below.
 
+**Asked for 2026-09-28: a simple 3D polygon editor, to make an N64-style key
+that rotates on the site and can be placed around — ultimately a key shaped
+like a music note, with three rectangular teeth where the note's tail is.**
+Built as a `model` object plus a 3D editor that is its own module ("maybe this
+could eventually be its own thing" — so it depends on nothing in the board
+editor). Both keys are presets. Not yet placed on any page; that is his to do
+from the picker.
+
 ## Deliberately not next
 
 - **`/uiux` and the six blog collections.** Still 404s, still on `PLANNED` in

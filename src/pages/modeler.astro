@@ -1,0 +1,41 @@
+---
+/**
+ * The 3D editor on a page of its own.
+ *
+ * The same editor the board opens over a model object — model-editor.js —
+ * standing alone, so a model can be made with no board around it and so the
+ * editor has somewhere to grow into its own thing. Work in progress is kept
+ * in this browser; a model reaches the site by copying its JSON into a model
+ * object's editor (Load what is typed), or by building it there to begin with.
+ *
+ * Not for visitors: noindex, and linked from nowhere but the Pages panel.
+ */
+import Base from '../layouts/Base.astro';
+---
+<Base title="3D editor" path="/modeler" noindex description="A small editor for low-poly models.">
+  <div class="modeler" data-modeler></div>
+</Base>
+
+<script>
+  import { mountModelEditor } from '../lib/model-editor.js';
+  import { PRESETS } from '../lib/model3d.js';
+
+  const KEY = 'dd-modeler-draft';
+  let start = PRESETS.noteKey.model;
+  try { const d = localStorage.getItem(KEY); if (d) start = JSON.parse(d); } catch { /* start fresh */ }
+  mountModelEditor(document.querySelector('[data-modeler]'), {
+    model: start,
+    title: '3D editor',
+    onChange: (m) => { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch { /* not kept, still usable */ } },
+  });
+</script>
+
+<style>
+  .modeler {
+    height: calc(100vh - 140px);
+    min-height: 520px;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+</style>

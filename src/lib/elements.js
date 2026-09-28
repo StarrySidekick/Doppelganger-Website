@@ -29,6 +29,8 @@
  *    the editor validates through it, so nothing here may touch the DOM.
  */
 
+import { PRESETS, validateModel } from './model3d.js';
+
 /* ------------------------------------------------------------------ *
  * Escaping and the guard rail
  * ------------------------------------------------------------------ */
@@ -117,6 +119,10 @@ export const ATTRS = {
      widget, hidden, with whatever buttons you give it. The widget is only
      loaded by interact.js on a page that has one of these. */
   sound:     { label: 'Plays',     says: 'Plays a SoundCloud playlist with buttons of your own', field: 'sound' },
+  /* A low-poly 3D thing that turns on its own — the N64 key. Its parts are
+     stored on the object (model3d.js), drawn by model-view.js, and made in
+     model-editor.js, which the object editor opens. */
+  model:     { label: '3D model',  says: 'A low-poly model, turning on its own', field: 'model' },
 };
 
 /** What a spinning card is made of. Always complete. */
@@ -157,7 +163,7 @@ export const formOf = (o) => ({
 });
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'spin', 'sound', 'decor'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'spin', 'sound', 'model', 'decor'];
 
 /** Does it stand above the board rather than take a place on it? */
 export const isDecor = (o) => has(o, 'decor');
@@ -279,11 +285,12 @@ export const KINDS = {
   html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
   form:   { label: 'Contact form',  says: 'Fields that email you when sent',         attrs: ['form', 'text'],              face: 'card',    size: [10, 9], form: { key: '', fields: ['name', 'email', 'message'], button: 'Send' } },
   card:   { label: 'Spinning card', says: 'Two sides, turning on its own',           attrs: ['media', 'spin'],             face: 'none',    size: [6, 6], spin: { seconds: 5 } },
+  model:  { label: '3D model',      says: 'Low-poly, turning on its own — made in the 3D editor', attrs: ['model'], face: 'none', size: [8, 8], model: PRESETS.key.model },
   player: { label: 'Player',        says: 'A SoundCloud playlist with its own buttons', attrs: ['sound'],                  face: 'none',    size: [12, 8], sound: { src: '' } },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form', 'card', 'player'];
+export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form', 'card', 'player', 'model'];
 
 /* ------------------------------------------------------------------ *
  * Faces — how a thing draws
@@ -418,6 +425,7 @@ export function fieldsOf(o) {
     out.push({ key: 'spin.sheen', label: 'Shimmer across it (optional)', kind: 'text' });
     out.push({ key: 'spin.seconds', label: 'Seconds a turn takes', kind: 'number' });
   }
+  if (has(o, 'model')) out.push({ key: 'model', label: 'The model', kind: 'model' });
   if (has(o, 'sound')) {
     out.push({ key: 'sound.src', label: 'SoundCloud address — a track or a playlist', kind: 'text' });
     out.push({ key: 'sound.title', label: 'Title until the first track loads', kind: 'text' });
@@ -738,6 +746,7 @@ export function renderElement(o, ctx = {}) {
 
   if (has(o, 'spin')) return wrapClick(o, ctx, renderSpin(o, ctx));
   if (has(o, 'sound')) return renderPlayer(o, ctx);
+  if (has(o, 'model')) return wrapClick(o, ctx, renderModel(o));
 
   const linked = goesSomewhere(o);
   return wrapClick(o, ctx, inner(o, ctx, { linked }));
@@ -751,6 +760,17 @@ function wrapClick(o, ctx, guts) {
     return `<button class="ob-shuffle" type="button" data-shuffle aria-label="${escapeHtml(label)}">${guts}</button>`;
   }
   return guts;
+}
+
+/**
+ * A model: a canvas carrying its parts as JSON. model-view.js wakes it (from
+ * interact.js on a published page, the same way in the editor), so the build
+ * does no 3D at all — the page is only ever a canvas and a description.
+ */
+function renderModel(o) {
+  const m = o.model ?? { parts: [] };
+  const label = o.title || o.media?.alt || 'A low-poly model';
+  return `<canvas class="ob-model" data-model="${escapeHtml(JSON.stringify(m))}" role="img" aria-label="${escapeHtml(label)}"></canvas>`;
 }
 
 /** Two sides and a shimmer. The turning is CSS — see faces.css. */
@@ -802,7 +822,7 @@ export function checkElement(o, at = 'element') {
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form', 'spin', 'sound']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form', 'spin', 'sound', 'model']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -882,6 +902,7 @@ export function checkElement(o, at = 'element') {
       if (o.sound.src && !SOUND_HOSTS.test(o.sound.src)) out.push(`${at}.sound.src must be a SoundCloud address (https://soundcloud.com/…)`);
     }
   }
+  if (has(o, 'model') && o.model != null) out.push(...validateModel(o.model, `${at}.model`));
   if (has(o, 'holds') && o.controls != null) {
     if (typeof o.controls !== 'object' || Array.isArray(o.controls)) out.push(`${at}.controls must be an object`);
     else for (const [k, v] of Object.entries(o.controls)) {
@@ -968,7 +989,7 @@ export function setKind(o, kind) {
   // face is the honest default, and the face picker is right there.
   delete o.face;
   // Fill in whatever the new kind cannot do without, and only that.
-  for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound']) {
+  for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound', 'model']) {
     if (KINDS[kind][k] != null && o[k] == null) o[k] = structuredClone(KINDS[kind][k]);
   }
   /* Nothing is DELETED here, and that is the point of the whole function. A

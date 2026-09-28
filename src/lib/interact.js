@@ -273,6 +273,8 @@ function spark(src, x, y) {
 function onSparks(e) {
   const src = document.body.dataset.sparks;
   if (!src || editing() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // A tool on the page — the 3D editor — is somewhere to work, not to play.
+  if (e.target.closest?.('[data-quiet]')) return;
   for (let i = 0; i < 5; i++) spark(src, e.clientX - 16, e.clientY - 16);
 }
 
@@ -320,6 +322,16 @@ export function wireInteractions(root = document) {
   // A player learns its first track's title as soon as the page is up, the
   // way the Squarespace one did; its sound still waits for a press.
   for (const p of document.querySelectorAll('[data-player]')) widgetFor(p)?.catch(() => {});
+  // 3D models. The renderer is only fetched on a page that has one — or the
+  // moment the editor puts one down on a page that did not.
+  const wake = () => import('./model-view.js').then(({ wakeModels }) => wakeModels());
+  if (document.querySelector('canvas[data-model]')) wake();
+  else {
+    const mo = new MutationObserver(() => {
+      if (document.querySelector('canvas[data-model]')) { mo.disconnect(); wake(); }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
   root.addEventListener('submit', onSubmit);
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeOthers(null);

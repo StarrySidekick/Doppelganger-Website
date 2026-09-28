@@ -479,3 +479,18 @@ html:not(.ag-unlocked) body :is(a, button, input, img):hover { cursor: var(--cur
   body.look-wiggle .ob a.ob-link:hover .ob-img { animation: none; }
   .ob-tab::after { transition: none; }
 }
+
+/* ================= a 3D model ======================================
+   A canvas filling its tile, drawn small and scaled up with hard edges —
+   the N64's 320 pixels across a television. Not clipped, so a model turning
+   near its edge is not cut off; side-to-side drags turn it, and a vertical
+   swipe over it on a phone still scrolls the page. */
+.ob:has(.ob-model) { overflow: visible; }
+.ob-model {
+  display: block; width: 100%; height: 100%;
+  image-rendering: pixelated;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.ob-model:active { cursor: grabbing; }
+html.ag-unlocked .ob-model { cursor: inherit; }

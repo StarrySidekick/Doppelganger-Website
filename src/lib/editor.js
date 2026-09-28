@@ -775,7 +775,7 @@ export function mountEditor({
     if (!boxOk(layout, id, box, device)) box = freeSpot(layout, [w, want[1]], device, id);
 
     const item = { id, kind, flow: 'stack', ...extra };
-    for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound']) {
+    for (const k of ['body', 'title', 'fold', 'arrange', 'form', 'spin', 'sound', 'model']) {
       if (def[k] != null && item[k] == null) item[k] = structuredClone(def[k]);
     }
     if (item.body != null && !has(item, 'text')) delete item.body;
@@ -1666,6 +1666,7 @@ export function mountEditor({
       <div class="ag-menu-title">${escapeAttr(id)} <span class="ag-menu-kind">${K(item).label}</span></div>
       ${typed ? '<button class="ag-menu-btn ag-menu-go" data-act="edit">Edit…<small>Its kind, what it carries, and every field</small></button>' : ''}
       ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
+      ${has(item, 'model') ? '<button class="ag-menu-btn" data-act="model">Edit the model…<small>The 3D editor</small></button>' : ''}
       ${isInline(item) ? '<button class="ag-menu-btn" data-act="write">Edit the words<small>Or double-click them in the page</small></button>' : ''}
       ${typed ? '<button class="ag-menu-btn" data-act="duplicate">Duplicate<small>⌘D</small></button>' : ''}
       ${typed ? '<button class="ag-menu-btn" data-act="copy">Copy<small>⌘C · paste on any board, or any page</small></button>' : ''}
@@ -1679,6 +1680,7 @@ export function mountEditor({
       <div class="ag-menu-note">${describe(item)}</div>
     `, (act) => {
       if (act === 'edit') { openObjectEditor(id); return; }
+      if (act === 'model') { editModel(id); return; }
       if (act === 'write') { beginEdit(id); return; }
       if (act === 'lock') { item.locked = !item.locked; commit(); }
       if (act === 'reset') { delete item.narrow; commit(); toast(`${id} back to its ${item.flow} rule`); }
@@ -1721,6 +1723,10 @@ export function mountEditor({
       if (f.kind === 'number') return `<input data-field="${f.key}" type="number" min="1" value="${escapeAttr(v ?? '')}" />`;
       if (f.kind === 'items') return itemsControl(item);
       if (f.kind === 'feed') return feedControl(item);
+      if (f.kind === 'model') {
+        const n = item.model?.parts?.length ?? 0;
+        return `<button type="button" class="ag-menu-btn ag-menu-go" data-act="model">Open the 3D editor…<small>${n} part${n === 1 ? '' : 's'}</small></button>`;
+      }
       // A short list typed as words with commas between — what a form asks for.
       if (f.kind === 'list') {
         return `<input data-field="${f.key}" type="text" value="${escapeAttr((Array.isArray(v) ? v : []).join(', '))}" />`;
@@ -1782,6 +1788,7 @@ export function mountEditor({
       if (act === 'flow') { item.flow = value; commit(); return reopen(); }
       if (act === 'face') { setContent(id, (o) => { o.face = value; }); return reopen(); }
       if (act === 'pick') { pickFileFor(id); return; }
+      if (act === 'model') { editModel(id); return; }
       if (act === 'item-add') { menuEl.querySelector('[data-items]')?.insertAdjacentHTML('beforeend', itemRow()); return; }
       if (act === 'kind') {
         // Its identity, so it lands at once — and the panel has to be rebuilt,
@@ -1805,12 +1812,32 @@ export function mountEditor({
     function reopen() { requestAnimationFrame(() => openObjectEditor(id)); }
   }
 
+  /**
+   * The 3D editor, over the page. It is its own module and its own thing —
+   * it knows nothing of boards — and is only fetched when asked for. Done
+   * writes the model back as one undo step.
+   */
+  function editModel(id) {
+    const item = find(id);
+    if (!item) return;
+    chrome.closeMenu?.();
+    import('./model-editor.js').then(({ openModelEditor }) => openModelEditor({
+      model: item.model,
+      title: id,
+      onDone: (model) => {
+        const step = setContent(id, (o) => { o.model = model; });
+        if (step) toast(`${id}: model saved`, undoOf(step));
+      },
+    }));
+  }
+
   /** Read every field control in a panel onto the object. */
   function applyFields(id, menuEl) {
     return setContent(id, (o) => {
       for (const f of fieldsOf(o)) {
         if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
         if (f.kind === 'feed') { o.feed = readFeed(menuEl); continue; }
+        if (f.kind === 'model') continue;   // the 3D editor writes it, not this panel
         if (f.kind === 'list') {
           const raw = menuEl.querySelector(`[data-field="${f.key}"]`)?.value ?? '';
           const list = raw.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);

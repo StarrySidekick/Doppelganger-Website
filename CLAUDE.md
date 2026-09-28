@@ -137,6 +137,9 @@ src/lib/works.js           the catalogue: what has been made, and the query a fe
 src/lib/look.js            the site's colours and the tokens derived from them
 src/lib/interact.js        what a published page does on its own — folds, accordions
 src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
+src/lib/model3d.js         low-poly models: parts → triangles, the matrices, presets (pure)
+src/lib/model-view.js      draws a model in a canvas with WebGL and keeps it turning
+src/lib/model-editor.js    the 3D editor — over any page, or on /modeler
 src/styles/faces.css       how each face draws — all of it CSS behind one class
 src/data/look.json         the look itself: five colours, the type, pinned or flat
 src/data/works.json        every work, its section and its tags — the site's content, once
@@ -273,6 +276,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `feed` | **shows the works, filtered** — a list that is true rather than one you wrote | `feed: {type, tag, sort, limit, chips}` |
 | `spin` | two sides turning on their own; the object's picture is the front | `spin: {back, sheen, seconds}` |
 | `sound` | plays a SoundCloud track or playlist through their widget, hidden, driven by the object's own buttons. **The iframe is never stored or pre-rendered** — `interact.js` makes it on a page that has a player, and `sound.src` must be a SoundCloud address, because it becomes an iframe src | `sound: {src, title, play, pause, prev, next}` |
+| `model` | **a low-poly 3D model, turning on its own** — a list of parts (box, cylinder, cone, ring, ball), each with a colour, place, turn and size. Stored on the object; drawn by WebGL | `model: {parts, spin, tilt, pixel, shading, zoom}` |
 | `decor` | **stands on the board rather than in it** — the one thing allowed to overlap, and nothing makes room for it (Bureau's decision 86). The sun, the holo, the business card. `boxOk` and `validateLayout` let it lie across anything and anything across it; Tidy leaves it where it stands; it draws at `z-index: 2`, unclipped | — |
 
 | kind | attributes | face | made from the picker |
@@ -287,6 +291,7 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `html` | text (raw markup) | plain | no, a tool |
 | `form` | form, text | card | yes — **fields that email you.** The web layer's first kind |
 | `card` | media, spin | plain | yes — **the business card**: front, back, a shimmer, turning on its own |
+| `model` | model | plain | yes — **the N64 key**: opens the 3D editor |
 | `player` | sound | plain | yes — **a SoundCloud playlist with buttons of your own**, the /music player |
 | `slot` | — | — | no, written by code |
 
@@ -445,6 +450,45 @@ tool's dark fields, not Squarespace's white ones, and has no Web3Forms key yet;
 the footer exists here and not there; the home page's hidden lower section
 (cassette, a second card, "Dark Piano") is not rebuilt because a visitor never
 sees it; Spotify on /links is left out because it sat hidden under the QR code.
+
+### 3D models — the N64 key (September 2026)
+
+A `model` object draws a low-poly model in a canvas and turns it; a visitor
+can grab it and turn it by hand (side to side only, so a vertical swipe on a
+phone still scrolls). Three files, split so the modeller can leave later as
+its own thing:
+
+- **`model3d.js` is pure** — node and browser. A model is a short list of
+  PARTS, and that is the whole modelling language, deliberately: it is how an
+  N64 prop was built, it is small enough to live on the object and publish in
+  a layout, and it can be made in a panel with no 3D mouse gymnastics. Every
+  triangle is turned outward by one rule (`outward()`), not by trusting each
+  shape's winding, so light cannot come out inside-out. The camera fits the
+  model's bounding SPHERE, so it never leaves the frame however it turns —
+  there is a test that turns it and checks every corner.
+- **`model-view.js` is WebGL with no library**, because the parts pass
+  through each other (a stem into a note head) and only a depth buffer gets
+  that right. The look is three of the model's own fields: few polygons,
+  `shading` (flat shows every polygon; smooth is the soft Gouraud light of
+  the real console) and `pixel` — a small frame scaled up with hard edges,
+  the way the N64 drew 320 pixels across a television. The build does no 3D:
+  the page carries a canvas and the parts as JSON, and `interact.js` fetches
+  the renderer only on a page that has one. Paused off-screen; still for
+  anyone who asked for reduced motion.
+- **`model-editor.js` knows nothing about boards.** Handed a model, gives one
+  back. **Edit the model…** in a tile's menu opens it over the page; `/modeler`
+  stands it on a page of its own (noindex, draft kept in the browser). Drag to
+  orbit, wheel to zoom, click a part to pick it (a colour-per-part render read
+  back from the GPU, never a guess from the DOM). **There are no 3D drag
+  handles**: dragging a thing in a space you see flat is where small modellers
+  go wrong, so arrows move the picked part a step, PageUp/PageDown toward and
+  away — the board's own bargain. Keys are taken at the window in the capture
+  phase and stopped there, **because Delete in the 3D editor must delete a
+  part and not the tile the model lives on.** Undo is its own stack; Done is
+  one undo step on the board.
+
+Presets: **Key** and **Note key** — a note whose head is the bow, whose stem
+is the shaft, and whose flag is three teeth. Both under 150 triangles.
 
 ### The look
 
