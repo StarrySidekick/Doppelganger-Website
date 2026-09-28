@@ -44,7 +44,8 @@ function browser(search = '', store = {}) {
   globalThis.document = {
     createElement: (tag) => { const n = node(); n.tag = tag; n.classList.owner = n; return n; },
     head: { appendChild: (n) => added.push(n) },
-    body: { appendChild: (n) => added.push(n) },
+    body: { appendChild: (n) => { n.parent = 'body'; added.push(n); } },
+    documentElement: { appendChild: (n) => { n.parent = 'html'; added.push(n); } },
     addEventListener() {},
   };
   return { store, replaced, events, added };
@@ -138,6 +139,15 @@ test('the corner is on an ordinary page, and never where the bar already is', ()
   const editing = browser('?edit=1');
   wireEditEntry();
   assert.equal(editing.added.length, 0, 'a page already editing has Done in the bar instead');
+});
+
+test('THE PWA BUG: the dot hangs off <html>, where the sun\'s tint cannot move it', () => {
+  // A filter on <body> makes body the containing block for fixed things, so a
+  // dot on body stopped being pinned to the screen once a page was tinted —
+  // and a tinted page stays tinted. In the installed app it was simply gone.
+  const page = browser('');
+  wireEditEntry();
+  assert.equal(page.added.find((n) => n.tag === 'button').parent, 'html');
 });
 
 test('a browser that has been in edit mode gets the visible, one-press corner', () => {

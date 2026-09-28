@@ -99,10 +99,13 @@ export function leaveEdit() {
 }
 
 const STYLE = `
+/* 44px: the smallest target a thumb reliably hits (Apple's own figure). It
+   sits a few pixels in from the corner and above the home indicator, because
+   in the installed app the screen's rounded corner and the swipe bar are both
+   right there, and a dot in the very corner was lost under them. */
 .ag-enter {
-  position: fixed; left: 0; bottom: 0; z-index: 90;
-  width: 28px; height: 28px;
-  margin-bottom: env(safe-area-inset-bottom, 0px);
+  position: fixed; left: 4px; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); z-index: 90;
+  width: 44px; height: 44px;
   padding: 0; border: 0; background: transparent;
   color: var(--ink, #fff);
   opacity: 0; cursor: default;
@@ -112,13 +115,16 @@ const STYLE = `
 }
 .ag-enter::after {
   content: ''; display: block;
-  width: 8px; height: 8px; margin: 10px;
+  width: 12px; height: 12px; margin: 16px;
   border-radius: 50%; background: currentColor;
 }
 /* Invisible until you have been in edit mode in this browser — unless
    SHOW_CORNER is on, which gives every page the visible dot. A visitor
    otherwise sees nothing at all, and a double press is the way in. */
-.ag-enter.is-known { opacity: .38; cursor: pointer; }
+.ag-enter.is-known { opacity: .5; cursor: pointer; }
+/* In the installed app there is no address bar to type ?edit=1 into, so the
+   dot is the only way in: brighter there. */
+@media (display-mode: standalone) { .ag-enter.is-known { opacity: .7; } }
 .ag-enter.is-known:hover, .ag-enter:focus-visible { opacity: .75; }
 /* Once the editor is mounted the bar has Done, so the corner steps out. */
 .ag-editing .ag-enter { display: none; }
@@ -167,7 +173,13 @@ export function wireEditEntry() {
     if (presses >= 2) { presses = 0; return enterEdit(); }
     timer = setTimeout(() => { presses = 0; }, 600);
   });
-  document.body.appendChild(btn);
+  /* On <html>, not <body>. The sun's shuffle puts a CSS filter on <body>, and
+     a filtered element becomes the containing block for everything fixed
+     inside it — so the dot stopped being pinned to the screen and dropped to
+     the bottom of the PAGE, out of sight, on every page that had been tinted
+     (the tint is remembered per page). The sparks live on <html> for the
+     same reason. */
+  document.documentElement.appendChild(btn);
 
   // And a keyboard way in, for a desk. Not a bare letter: `E` on its own would
   // fire in the middle of writing a word.

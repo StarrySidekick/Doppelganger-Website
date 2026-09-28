@@ -524,6 +524,14 @@ domain changes nothing here.
 - **Shortcuts** (Android, hold the icon): Edit the site, 3D editor. iPhone has
   none; **the corner dot is the way into edit mode in the app**, because a
   full-screen app has no address bar to type `?edit=1` into.
+- **The corner dot hangs off `<html>`, not `<body>`.** The sun's shuffle puts
+  a filter on body, and a filtered element becomes the containing block for
+  everything `position: fixed` inside it — so the dot dropped to the bottom
+  of the PAGE, off-screen, on every page that had been tinted, and the tint
+  is remembered. In the app, where the dot is the only way in, that was "I
+  can't see the dot". It is also 44px now, set in from the rounded screen
+  corner and above the home indicator, and brighter in `display-mode:
+  standalone`. A test holds where it hangs.
 
 Checked in Chromium: installable with no errors in a normal profile, the
 worker controls `index.html`, and with the server actually stopped the
