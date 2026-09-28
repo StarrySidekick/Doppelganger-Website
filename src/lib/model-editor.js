@@ -71,7 +71,7 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
     st.id = 'me-style'; st.textContent = CSS;
     document.head.append(st);
   }
-  let m = normalizeModel(model?.parts ? model : PRESETS.key.model);
+  let m = normalizeModel(model?.parts ? model : PRESETS.noteKey.model);
   let sel = m.parts.length ? 0 : -1;
   const past = [], future = [];
   const snap = () => JSON.stringify(m);
@@ -380,7 +380,7 @@ export function openModelEditor({ model, title = 'Model', onDone = () => {}, onC
   shell.setAttribute('role', 'dialog');
   shell.setAttribute('aria-label', `3D editor — ${title}`);
   document.body.append(shell);
-  const start = JSON.stringify(normalizeModel(model?.parts ? model : PRESETS.key.model));
+  const start = JSON.stringify(normalizeModel(model?.parts ? model : PRESETS.noteKey.model));
   let ed = null;
   const close = () => { window.removeEventListener('keydown', onEsc, true); ed?.destroy(); shell.remove(); };
   const cancel = () => {

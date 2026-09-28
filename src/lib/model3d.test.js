@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   PRESETS, SHAPES, makePart, normalizeModel, validateModel, buildMesh, shapeTris, cameraFor, apply, rotation, mul, identity,
 } from './model3d.js';
-import { renderElement, checkElement } from './elements.js';
+import { renderElement, checkElement, KINDS } from './elements.js';
 
 const sub = (a, b) => a.map((v, i) => v - b[i]);
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -82,4 +82,12 @@ test('a model object is a canvas carrying its parts, and a bad one fails the bui
   assert.doesNotMatch(html, /<script/i);
   assert.deepEqual(checkElement(o), []);
   assert.equal(checkElement({ kind: 'model', model: { parts: [{ shape: 'teapot' }] } }).length, 1);
+});
+
+test('a new model object starts as the note key, and it is the first choice', () => {
+  // It started as the plain key, and the note key the editor was built for
+  // was only reachable through "Start from" — so what the picker made was not
+  // what was asked for.
+  assert.deepEqual(KINDS.model.model, PRESETS.noteKey.model);
+  assert.equal(Object.keys(PRESETS)[0], 'noteKey');
 });

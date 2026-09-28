@@ -65,6 +65,10 @@ could eventually be its own thing" — so it depends on nothing in the board
 editor). Both keys are presets. Not yet placed on any page; that is his to do
 from the picker.
 
+**2026-09-28, later: "we need a full pwa"** — done: manifest, service worker,
+icons, offline for pages already opened, Android shortcuts. And the model
+picker now makes the note key, which is what he expected and did not get.
+
 ## Deliberately not next
 
 - **`/uiux` and the six blog collections.** Still 404s, still on `PLANNED` in

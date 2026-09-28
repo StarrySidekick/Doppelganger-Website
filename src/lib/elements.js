@@ -285,7 +285,7 @@ export const KINDS = {
   html:   { label: 'HTML block',    says: 'A block of markup, edited as markup',     attrs: ['text'],                      face: 'none',    size: [6, 3], body: '' },
   form:   { label: 'Contact form',  says: 'Fields that email you when sent',         attrs: ['form', 'text'],              face: 'card',    size: [10, 9], form: { key: '', fields: ['name', 'email', 'message'], button: 'Send' } },
   card:   { label: 'Spinning card', says: 'Two sides, turning on its own',           attrs: ['media', 'spin'],             face: 'none',    size: [6, 6], spin: { seconds: 5 } },
-  model:  { label: '3D model',      says: 'Low-poly, turning on its own — made in the 3D editor', attrs: ['model'], face: 'none', size: [8, 8], model: PRESETS.key.model },
+  model:  { label: '3D model',      says: 'Low-poly, turning on its own — made in the 3D editor', attrs: ['model'], face: 'none', size: [8, 8], model: PRESETS.noteKey.model },
   player: { label: 'Player',        says: 'A SoundCloud playlist with its own buttons', attrs: ['sound'],                  face: 'none',    size: [12, 8], sound: { src: '' } },
 };
 

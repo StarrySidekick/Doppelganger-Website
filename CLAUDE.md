@@ -140,6 +140,8 @@ src/lib/media.js           picking an image in the browser — resize, alpha, SV
 src/lib/model3d.js         low-poly models: parts → triangles, the matrices, presets (pure)
 src/lib/model-view.js      draws a model in a canvas with WebGL and keeps it turning
 src/lib/model-editor.js    the 3D editor — over any page, or on /modeler
+src/lib/pwa.js             the app half: manifest and service worker, from the site's facts (pure)
+src/pages/manifest.webmanifest.js, src/pages/sw.js.js   those two, built under the base
 src/styles/faces.css       how each face draws — all of it CSS behind one class
 src/data/look.json         the look itself: five colours, the type, pinned or flat
 src/data/works.json        every work, its section and its tags — the site's content, once
@@ -487,8 +489,46 @@ its own thing:
   part and not the tile the model lives on.** Undo is its own stack; Done is
   one undo step on the board.
 
-Presets: **Key** and **Note key** — a note whose head is the bow, whose stem
+Presets: **Note key** (first, and what a new model object starts as — it was
+the plain key until Timothy found the picker handing him the wrong one) and
+**Key** — a note whose head is the bow, whose stem
 is the shaft, and whose flag is three teeth. Both under 150 triangles.
+
+### The site is an app (PWA, September 2026)
+
+Installable, full screen from the home screen, and the pages you have opened
+work offline. `src/lib/pwa.js` is pure and site-blind (hard rule 4); the two
+endpoints hand it the name, icons, colours and base, so moving to the real
+domain changes nothing here.
+
+- **A worker controls only addresses BELOW its own folder**, and GitHub Pages
+  cannot send the header that widens that. `/Doppelganger-Website/sw.js`
+  covers `/Doppelganger-Website/…` but not the bare `/Doppelganger-Website`
+  — which is the home page, because `trailingSlash: 'never'`. So the app
+  starts at **`/Doppelganger-Website/index.html`**, the same page
+  (`build.format: 'file'` writes it) at an address the worker can see. The
+  manifest's scope is written WITHOUT its trailing slash so tapping Home does
+  not throw you out into the browser. At a root domain all of this collapses
+  to `/`. Tests hold both cases.
+- **Pages are network-first**, so a publish shows the moment it has built;
+  the cache is the offline fallback, and the home page the last resort.
+  `/_astro/` (hashed names) is cache-first; pictures and fonts are
+  stale-while-revalidate. **Never cached or intercepted:** anything not a GET,
+  `version.json` (it is how the editor asks what is live), GitHub's API
+  (Publish), SoundCloud, Web3Forms. The page cache is named for the build, so a
+  new deploy's worker drops the old pages.
+- **Registered only in a real build**, never under `npm run dev`.
+- **Icons** are the sun drawn on black (`public/icon-*.png`), with a padded
+  maskable one for Android's round crop. The sun is 128px at source, so the
+  512 is soft; it is shown at 60–180px.
+- **Shortcuts** (Android, hold the icon): Edit the site, 3D editor. iPhone has
+  none; **the corner dot is the way into edit mode in the app**, because a
+  full-screen app has no address bar to type `?edit=1` into.
+
+Checked in Chromium: installable with no errors in a normal profile, the
+worker controls `index.html`, and with the server actually stopped the
+visited pages still open (emulated offline in Playwright does not reach a
+service worker's own fetches, so it proves nothing — stop the server).
 
 ### The look
 

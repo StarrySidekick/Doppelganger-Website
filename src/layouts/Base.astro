@@ -56,6 +56,16 @@ const ogImage = image
   <link rel="icon" href={url('favicon.png')} sizes="96x96" type="image/png" />
   <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
 
+  <!-- An app, not only a site: installable, full screen from the home screen,
+       and quick to open. The manifest and the worker are both built from
+       src/lib/pwa.js — see src/pages/manifest.webmanifest.js and sw.js.js. -->
+  <link rel="manifest" href={url('manifest.webmanifest')} />
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Starry" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
   <!-- SEO surface Squarespace generated for free; now explicit and editable. -->
   <meta property="og:site_name" content="StarrySidekick.com" />
   <meta property="og:title" content={full} />
@@ -96,6 +106,15 @@ const ogImage = image
     // the moment you followed a link. See src/lib/edit-mode.js.
     import('../lib/edit-mode.js').then(({ wireEditEntry }) => wireEditEntry());
   </script>
+  {import.meta.env.PROD && (
+    <script is:inline define:vars={{ sw: url('sw.js'), scope: url('sw.js').replace(/sw\.js$/, '') }}>
+      // The worker that makes this an app. Only in a real build: in `npm run
+      // dev` a cache in front of hot reload is a way to lose an afternoon.
+      if ('serviceWorker' in navigator) {
+        addEventListener('load', () => navigator.serviceWorker.register(sw, { scope }).catch(() => {}));
+      }
+    </script>
+  )}
 </body>
 </html>
 

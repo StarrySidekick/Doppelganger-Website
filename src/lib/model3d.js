@@ -307,25 +307,12 @@ export function cameraFor(mesh, { angle = 0, tilt = 0, pitch = 0, aspect = 1, zo
 const GOLD = '#d9a441', GOLD_DARK = '#a8741f';
 
 /**
- * A plain key and the music-note key. The note key is a note whose head is
+ * The music-note key — first, because it is the one this was built for, and
+ * what a new model object starts as — and a plain key. The note key is a note whose head is
  * the key's bow and whose stem is the shaft, with the flag replaced by three
  * square teeth — the bit that would turn a lock.
  */
 export const PRESETS = {
-  key: {
-    label: 'Key',
-    model: {
-      spin: 45, tilt: 12, pixel: 3, shading: 'flat', zoom: 1,
-      parts: [
-        makePart('ring', { pos: [0, 1.15, 0], size: [1.1, 1.1, 0.24], thick: 0.3, seg: 8, color: GOLD }),
-        makePart('cylinder', { pos: [0, 0.52, 0], size: [0.3, 0.14, 0.3], seg: 6, color: GOLD_DARK }),
-        makePart('cylinder', { pos: [0, -0.35, 0], size: [0.16, 1.7, 0.16], seg: 6, color: GOLD }),
-        makePart('box', { pos: [0.21, -0.95, 0], size: [0.28, 0.14, 0.12], color: GOLD }),
-        makePart('box', { pos: [0.17, -1.15, 0], size: [0.2, 0.12, 0.12], color: GOLD }),
-        makePart('box', { pos: [0.21, -1.12, 0], size: [0.1, 0.4, 0.12], color: GOLD }),
-      ],
-    },
-  },
   noteKey: {
     label: 'Note key',
     model: {
@@ -339,6 +326,20 @@ export const PRESETS = {
         makePart('box', { pos: [0.64, 0.95, 0], size: [0.36, 0.2, 0.13], color: GOLD_DARK }),
         makePart('box', { pos: [0.6, 0.62, 0], size: [0.28, 0.2, 0.13], color: GOLD_DARK }),
         makePart('box', { pos: [0.66, 0.29, 0], size: [0.4, 0.2, 0.13], color: GOLD_DARK }),
+      ],
+    },
+  },
+  key: {
+    label: 'Key',
+    model: {
+      spin: 45, tilt: 12, pixel: 3, shading: 'flat', zoom: 1,
+      parts: [
+        makePart('ring', { pos: [0, 1.15, 0], size: [1.1, 1.1, 0.24], thick: 0.3, seg: 8, color: GOLD }),
+        makePart('cylinder', { pos: [0, 0.52, 0], size: [0.3, 0.14, 0.3], seg: 6, color: GOLD_DARK }),
+        makePart('cylinder', { pos: [0, -0.35, 0], size: [0.16, 1.7, 0.16], seg: 6, color: GOLD }),
+        makePart('box', { pos: [0.21, -0.95, 0], size: [0.28, 0.14, 0.12], color: GOLD }),
+        makePart('box', { pos: [0.17, -1.15, 0], size: [0.2, 0.12, 0.12], color: GOLD }),
+        makePart('box', { pos: [0.21, -1.12, 0], size: [0.1, 0.4, 0.12], color: GOLD }),
       ],
     },
   },
