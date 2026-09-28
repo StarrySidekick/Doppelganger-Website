@@ -42,6 +42,23 @@ const CSS = `
 .me-swatch { width: 14px; height: 14px; border-radius: 3px; flex: none; border: 1px solid rgba(255,255,255,.3); }
 .me-field { display: grid; grid-template-columns: 76px 1fr; gap: 6px; align-items: center; margin: 5px 0; font-size: 13px; }
 .me-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.me-group { margin: 10px 0 4px; font-size: 13px; }
+.me-slide { display: grid; grid-template-columns: 16px minmax(0, 1fr) 62px; gap: 8px; align-items: center; min-height: 40px; }
+.me-slide.me-wide { grid-template-columns: 76px minmax(0, 1fr) 62px; }
+.me-axis { font: 600 12px/1 ui-monospace, monospace; text-align: center; }
+.me-axis[data-axis="0"] { color: #ff7a6b; } .me-axis[data-axis="1"] { color: #7be07b; } .me-axis[data-axis="2"] { color: #74a7ff; }
+/* A slider a thumb can use: a tall hit area, a 26px knob, a clear track. */
+.me-side input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 36px; margin: 0;
+  background: transparent; border: 0; padding: 0; touch-action: pan-y; cursor: pointer; }
+.me-side input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px;
+  background: color-mix(in srgb, var(--ink, #fff) 25%, transparent); }
+.me-side input[type=range]::-moz-range-track { height: 6px; border-radius: 3px;
+  background: color-mix(in srgb, var(--ink, #fff) 25%, transparent); }
+.me-side input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px;
+  margin-top: -10px; border-radius: 50%; background: var(--accent, #ffd27a); border: 2px solid #111; }
+.me-side input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent, #ffd27a); border: 2px solid #111; }
+.me-side .me-slide input[type=number] { width: 100%; text-align: right; }
 .me-side input, .me-side select, .me-side textarea { font: inherit; font-size: 13px; color: inherit; min-width: 0;
   background: color-mix(in srgb, var(--ink, #fff) 6%, transparent); border: 1px solid color-mix(in srgb, var(--ink, #fff) 22%, transparent);
   border-radius: 4px; padding: 4px 6px; user-select: text; -webkit-user-select: text; }
@@ -155,8 +172,22 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
 
   const num = (key, v, step, min) =>
     `<input type="number" data-k="${key}" value="${round(v)}" step="${step}"${min != null ? ` min="${min}"` : ''} />`;
-  const trio = (key, v, step, min) =>
-    `<div class="me-trio">${[0, 1, 2].map((i) => num(`${key}.${i}`, v[i], step, min)).join('')}</div>`;
+  /* A slider and a number, driving the same field. The slider is for a
+     thumb — the editor was made on a desk and on a phone every change meant a
+     keyboard — and the number is for exactly "0.4". Its range widens to take
+     a value already outside it, so a slider never quietly clamps a model. */
+  const slide = (key, v, [lo, hi], step, label, wide = false) => {
+    const val = round(v);
+    const range = `min="${Math.min(lo, val)}" max="${Math.max(hi, val)}" step="${step}"`;
+    const axis = /\.(\d)$/.exec(key)?.[1];
+    return `<div class="me-slide${wide ? ' me-wide' : ''}">
+      <span class="me-axis"${axis != null ? ` data-axis="${axis}"` : ''}>${esc(label)}</span>
+      <input type="range" data-k="${key}" ${range} value="${val}" aria-label="${esc(label)}" />
+      <input type="number" data-k="${key}" step="${step}" value="${val}" aria-label="${esc(label)}" />
+    </div>`;
+  };
+  const three = (title, key, v, range, step) =>
+    `<div class="me-group">${title}</div>${['X', 'Y', 'Z'].map((a, i) => slide(`${key}.${i}`, v[i], range, step, a)).join('')}`;
 
   function stat() {
     const mesh = buildMesh(m);
@@ -188,20 +219,20 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
       <h3>Part ${sel + 1}</h3>
       <label class="me-field">Shape <select data-k="shape">${Object.entries(SHAPES).map(([k, v]) => `<option value="${k}"${k === p.shape ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label>
       <label class="me-field">Colour <input type="color" data-k="color" value="${esc(p.color)}" /></label>
-      ${SHAPES[p.shape]?.seg ? `<label class="me-field">Sides ${num('seg', p.seg ?? SHAPES[p.shape].seg, 1, LIMITS.seg[0])}</label>` : ''}
-      ${p.shape === 'ring' ? `<label class="me-field">Thickness ${num('thick', p.thick ?? 0.25, 0.05, 0.05)}</label>` : ''}
-      <div class="me-field">Position ${trio('pos', p.pos, 0.05)}</div>
-      <div class="me-field">Turn (°) ${trio('rot', p.rot, 15)}</div>
-      <div class="me-field">Size ${trio('size', p.size, 0.05, 0.01)}</div>
-      <div class="me-note">x is left–right, y is up–down, z is toward you. Arrows move it; PageUp and PageDown move it toward and away.</div>
+      ${SHAPES[p.shape]?.seg ? slide('seg', p.seg ?? SHAPES[p.shape].seg, LIMITS.seg, 1, 'Sides', true) : ''}
+      ${p.shape === 'ring' ? slide('thick', p.thick ?? 0.25, [0.05, 0.95], 0.01, 'Thickness', true) : ''}
+      ${three('Position', 'pos', p.pos, [-3, 3], 0.01)}
+      ${three('Turn (°)', 'rot', p.rot, [-180, 180], 1)}
+      ${three('Size', 'size', p.size, [0.02, 3], 0.01)}
+      <div class="me-note">X is left–right, Y is up–down, Z is toward you. On a keyboard, arrows move it and PageUp / PageDown move it toward and away.</div>
       ` : ''}
 
       <h3>How it is shown</h3>
-      <label class="me-field">Spins (°/s) ${num('m.spin', m.spin, 5)}</label>
-      <label class="me-field">Leans (°) ${num('m.tilt', m.tilt, 2)}</label>
-      <label class="me-field">Pixel size <input type="range" data-k="m.pixel" min="${LIMITS.pixel[0]}" max="${LIMITS.pixel[1]}" step="1" value="${m.pixel}" /></label>
+      ${slide('m.spin', m.spin, [-180, 180], 1, 'Spins °/s', true)}
+      ${slide('m.tilt', m.tilt, [-90, 90], 1, 'Leans °', true)}
+      ${slide('m.pixel', m.pixel, LIMITS.pixel, 1, 'Pixel size', true)}
       <label class="me-field">Shading <select data-k="m.shading">${Object.entries(SHADINGS).map(([k, v]) => `<option value="${k}"${k === m.shading ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-      <label class="me-field">Zoom ${num('m.zoom', m.zoom, 0.05, 0.1)}</label>
+      ${slide('m.zoom', m.zoom, [0.2, 4], 0.01, 'Zoom', true)}
       <div class="me-row"><button class="me-btn" data-do="turn">${view.view.auto ? 'Stop turning' : 'Preview the turn'}</button></div>
       <p class="me-stat"></p>
 
@@ -217,10 +248,15 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
      so typing "1.25" is one step and not four. */
   let editStart = null;
   side.addEventListener('focusin', (e) => { if (e.target.matches('[data-k]')) editStart = snap(); });
+  /* A slider on a phone is often never focused, so the moment a finger lands
+     is when "before" is taken — otherwise a drag, having already written its
+     value live, would find nothing to undo when it let go. */
+  side.addEventListener('pointerdown', (e) => { if (e.target.matches('[data-k]')) editStart = snap(); });
   side.addEventListener('input', (e) => {
     const k = e.target.dataset.k;
     if (!k) return;
     set(k, e.target);
+    twin(k, e.target);
     changed({ rebuild: false, record: false });
     if (k === 'shape' || k === 'color') drawPartsOnly();
   });
@@ -232,6 +268,28 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
     editStart = snap();
     if (before !== snap()) changed({ rebuild: k === 'shape', before });
   });
+
+  /** What a field holds now, as stored — after any rounding set() did. */
+  function valueOf(k) {
+    if (k.startsWith('m.')) return m[k.slice(2)];
+    const p = m.parts[sel];
+    if (!p) return undefined;
+    const [key, i] = k.split('.');
+    return i != null ? p[key]?.[+i] : p[key];
+  }
+  /** Bring a slider's number (or a number's slider) up to date with the field. */
+  function twin(k, from) {
+    const v = valueOf(k);
+    if (typeof v !== 'number') return;
+    for (const el of side.querySelectorAll(`[data-k="${k}"]`)) {
+      if (el === from) continue;
+      if (el.type === 'range') {
+        if (v < Number(el.min)) el.min = String(v);
+        if (v > Number(el.max)) el.max = String(v);
+      }
+      el.value = String(round(v));
+    }
+  }
 
   function drawPartsOnly() {
     side.querySelectorAll('[data-pick]').forEach((b) => {

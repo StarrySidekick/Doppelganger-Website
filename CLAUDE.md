@@ -488,6 +488,13 @@ its own thing:
   phase and stopped there, **because Delete in the 3D editor must delete a
   part and not the tile the model lives on.** Undo is its own stack; Done is
   one undo step on the board.
+- **Every number is a slider and a number box**, the same field twice: the
+  slider for a thumb, the box for exactly "0.4". Axes are coloured X red, Y
+  green, Z blue, as in every 3D program. A slider's range widens to take a
+  value already outside it, so it never quietly clamps a model. **The undo
+  "before" is taken on pointerdown, not only on focus**: an iPhone often
+  never focuses a slider, and a drag writes its value live, so without that
+  a whole drag left nothing to undo.
 
 Presets: **Note key** (first, and what a new model object starts as — it was
 the plain key until Timothy found the picker handing him the wrong one) and
