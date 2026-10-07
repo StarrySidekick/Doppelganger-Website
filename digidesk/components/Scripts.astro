@@ -1,0 +1,45 @@
+---
+/**
+ * The scripts a published page carries. A site's shell puts this at the end
+ * of <body>:
+ *
+ *   <body> … <Scripts /> </body>
+ *
+ * Folds, accordions, feeds, players, 3D models and the site's own custom
+ * kinds are live for every visitor, not only in the editor, so this is the
+ * one script a page needs. It also carries the way into edit mode, and the
+ * worker that makes the site an app.
+ */
+import { url } from '../src/url.js';
+---
+<script>
+  import { wireInteractions } from '../src/interact.js';
+  import { wireEditEntry } from '../src/edit-mode.js';
+  import { watchCustom } from '../src/custom.js';
+
+  wireInteractions();
+  // The way into edit mode: a target in the bottom-left corner. It is on
+  // every page because edit mode has to be reachable from every page; the
+  // parameter in the URL was lost the moment you followed a link.
+  wireEditEntry();
+  // The site's own kinds are woken in the browser (custom.js). Their code is
+  // only fetched on a page that has one, or the moment the editor puts one
+  // down on a page that did not.
+  const wake = () => import('virtual:digidesk/custom').then(() => watchCustom(document));
+  if (document.querySelector('[data-custom]')) wake();
+  else {
+    const mo = new MutationObserver(() => {
+      if (document.querySelector('[data-custom]')) { mo.disconnect(); wake(); }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
+</script>
+{import.meta.env.PROD && (
+  <script is:inline define:vars={{ sw: url('sw.js'), scope: url('sw.js').replace(/sw\.js$/, '') }}>
+    // The worker that makes this an app. Only in a real build: in `npm run
+    // dev` a cache in front of hot reload is a way to lose an afternoon.
+    if ('serviceWorker' in navigator) {
+      addEventListener('load', () => navigator.serviceWorker.register(sw, { scope }).catch(() => {}));
+    }
+  </script>
+)}

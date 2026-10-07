@@ -1,0 +1,173 @@
+---
+/**
+ * The site's page shell: every page is put inside this, the ones DigiDesk
+ * makes from a layout included (it is `shell` in astro.config.mjs). The head,
+ * the fonts, the header and footer are StarrySidekick's; <Head /> and
+ * <Scripts /> are what the tool needs on a page, and are the tool's.
+ *
+ * The props are the contract DigiDesk's routes keep: title, path,
+ * description, image, header and noindex.
+ */
+import { PROD_ORIGIN, asset, sized, url } from '../assets.js';
+import SiteChrome from '../components/SiteChrome.astro';
+import Head from 'digidesk/components/Head.astro';
+import Scripts from 'digidesk/components/Scripts.astro';
+import { look } from 'digidesk/src/site.js';
+
+const {
+  title,
+  description = "Timothy Vlangas — writer, game designer, musician and UI/UX designer. Poems, essays, short stories, games and music, all in one place.",
+  path = '',
+  noindex = false,
+  // The picture a shared link shows. A board may name its own; the wordmark
+  // is what every other page shows.
+  image = null,
+  // A page may go without the site header — Squarespace's home page did, and
+  // drew its own sun instead. A field on the page's layout, set in Board.
+  header = true,
+} = Astro.props;
+const full = `${title} — StarrySidekick.com`;
+
+// Canonical and og:url point at the real domain, not this staging host, so
+// nothing has to be rewritten at cutover. PROD_ORIGIN lives in assets.js — the
+// domain is written down once, not once per tag.
+const canonical = `${PROD_ORIGIN}${path}`;
+const ogImage = image
+  ? (image.startsWith('http') && image.includes('squarespace') ? sized(image, 1000) : image)
+  : sized(asset.wordmark, 1000);
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {/* The tool's part of the head: the look's colours, the faces' styles, the
+      build stamp (<meta name="build">) and the app manifest. */}
+  <Head />
+  <title>{full}</title>
+  <meta name="description" content={description} />
+  {noindex
+    ? <meta name="robots" content="noindex" />
+    : <link rel="canonical" href={canonical} />}
+
+  <!-- Generated from Timothy's own Sun.gif, first frame. The only local asset
+       so far; everything else still comes from the CDN by design. -->
+  <link rel="icon" href={url('favicon.png')} sizes="96x96" type="image/png" />
+  <link rel="apple-touch-icon" href={url('apple-touch-icon.png')} />
+
+  <!-- An app, not only a site: installable, full screen from the home screen,
+       and quick to open. DigiDesk builds the manifest and the worker from the
+       `app` option in astro.config.mjs; <Head /> links the manifest. -->
+  <meta name="theme-color" content="#000000" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Starry" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+  <!-- SEO surface Squarespace generated for free; now explicit and editable. -->
+  <meta property="og:site_name" content="StarrySidekick.com" />
+  <meta property="og:title" content={full} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={ogImage} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={full} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={ogImage} />
+
+  <!-- FONTS: EB Garamond stands in for Adobe Garamond Pro, which cannot be
+       self-hosted and stops working when the Squarespace subscription ends.
+       Swap --font-body in one place if a Creative Cloud plan is kept instead. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body class:list={["has-chrome", look.tilt && "look-tilt", look.wiggle && "look-wiggle"]} data-sparks={look.sparks || undefined}>
+  <!-- Header and footer are layouts, not markup, so they can be arranged and
+       reworded in the editor like anything else. Every page gets them; pages no
+       longer opt in one at a time. -->
+  {header && <SiteChrome part="header" />}
+  <main class="site-main"><slot /></main>
+  <SiteChrome part="footer" />
+  {/* Folds, players, models, custom kinds, the corner into edit mode and the
+      app's worker: the tool's scripts, all of them. */}
+  <Scripts />
+</body>
+</html>
+
+<style is:global>
+  :root {
+    --font-display: 'Amatic SC', cursive;
+    --font-body: 'EB Garamond', Garamond, Georgia, serif;
+    --ink: #ffffff;
+    --bg: #000000;
+  }
+  * { box-sizing: border-box; }
+  /* For headings a page needs structurally but shouldn't show — /links is a
+     visual card, but it still needs an h1 for search and screen readers. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0; border: 0;
+    clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+  }
+  /* One gutter for the whole site. The header, the page and the footer are
+     three separate grids, and they only read as ONE board if they are the same
+     width — otherwise their columns do not line up and their cells are
+     different sizes, which is most of what "the grid looks weird" was. */
+  /* Squarespace's own gutter, measured: its grid's first column starts 2% of
+     the window in on a desk and 23px in on a phone. Matching it is what lets a
+     box measured off the live site land in the same place here. */
+  :root { --site-gutter: max(23px, 2vw); }
+  .site-main { padding-inline: var(--site-gutter); }
+
+  /* The shell every page is now: a board, with the site's gutter around it.
+     It used to live in [...slug].astro, which was fine while that route was
+     the only board-driven page. Every page is one now — the home page
+     included — and a style block in one route is not emitted for another. */
+  /* No space above: the board starts where the header ends, as a Squarespace
+     page's first section did. Below, room before the footer. */
+  .drawer-page { padding-block: 0 clamp(12px, 3vw, 40px); }
+
+  /* A heading an `html` object can reach for. Typed objects render inside
+     AdaptiveGrid, out of reach of a page's scoped <style>, so these hang off
+     classes the object's own markup carries rather than off ids — an unscoped
+     `#works-heading` is the global-id collision hard rule 0 is about. */
+  .drawer-page .page-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 6cqi, 4rem);
+    line-height: 1; margin: 0;
+  }
+  .drawer-page .page-lede {
+    margin: .4em 0 0; opacity: .6;
+    font-size: clamp(.85rem, 1.4cqi, 1.05rem);
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper, var(--bg));
+    color: var(--ink);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
+  /* height:auto is required, not cosmetic. Images now carry width/height
+     attributes to reserve space and stop layout shift; without height:auto,
+     max-width:100% shrinks the width while the attribute pins the height and
+     the image squashes. */
+  img { display: block; max-width: 100%; height: auto; }
+  a { color: inherit; }
+
+  /* The column the chrome sits in: header, page, footer, top to bottom, with
+     the footer's own `margin-top: auto` pushing it to the bottom of a short
+     page. That auto margin was already written and had no flex container to
+     resolve against, so it did nothing — invisible while every page filled the
+     viewport with its own markup, and visible on EVERY page the moment the
+     boards were emptied, as a footer floating halfway up with dead space under
+     it. `flex: 1 0 auto` on the page rather than `flex: 1` so a board taller
+     than the viewport is never squashed to fit. */
+  body.has-chrome { display: flex; flex-direction: column; }
+  body.has-chrome .site-main { flex: 1 0 auto; }
+</style>

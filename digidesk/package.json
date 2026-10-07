@@ -1,0 +1,21 @@
+{
+  "name": "digidesk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A website builder where everything sits on a grid: Bureau's object model, for the web. An Astro integration.",
+  "keywords": ["astro-integration", "astro-component"],
+  "exports": {
+    ".": "./index.js",
+    "./components/*": "./components/*",
+    "./src/*": "./src/*",
+    "./styles/*": "./styles/*",
+    "./version.mjs": "./version.mjs"
+  },
+  "scripts": {
+    "test": "node --test src/*.test.js test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "astro": ">=7"
+  }
+}

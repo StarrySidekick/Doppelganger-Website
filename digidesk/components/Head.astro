@@ -1,0 +1,22 @@
+---
+/**
+ * What the tool needs in a page's <head>. A site's shell puts it there:
+ *
+ *   <head> … <Head /> </head>
+ *
+ * The look as custom properties (every face takes its colours from them), the
+ * faces' stylesheet, which build this page came from, and the link that makes
+ * the site an installable app. Everything else in the head (title, SEO,
+ * fonts) is the site's, because it is a fact about the site.
+ */
+import { lookStyle } from '../src/site.js';
+import { url } from '../src/url.js';
+import '../styles/faces.css';
+---
+{/* Which build this page came from: the site's commit count, the commit, when,
+    and DigiDesk's own number. Answers "has the live site caught up with what I
+    pushed?" from any page, with no editor and no console: View Source, or curl
+    the page and grep. Same numbers as /version.json and the editor's bar. */}
+<meta name="build" content={`${__BUILD__.version} · ${__BUILD__.sha} · ${__BUILD__.at} · DigiDesk ${__BUILD__.digidesk?.version ?? '?'}`} />
+<link rel="manifest" href={url('manifest.webmanifest')} />
+<style is:inline set:html={lookStyle()}></style>

@@ -1,15 +1,19 @@
 {
-  "name": "doppelganger",
+  "name": "starrysidekick-workspace",
+  "private": true,
   "type": "module",
-  "version": "0.1.0",
+  "description": "Two things in one repository: DigiDesk (the tool, digidesk/) and the StarrySidekick website built with it (site/).",
+  "workspaces": [
+    "digidesk",
+    "site"
+  ],
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "test": "node --test src/lib/*.test.js scripts/*.test.mjs",
-    "widgets": "node scripts/build-widgets.mjs"
-  },
-  "dependencies": {
-    "astro": "^7.1.6"
+    "dev": "npm run dev -w site",
+    "build": "npm run build -w site",
+    "preview": "npm run preview -w site",
+    "test": "npm test -w digidesk && npm test -w site",
+    "test:tool": "npm test -w digidesk",
+    "test:site": "npm test -w site",
+    "widgets": "npm run widgets -w site"
   }
 }

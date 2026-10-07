@@ -1,0 +1,82 @@
+---
+/**
+ * The site's header and footer.
+ *
+ * Both are ordinary layouts (`src/data/layouts/header.json` and `footer.json`),
+ * rendered by DigiDesk's grid engine like any page, and editable by the same
+ * editor. That is deliberate and it is the lesson from Bureau: everything sits
+ * on the grid, and chrome is not a special case with its own rules. The
+ * practical payoff is that the header is arrangeable, its wording is editable,
+ * and neither needed a line of new engine code.
+ *
+ * It replaces a fixed-position home icon and sun. Those were markup, so the
+ * only way to move them was to edit CSS.
+ */
+import AdaptiveGrid from 'digidesk/components/AdaptiveGrid.astro';
+import { getLayout } from 'digidesk/src/site.js';
+
+const { part } = Astro.props;   // 'header' | 'footer'
+const layout = getLayout(part);
+const Tag = part === 'header' ? 'header' : 'footer';
+// How tall the chrome is, and whether it follows you down the page, are two
+// fields on its own layout — so both are editable rather than CSS to go and
+// find. `sticky` is position:sticky, which keeps it in the flow (fixed would
+// take its height out and the page would jump under it).
+const sticky = layout.sticky === true;
+---
+<Tag class:list={[`site-${part}`, sticky && 'is-sticky']}>
+  <AdaptiveGrid layout={layout} name={part} chrome class={`${part}-grid`} />
+</Tag>
+
+<style is:global>
+  /* Scoped by the grid's own class rather than by bare ids — these render
+     inside AdaptiveGrid, out of reach of a scoped <style>, and an unscoped
+     `#site-nav` is the global-id collision hard rule 0 is about. */
+  .site-header, .site-footer {
+    width: 100%;
+    padding-inline: var(--site-gutter);
+  }
+  /* 20px above, as the Squarespace logo sat 20px from the top; nothing below,
+     because the page's board starts where the header's ends. */
+  .site-header { padding-block: 20px 0; }
+  /* Floating rather than set: it follows you down the page. position:sticky,
+     not fixed — fixed takes the chrome out of the flow and the page jumps up
+     underneath it by exactly the header's height. */
+  .site-header.is-sticky {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .site-footer.is-sticky {
+    position: sticky; bottom: 0; z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .site-footer {
+    padding-block: clamp(20px, 4vw, 44px) clamp(28px, 5vw, 60px);
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  /* The home icon and the sun wear the cut-out face, which fits each picture
+     inside its box — so their size is their box, set in the editor, and there
+     is no CSS here to go and find. */
+
+  /* align-self, not display:flex — flex would make each word and link its own
+     flex item and collapse the spaces between them. That exact bug ate the
+     space in "Email: …" on /links; see hard rule 5. */
+  .footer-grid #site-nav,
+  .footer-grid #site-colophon {
+    align-self: center;
+    font-size: clamp(.8rem, 1.5cqi, .95rem);
+    line-height: 1.7;
+    opacity: .78;
+  }
+  .footer-grid #site-colophon { text-align: right; }
+  .footer-grid a { color: inherit; text-underline-offset: 3px; }
+  .footer-grid a:hover { opacity: 1; }
+
+  @container (max-width: 699px) {
+    .footer-grid #site-colophon { text-align: left; }
+  }
+</style>

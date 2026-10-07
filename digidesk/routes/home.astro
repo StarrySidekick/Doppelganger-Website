@@ -1,0 +1,22 @@
+---
+/**
+ * The home page, as a board: the `index` layout.
+ *
+ * `/` is the one address the board route cannot make. It skips the name
+ * `index` on purpose, since a layout called `index` would otherwise build
+ * `/index` rather than `/`. So the home page is its own route, and it is the
+ * same few lines. A site that writes src/pages/index.astro gets that instead.
+ */
+import Shell from 'virtual:digidesk/shell';
+import AdaptiveGrid from '../components/AdaptiveGrid.astro';
+import { getLayout, pageOf } from '../src/site.js';
+
+const layout = getLayout('index');
+const page = pageOf(layout, 'index');
+---
+<Shell title={page.title} path="" description={page.description} image={page.image} header={page.header}>
+  <main class="drawer-page">
+    <h1 class="sr-only">{page.title}</h1>
+    <AdaptiveGrid layout={layout} name="index" class="page-grid" />
+  </main>
+</Shell>

@@ -32,12 +32,16 @@ jobs:
       # `npm ci` installs strictly from package-lock.json and fails loudly if it
       # has drifted. `npm install` would silently re-resolve and could change
       # the build with no commit behind it.
+      # One install for the whole repository: npm workspaces link digidesk/
+      # (the tool) into site/ (the website), so the site always builds with
+      # the tool exactly as it is in this commit.
       - run: npm ci
+      # Both suites: the tool's (digidesk/) and the site's (site/).
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./site/dist
 
   deploy:
     needs: build

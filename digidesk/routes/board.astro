@@ -1,0 +1,41 @@
+---
+/**
+ * Any layout that has no hand-written page of its own is a page anyway.
+ *
+ * This is what makes a drawer a page: the editor's "New drawer" writes a
+ * layout file and a tile pointing at it, and this route turns the file into
+ * the page the tile opens. A page the site wrote itself still wins (Astro
+ * prefers a static route over a dynamic one), so nothing existing moves, and
+ * the website's hard rule 3 holds.
+ *
+ * The page around the board is the site's own shell (`shell` in the site's
+ * digidesk() options), so the tool makes the page and the site dresses it.
+ */
+import Shell from 'virtual:digidesk/shell';
+import AdaptiveGrid from '../components/AdaptiveGrid.astro';
+import { layouts, pageOf } from '../src/site.js';
+import { CHROME_LAYOUTS, TOOL_PAGES } from '../src/routes.js';
+import { pageFiles } from 'virtual:digidesk/site';
+
+export function getStaticPaths() {
+  // Names that already have a page: the site's own files, and the ones the
+  // tool makes elsewhere (the home page, the two editors).
+  const written = new Set([
+    ...pageFiles.map((p) => p.replace(/^.*\/|\.astro$/g, '')),
+    ...TOOL_PAGES,
+  ]);
+  return Object.keys(layouts)
+    .filter((n) => !CHROME_LAYOUTS.includes(n) && !written.has(n))
+    .map((n) => ({ params: { slug: n }, props: { name: n } }));
+}
+
+const { name } = Astro.props;
+const layout = layouts[name];
+const page = pageOf(layout, name);
+---
+<Shell title={page.title} path={`/${name}`} description={page.description} image={page.image} header={page.header}>
+  <main class="drawer-page">
+    <h1 class="sr-only">{page.title}</h1>
+    <AdaptiveGrid layout={layout} name={name} class="page-grid" />
+  </main>
+</Shell>

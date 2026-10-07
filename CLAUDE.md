@@ -1,1169 +1,214 @@
-# doppelganger
+# DigiDesk and the StarrySidekick website
 
 > **Read [`INTENT.md`](INTENT.md) first.** It records what this project is for
 > and what Timothy wants next, in his own words, dated. Where it disagrees with
-> this file about *direction* it is newer and wins; where it disagrees about
-> *mechanics* — how the code works, what was decided deliberately, the
-> invariants — this file wins.
+> these files about *direction* it is newer and wins; where it disagrees about
+> *mechanics* (how the code works, what was decided deliberately, the
+> invariants) these files win.
 
-Self-hosted rebuild of **timothyvlangas.com** (brand: StarrySidekick.com), replacing
-a Squarespace 7.1 site. Runs in parallel with Squarespace until it reaches parity.
+**Two separate things live in this repository, in two folders** (Timothy,
+2026-10-07: "there is my personal website replication of starrysidekick.com,
+which is a project, and then there's the actual tool itself (digidesk), and
+those are two separate things"):
 
-**It is also the guinea pig for a tool.** Everything under `src/lib/` — the grid
-engine, the object model, the faces, the editor, the look — is a web-design
-version of Bureau, working name **DigiDesk**, and this website is the first
-thing built with it. Two things live in this repo: the tool, and the site made
-with the tool. Hard rule 4 is the seam between them, and it is what lets the
-tool be lifted out under its own name later without the site coming with it.
+| Folder | What it is | Its notes |
+| --- | --- | --- |
+| `digidesk/` | **The tool.** A website builder where everything sits on a grid: Bureau's object model for the web. The grid engine, objects and kinds, faces, the in-page editor, publishing, the look, 3D models, the app layer. An Astro integration and a package named `digidesk`. | [`digidesk/CLAUDE.md`](digidesk/CLAUDE.md) |
+| `site/` | **The project built with it.** A self-hosted rebuild of **timothyvlangas.com** (brand: StarrySidekick.com), replacing a Squarespace 7.1 site. Its layouts, catalogue, look, pictures, page shell and its own custom kinds. | [`site/CLAUDE.md`](site/CLAUDE.md) |
 
-**DigiDesk is Bureau, plus what a website needs — not a reimplementation of
-Bureau.** Bureau (`StarrySidekick/Bureau`, public) is a life-organisation app
-with a grid-based, object-based system, and it has already solved most of what
-an editor on a phone gets wrong. Where this tool needs a thing Bureau has,
-**port it from Bureau's source** rather than re-deriving it from its docs: the
-first version of the gesture layer was a re-derivation, and it re-found
-`dropSelection`, `refind`, `dragArmed`, the two-finger rule and the per-input
-hold length one at a time, as bugs. Diverge only where the web forces it, and
-say so in a comment when you do. The forced divergences so far: **pages instead
-of desks** (a website is pages, and `[...slug].astro` makes one from any
-layout); **Astro renders the published page, the editor cannot re-render it**
-(so the editor asserts its own state rather than emitting it — see "The editor
-cannot re-render"); and **saving is a commit to git**, not IndexedDB. Everything
-still to come is the web layer on top of that foundation: a contact form,
-sending people out to links, dropdowns and accordions and other ways of
-grouping objects that a page wants and a desk does not, the look, SEO, and
-eventually edit access behind a password. The site stays static throughout;
-publishing as JSON in a commit is the mechanism until there is a reason for
-another one.
+They are in one repository **for now, for ease of use**, and will be split
+later (Timothy, 2026-10-07: "let's keep them inside one repo for now for ease
+of use then split them later"). Everything below is arranged so that the split
+is moving a folder: the tool never imports the site, the site imports the tool
+only by its package name, and a test fails the moment either changes.
 
-The portfolio itself splits what Timothy has made into sections — film, games,
-writing, music, art, inventions — and that is the reason the catalogue and the
-`feed` exist. Blog posts will fall under the same system. Both are Bureau's tag
-model adapted, not invented here.
-
-Timothy is a designer — fluent in CSS, new to terminals and git. Explain what a
+Timothy is a designer, fluent in CSS, new to terminals and git. Explain what a
 command does before running it. Don't assume git vocabulary.
+
+**DigiDesk is Bureau, plus what a website needs, not a reimplementation of
+Bureau.** Bureau (`StarrySidekick/Bureau`) is a life-organisation app with a
+grid-based, object-based system, and it has already solved most of what an
+editor on a phone gets wrong. Where the tool needs a thing Bureau has, **port
+it from Bureau's source** rather than re-deriving it from its docs. Bureau
+itself stays as it is: it is ported *from*, never changed for DigiDesk.
+`digidesk/docs/BUREAU-PORT.md` is the inventory of what has come over and what
+is next.
+
+## How the two are wired
+
+npm **workspaces** link the folders: one `npm install` at the root puts a
+link to `digidesk/` inside `node_modules/`, and `site/` depends on it as
+`"digidesk": "*"`. So the site always builds with the tool exactly as it is in
+the same commit.
+
+The site hands itself to the tool in **one place**, `site/astro.config.mjs`:
+
+```js
+integrations: [digidesk({
+  shell: './src/layouts/Base.astro',   // the page every board is put inside
+  assets: './src/assets.js',           // pictures by asset: key
+  custom: './src/custom/index.js',     // the site's own kinds
+  publish: { owner, repo, branch },    // where the editor commits
+  storage: 'doppelganger',             // this browser's saved work
+  app: { name, short, icons, … },      // the installable app
+})]
+```
+
+DigiDesk brings everything else: a page for every layout, the home page, the
+board editor (`/editor`) and 3D editor (`/modeler`), the app's manifest and
+worker, `/version.json`. A page the site writes in `site/src/pages/` always
+wins over the one the tool would make at that address.
+
+**Room for anything the tool does not do** is `site/src/custom/`: kinds the
+site brings with it, drawn by the site's own code, that are objects like any
+other on a board (see its README and `digidesk/src/custom.js`). The small
+version is the `html` object, which is markup and never runs a script. The
+biggest version is a hand-written page in `site/src/pages/`.
+
+## Working on one or the other
+
+- **A change to the tool** goes in `digidesk/`, with its tests in
+  `digidesk/src/*.test.js` or `digidesk/test/`. Start the commit message with
+  `DigiDesk:`. It deploys with the site, because the site builds with the tool
+  as it is in that commit.
+- **A change to the website** goes in `site/`. Start the commit message with
+  `Site:`. Most site changes are made from the editor's Publish button, which
+  commits under `site/` for you.
+- **A kind that only this site wants** goes in `site/src/custom/`. When it
+  turns out to be useful on any site, move it into DigiDesk as a built-in.
+- **A change that needs both** is two commits, the tool's first.
+
+Each half has its own number (see *Which build is this*), so "which DigiDesk
+is the live site on" and "which site build is live" are separate questions
+with separate answers.
 
 ## Commands
 
+All from the repository root.
+
 ```bash
 npm install
-npm run dev      # localhost:4321, hot reload
-npm run build    # → dist/
-npm run preview  # serve the built output
-npm test         # layout engine, element registry, publish, widget build, and
-                 # the site's own facts (scripts/site.test.mjs). node --test, no deps
-npm run widgets  # build Squarespace code blocks → widgets/dist/
+npm run dev        # the site at localhost:4321/Doppelganger-Website, hot reload
+npm run build      # → site/dist/
+npm run preview    # serve the built output
+npm test           # both suites: the tool's, then the site's
+npm run test:tool  # DigiDesk only (engine, objects, editor rules, the seam)
+npm run test:site  # the site's own facts (layouts, catalogue, links, deploy)
+npm run widgets    # build Squarespace code blocks → site/widgets/dist/
 ```
 
-Deploy is automatic: push to `main` → GitHub Actions builds → GitHub Pages.
+Deploy is automatic: push to `main` → GitHub Actions installs, runs both
+suites, builds `site/` → GitHub Pages.
 Live at https://starrysidekick.github.io/Doppelganger-Website/
 
-**Which build is this?** The version IS the commit count, as `0.NN` — Bureau's
+**Which build is this?** The version IS the commit count, as `0.NN`: Bureau's
 scheme (its `persist.js`), for its reason: a number chosen by hand says nothing
-you can check. The 54th commit is `0.54`; the 100th will be `1.00`, the first
-honest claim to a 1.0 this will have made. It is derived at build time by
-`scripts/version.mjs`, so there is no number to forget to bump, and a working
-tree with uncommitted changes reads `0.54+` so a dev server is never mistaken
-for something deployable. It reaches you three ways:
+you can check. The 54th commit is `0.54`; the 100th will be `1.00`. It is
+derived at build time by `digidesk/version.mjs`, so there is no number to
+forget to bump, and a working tree with uncommitted changes reads `0.54+`.
+**There are two numbers**: the site's is every commit in the repository (every
+commit can change what is deployed); DigiDesk's is the commits that touched
+the tool (`digidesk/`, and `src/lib/` where it lived before), so it moves only
+when the tool does. Both reach you three ways:
 
 ```bash
 curl https://starrysidekick.github.io/Doppelganger-Website/version.json
 ```
 
-…that, a `<meta name="build">` in the head of every page, and the editor's bar.
-**Pressing the version in the bar asks the site what is live**, which is the
-question a publish leaves you with; the button goes amber with an arrow when
-the site has rebuilt past the page you are looking at. Publish starts watching
-on its own and says "Live now" when the deploy lands, because a commit is not a
-deploy and the wait used to be blind.
+…that (`build` is the site's, `digidesk` the tool's), a `<meta name="build">`
+in the head of every page, and the editor's bar (`v0.62 · DD 0.41`).
+**Pressing the version in the bar asks the site what is live**; the button goes
+amber with an arrow when the site has rebuilt past the page you are looking
+at. Publish starts watching on its own and says "Live now" when the deploy
+lands.
 
 **`fetch-depth: 0` in `deploy.yml` is load-bearing.** `actions/checkout`
-defaults to a shallow clone, where `git rev-list --count HEAD` answers 1 — so
-every deploy would publish `0.01` while every local build showed the truth,
-which is the exact failure the version exists to catch. A test asserts it.
+defaults to a shallow clone, where `git rev-list --count HEAD` answers 1, so
+every deploy would publish `0.01`. A test asserts it. The same goes for a local
+shallow clone: its count is a lie.
 
 ## Hard rules
 
-**0. Element ids in a grid are global, exactly like keyframe names.** `compileCSS()`
-now *requires* a scope and throws without one. Two unscoped grids on one page
-used to overwrite each other's column count and every shared id — the second
-won, the first silently lost its layout, and the build stayed green.
+These hold across both folders. Each half's notes have the rest.
+
+**0. Element ids in a grid are global, exactly like keyframe names.**
+`compileCSS()` *requires* a scope and throws without one. Two unscoped grids on
+one page used to overwrite each other's column count and every shared id.
 `AdaptiveGrid.astro` derives the scope from the layout via `scopeFor()`, so
 every caller gets one. Anything new that compiles a layout must pass one too.
 
-**1. Never use a generic `@keyframes` name.** This is not style preference. On
-Squarespace, a keyframe named `spin` collided with the platform's own `spin` and
-silently rotated the business card on the wrong axis for months. Keyframe names
-are not scoped by specificity — the last definition of a name wins outright.
-Always prefix: `cardSpinY`, not `spin`. Avoid: spin, fade, pulse, slide, bounce,
-shake, float, rotate, grow, blink, scroll, wobble, flip, zoom, wiggle, shimmer,
-glow, drift, sparkle.
+**1. Never use a generic `@keyframes` name.** On Squarespace, a keyframe named
+`spin` collided with the platform's own `spin` and silently rotated the
+business card on the wrong axis for months. Keyframe names are not scoped by
+specificity: the last definition of a name wins outright. Always prefix:
+`cardSpinY`, not `spin`. A custom kind prefixes its classes and keyframes with
+its own name. Avoid: spin, fade, pulse, slide, bounce, shake, float, rotate,
+grow, blink, scroll, wobble, flip, zoom, wiggle, shimmer, glow, drift, sparkle.
 
-**2. All internal links must use `url()` from `src/lib/assets.js`.** The site
-deploys to a subpath (`/Doppelganger-Website`), so a bare `href="/links"`
-silently breaks navigation. This has already caused two bugs, and the second
-one was *inside `url()`*: `trailingSlash: 'never'` means the home page is
-`/Doppelganger-Website` and `/Doppelganger-Website/` is a 404, but joining an
-empty path left the base's own slash on the end — so the header's home icon and
-the footer's "Home" link were both broken on the live site. `joinBase()` is the
-pure half, exported so the rule can be tested without a bundler.
+**2. All internal links go through `url()`** (`digidesk/src/url.js`, which the
+site's `assets.js` re-exports). The site deploys to a subpath
+(`/Doppelganger-Website`), so a bare `href="/links"` silently breaks
+navigation, and the home page is `/Doppelganger-Website` with no trailing
+slash. `joinBase()` is the pure half, tested without a bundler.
 
 **3. Never change a URL path.** Slugs match Squarespace exactly so that when the
-real domain moves across, nothing needs redirecting. `trailingSlash: 'never'` and
-`build.format: 'file'` exist for this reason. Do not "tidy" a route.
+real domain moves across, nothing needs redirecting. `trailingSlash: 'never'`
+and `build.format: 'file'` exist for this reason. Do not "tidy" a route.
 
-**4. `src/lib/` may not import `assets.js` or anything under `src/data/`.** The
-engine, the element registry and the editor are a general thing; the site's own
-facts reach them through arguments — `AdaptiveGrid.astro` passes a `ctx` with an
-asset resolver, `LayoutEditor.astro` hands the editor an asset map as data. This
-costs nothing today and is what keeps the option of lifting the whole thing out
-later. Every import that crosses it has to be replaced with an argument instead.
+**4. The tool never imports the site.** Nothing in `digidesk/` may import a
+file in `site/`, name the site's repository or domain in code, or glob for the
+site's files itself. The site's facts reach the tool through the integration's
+options and the three modules it generates (`virtual:digidesk/site`,
+`virtual:digidesk/custom`, `virtual:digidesk/shell`; see
+`digidesk/index.js`). The site imports the tool as `digidesk/…`, never as
+`../../digidesk/…`. `digidesk/test/boundary.test.mjs` fails on any of it. This
+is what makes the later split a move of a folder.
 
 **5. Verify visually, not just by build success.** A green build proves nothing
-about layout. Screenshot at desktop and mobile widths before claiming done. Two
-real bugs shipped past a passing build: the flip card overflowing its grid cell,
-and the sun rendering at 100vw. A third nearly shipped with the v3 content
-model: `#email` was `display:flex`, so "Email: " and its `<a>` became separate
-flex items and the space between them collapsed — `Email:TimothyVlangas@…`.
-Tests, the build and the box geometry all passed. Only the screenshot showed it.
+about layout. Screenshot at desktop and mobile widths before claiming done, and
+check in WebKit at an iPhone's size: Timothy works on an iPhone. Three real
+bugs shipped or nearly shipped past a passing build: the flip card overflowing
+its cell, the sun at 100vw, and `Email:` losing its space to a flex container.
 
-## Architecture
+## Layout of the repository
 
 ```
-src/lib/adaptive-grid.js   the layout engine — resolve/boxOk/validate/compileCSS
-src/lib/elements.js        objects, attributes, kinds, faces — Bureau's model, cut to a website
-src/lib/works.js           the catalogue: what has been made, and the query a feed asks of it
-src/lib/look.js            the site's colours and the tokens derived from them
-src/lib/interact.js        what a published page does on its own — folds, accordions
-src/lib/media.js           picking an image in the browser — resize, alpha, SVG, ceilings
-src/lib/model3d.js         low-poly models: parts → triangles, the matrices, presets (pure)
-src/lib/model-view.js      draws a model in a canvas with WebGL and keeps it turning
-src/lib/model-editor.js    the 3D editor — over any page, or on /modeler
-src/lib/pwa.js             the app half: manifest and service worker, from the site's facts (pure)
-src/pages/manifest.webmanifest.js, src/pages/sw.js.js   those two, built under the base
-src/styles/faces.css       how each face draws — all of it CSS behind one class
-src/data/look.json         the look itself: five colours, the type, pinned or flat
-src/data/works.json        every work, its section and its tags — the site's content, once
-src/pages/[...slug].astro  any layout with no hand-written page is a page anyway
-src/lib/layouts.js         loads src/data/layouts/*.json, validates at build time
-src/lib/edit-mode.js       the way in and out of edit mode — the corner, the flag, Done
-src/lib/editor.js          the in-page editor, loaded only for someone editing
-src/lib/publish.js         commits a layout to GitHub from the browser
-src/data/layouts/*.json    the layouts themselves — data, so they can be edited
-src/lib/assets.js          every remote asset + the url() helper
-src/components/AdaptiveGrid.astro
-src/components/LayoutEditor.astro
-src/components/FlipCard.astro
-src/components/SiteChrome.astro    header + footer, both real layouts
-src/layouts/Base.astro     SEO, fonts, global tokens
-src/pages/                 one file per route
-src/pages/editor.astro     standalone layout editor (replaces the prototype)
-widgets/<name>/            Squarespace code-block sources — see widgets/README.md
-scripts/build-widgets.mjs  builds each widget into one paste-ready blob
-scripts/version.mjs        the build stamp — the version is the commit count
-src/pages/version.json.js  that stamp, as a file you can curl
+package.json                 the workspace: digidesk/ and site/
+.github/workflows/deploy.yml install, test both, build site/, deploy
+
+digidesk/                    THE TOOL
+  index.js                   the Astro integration: options, routes, virtual modules
+  version.mjs                the build stamp, both numbers
+  src/                       the engine and the editor (one module per concern)
+  components/                AdaptiveGrid, LayoutEditor, Head, Scripts
+  routes/                    pages the tool makes: board, home, editor, modeler, app files
+  styles/faces.css           how each face draws
+  test/                      the seam, the editor's rules, fixtures
+  docs/BUREAU-PORT.md        what has come over from Bureau, and what is next
+
+site/                        THE WEBSITE
+  astro.config.mjs           base, redirects, and digidesk({ … })
+  src/data/layouts/*.json    every board: pages, header, footer
+  src/data/look.json         colours, type, pinned or flat
+  src/data/works.json        every work, its section and its tags
+  src/assets.js              every remote picture
+  src/layouts/Base.astro     the page shell: SEO, fonts, header and footer
+  src/components/            SiteChrome (header and footer), FlipCard
+  src/custom/                the site's own kinds
+  src/pages/                 pages written by hand (404)
+  public/                    icons, favicon, media the editor commits
+  widgets/                   Squarespace code blocks
+  scripts/site.test.mjs      the site's facts
+  docs/SCOPE.md              what it takes to leave Squarespace
 ```
 
-### The Adaptive Grid
-
-A replacement for Squarespace's Fluid Engine, and the reason this project exists.
-
-**Two stored layouts per element, and `flow` seeds the second one.** An element
-holds `desk: {col,row}` and optionally `narrow: {col,row}`. This reverses the
-original decision — it used to store one layout and always compute the narrow
-one — because computing it gives no way to hand-tune a phone, which was the
-point of building an editor at all. Same call bureau makes (its decision 9).
-
-`flow` is now the **seed**, not a runtime rule. An element with no `narrow` box
-gets one derived from its flow; the first time the editor moves it at narrow
-width, that box is written down and flow stops applying to it.
-
-| flow | where it seeds the element when narrow |
-|---|---|
-| `pin` | holds its edge, never joins the stack — corner nav |
-| `keep` | centres and scales |
-| `full` | spans the full width |
-| `stack` | drops into a single inset column |
-
-So a page is authored once and refined per device only where it needs it, and a
-newly added element still lands somewhere sensible instead of on top of its
-neighbours. `narrowColumns` may be coarser than `columns` (it defaults to the
-same) — dragging with a thumb across 24 columns is miserable.
-
-- `resolveDevice(layout, device)` places every element for one device.
-- `resolve(layout, width)` is the same thing keyed by pixels.
-- `deriveNarrow()` is the seed, used only where no stored box exists.
-- `boxOk()` **refuses** a move that would overlap or leave the columns, rather
-  than shoving a neighbour aside — position is meant to carry meaning.
-- `compileCSS()` emits real CSS Grid using **container queries and `cqi` units**,
-  not media queries, so a layout works inside any container. That is also what
-  lets the editor show a true narrow preview in a pane rather than an iframe.
-
-**The board is RIGID, the cell is SQUARE, and by default the cells TOUCH.** A
-cell is one column wide and exactly as tall, derived from the container's own
-width in `cqi`:
-
-```css
---ag-cell: calc((100cqi - (cols - 1) * gap) / cols);
-grid-auto-rows: var(--ag-cell);
-```
-
-**`gap` defaults to 0 and every shipped board is 0.** A board is a plain
-continuous grid, the way Bureau's is; the space between pieces is dressing one
-board may ask for, in the Board panel, not something a layout has to state. It
-used to be 8 everywhere, which read on screen as a field of separated squares
-rather than a grid. Two things had to change together: the default, and
-`validateLayout()`, which checked `gap` with the same `> 0` rule as the column
-count — so **zero, the one value that matters, failed validation and the Board
-panel silently refused the change.** Gap is now `>= 0`, `normalizeLayout()`
-defaults it, and a negative gap is still refused. A tile outline is drawn
-*inside* its box (`outline-offset: -1px`) for the same reason: offset outward,
-two touching tiles shared one doubled line.
-
-Rows used to be `minmax(clamp(...), auto)` and grew with their content. That is
-gone, deliberately and at Timothy's call: it made every row a different height,
-made a tile's size a consequence of its words rather than of what you drew, and
-meant the drag maths had to walk measured track edges. Now the board scales with
-the window and **nothing on it ever moves or resizes itself.** An object taller
-than its box clips. That is the bargain a rigid board makes, and it is the same
-one Bureau makes.
-
-Consequences worth knowing:
-
-- **A row span means the same as a column span.** Re-tuning a layout from the
-  old model is not a rescale — a box that was 8 rows tall was ~280px and is now
-  8 cells, which is much taller. All three shipped layouts were re-cut by hand.
-- `rowHeight` is gone from the schema. The cell is derived, so there is nothing
-  to state.
-- **`rows` fixes a board's height in cells** and `sticky` makes it follow you
-  down the page. Both are how the header and footer are sized and pinned, and
-  both are fields on the layout rather than CSS to go and find.
-- **Nothing reflows on resize.** The whole board scales. When something genuinely
-  cannot fit — a coarser grid than an object is wide — `packLayout()` repacks
-  top to bottom in reading order and lets the board grow downward. It is never
-  automatic: it runs when you change the grid size, or press **Tidy**.
-
-**The out-of-repo prototype is retired.** `/editor` does its job now — a board
-of labelled placeholders for arranging a layout with no finished page around it,
-which is how `/uiux` gets built before `/uiux` exists. It runs the same engine
-and the same editor as the live pages, so it cannot drift from them, which is
-the whole reason the prototype had to come in. Delete the old copy rather than
-keeping it in sync; it predates `minmax`, the scope argument and the two-layout
-model.
-
-### Everything on the grid is an object
-
-**This is Bureau's model, and it is deliberate.** An element used to carry a
-`type` and a `content` bag; now it is an **object** carrying **attributes**, and
-what it can do is decided by which attributes it has — additive, independent,
-never inferred from a name. A **kind** is a named preset of attributes, and a
-**face** is how it draws. `src/lib/elements.js` is the registry; Bureau's
-`docs/SYSTEM.md` §1, §5 and §6 are the reasoning.
-
-```json
-{ "id": "email", "kind": "note", "flow": "stack",
-  "desk": { "col": [2, 8], "row": [9, 2] },
-  "body": "<a href=\"mailto:…\">Email: …</a>" }
-```
-
-| attribute | gives the object | field |
-|---|---|---|
-| `text` | a body of words, editable in place by double-clicking | `body` |
-| `media` | a picture | `media: {src, alt, …}` |
-| `link` | goes somewhere — a site path or a web address | `link` |
-| `container` | **opens onto a page of its own — this is what makes a drawer** | `link` is the page |
-| `fold` | a folded size and an open size, toggled live — this is the dropdown | `fold: {cols, rows}` |
-| `holds` | holds other objects and lays them out by a rule | `items`, `arrange` |
-| `feed` | **shows the works, filtered** — a list that is true rather than one you wrote | `feed: {type, tag, sort, limit, chips}` |
-| `spin` | two sides turning on their own; the object's picture is the front | `spin: {back, sheen, seconds}` |
-| `sound` | plays a SoundCloud track or playlist through their widget, hidden, driven by the object's own buttons. **The iframe is never stored or pre-rendered** — `interact.js` makes it on a page that has a player, and `sound.src` must be a SoundCloud address, because it becomes an iframe src | `sound: {src, title, play, pause, prev, next}` |
-| `model` | **a low-poly 3D model, turning on its own** — a list of parts (box, cylinder, cone, ring, ball), each with a colour, place, turn and size. Stored on the object; drawn by WebGL | `model: {parts, spin, tilt, pixel, shading, zoom}` |
-| `decor` | **stands on the board rather than in it** — the one thing allowed to overlap, and nothing makes room for it (Bureau's decision 86). The sun, the holo, the business card. `boxOk` and `validateLayout` let it lie across anything and anything across it; Tidy leaves it where it stands; it draws at `z-index: 2`, unclipped | — |
-
-| kind | attributes | face | made from the picker |
-|---|---|---|---|
-| `note` | text | torn note | yes |
-| `image` | media, link | picture | yes |
-| `button` | text, link | plaque | yes |
-| `drawer` | container, media, text | drawer front | yes — **it makes a page** |
-| `fold` | text, fold | card | yes — **replaces a dropdown** |
-| `list` | holds, text | card | yes — **the accordion / gallery** |
-| `works` | feed, text | plain | yes — **a section page, or a strip of recent work** |
-| `html` | text (raw markup) | plain | no, a tool |
-| `form` | form, text | card | yes — **fields that email you.** The web layer's first kind |
-| `card` | media, spin | plain | yes — **the business card**: front, back, a shimmer, turning on its own |
-| `model` | model | plain | yes — **the N64 key**: opens the 3D editor |
-| `player` | sound | plain | yes — **a SoundCloud playlist with buttons of your own**, the /music player |
-| `slot` | — | — | no, written by code |
-
-**What a click does is a field**, `onclick`, asked of every object — Bureau's
-`clickOf()`. `page` sends you to a page on this site (through `url()`, hard rule
-2), `url` opens a web address in its own tab, `fold` opens and shuts, `none`
-does nothing. Left unset it asks the object what it *is*: something with a
-`/path` goes there, something that folds folds.
-
-**A fold's box on the grid is its FOLDED size.** Opening draws the panel as an
-overlay sized in cells, hanging off the tab. Growing the tile would push its
-neighbours, and on a rigid board nothing moves unless you move it.
-
-**A holder is the one fluid thing, fenced into one tile.** `arrange` is `stack`,
-`row`, `grid` or `accordion`, and its `items` are ordinary objects rendered by
-the same code. **`items` is a field in the settings panel** — a row per thing,
-with a title, its words, somewhere to go and a picture, added and dropped in
-the panel and committed on Apply. Before that a holder could be made from the
-picker and never filled, so the accordion and the gallery were both
-unreachable from the editor and the only way in was to write the JSON by hand.
-`makeItem()` builds one from what it was handed: attributes follow the fields
-given, and an item carries a real `kind`, because a `slot` draws nothing from
-data and one holding fields fails its own check. **A held thing that goes
-somewhere is a real link**, through `ctx.link` like any other — that is what
-makes "a row of links" one of the three things a holder is for, and it was
-rendering as plain words until the anchor was lifted out of `renderElement()`
-into `linkWrap()` and shared. The board is rigid; a holder is a box whose *contents* flow,
-which is what an accordion, a row of links and a wrapping gallery all are.
-`src/lib/interact.js` is the only script a published page carries — one
-delegated listener for folds and accordions, so a visitor gets them too.
-
-Ask `has(o, 'media')`, never `o.kind === 'image'`. That rule is the whole reason
-an invented combination works everywhere immediately — a note told to carry a
-link is a note you can click, and nothing was designed for it. **And it is now
-reachable**: the object editor has a tick per attribute, so a note that also
-carries a picture can actually be made. `USER_ATTRS` declared that since the
-port and nothing ever showed it.
-
-### The works — what exists, as opposed to what is on a page
-
-`src/data/layouts/*.json` says what is on a page and where. **`src/data/works.json`
-says what EXISTS**, and it is the other half of the content model. A work — a
-film, a game, a poem, a song, a painting, a tool — is written down once and
-appears wherever it belongs.
-
-Two axes, because they answer different questions:
-
-- **`type`** is the section it lives in: `film`, `games`, `writing`, `music`,
-  `art`, `inventions`. One per work, from a closed list, because a section page
-  has to be able to say "these". A type carries a `label`, its `path`, and the
-  tags it usually uses.
-- **`tags`** is everything else true about it — what the credit was (sound
-  design, score, director), what form it took (poem, essay, painting), what it
-  was for. Any number, open-ended, because the interesting cuts are the ones you
-  have not thought of yet.
-
-So a work appears on its section page, in the everything list, and under every
-tag it carries, **without being written down more than once**. That is the whole
-point, and the reason not to keep a list per page: a list per page goes out of
-date the moment you make something.
-
-**A `feed` is a QUERY, not a list.** `{type, tag, sort, limit, chips}`, answered
-by `ctx.works(query)` — so `elements.js` never learns what a work is or where
-the catalogue lives, exactly as with `ctx.image` and `ctx.link` (hard rule 4).
-`src/lib/works.js` is the pure half: `queryWorks()`, `validateWorks()`, and no
-import of anything site-specific. `AdaptiveGrid.astro` is the one place the real
-catalogue is loaded and an address becomes a URL.
-
-Consequences worth knowing:
-
-- **The chips a visitor sees come from the RESULT, not the catalogue.** A chip
-  that matches nothing on the page in front of you is a dead end, and the film
-  page must never offer "Painting".
-- **A work with no year sorts last in BOTH directions.** It is not the newest
-  thing and not the oldest; it has no place on the timeline. Sorting it first
-  under "oldest" would claim a date the catalogue does not have.
-- **Filtering is one tag at a time**, in `interact.js`, so a visitor gets it
-  without downloading the editor. Two tags at once reliably produces an empty
-  page and no idea why. `data-tags` is pipe-delimited so a filter matches a
-  whole tag: "Score" must not match "Scorekeeper".
-- **The catalogue is edited in the bar's `Works` panel** and publishes in the
-  same commit as everything else, like the look. A feed on the page redraws the
-  moment the catalogue changes — no rebuild.
-- `scripts/site.test.mjs` checks the two halves agree: every feed's `type` is a
-  real section, every section's `path` is a page that builds, and every footer
-  link goes somewhere.
-
-**A drawer is a page.** This is the one place the port departs from Bureau, and
-it is the whole port in a line. Bureau's drawer opens onto a nested grid inside
-the app; here `container` + `link: "/game-design"` means the object's contents
-are the page at that path, and its face on this board is the way in. The site
-map is the container tree. `[...slug].astro` turns any layout file that has no
-hand-written page into one, so **New drawer in the editor writes a layout file
-and a tile that opens it**, and the next build makes the page. Nothing was
-built for nested grids, because Astro pages already are them.
-
-**Faces are CSS.** `fc-<name>` on the tile, and every difference between
-`note`, `picture`, `plaque`, `front`, `spine`, `card` and `none` is in
-`src/styles/faces.css`. A face never states a colour of its own — it takes
-`--paper`, `--ink`, `--accent` and their steps from the look — so a look change
-re-dresses every face. A new face is a CSS block and a label in `FACES`.
-
-**`slot` is the default for an element with no kind, and that is deliberate:**
-every layout written before this keeps rendering from its page untouched, so
-pages convert one object at a time. It is the right answer, not a stopgap, for
-anything a component renders — the flip card has its own shader. A slot carrying
-fields fails the build: that combination can only mean a dropped kind.
-
-**The v3 shape still reads.** `upgradeElement()` turns `type` + `content` into
-the object shape on the way in, idempotently, and `normalizeElement()` calls it.
-A file in either shape is the same layout.
-
-**Content is checked at build time.** `validateLayout()` runs each object's
-fields through its attributes, so a malformed body, a `<script>`, an inline
-handler or a `javascript:` URL fails the build. A guard rail against a bad
-paste, not a security boundary — only someone who can commit can write it.
-
-**Typed objects render inside `AdaptiveGrid.astro`, so a page's scoped `<style>`
-cannot reach them.** Pass a class (`<AdaptiveGrid class="links-grid">`) and hang
-the rules off that in an `is:global` block. **`scopeFor()` hashes geometry
-only**, so fixing a typo does not rename every rule in the compiled CSS.
-
-### The Squarespace pieces, as objects (September 2026)
-
-The live site was measured in a real browser at 1440 and 390 wide and rebuilt
-on the boards: `/`, `/links`, `/writing`, `/music`, `/contact`, plus the
-header. Everything it was made of that had no object is now a general piece
-of the tool rather than site code:
-
-- **Faces `cutout` and `lettering`.** A cut-out fits a picture whole inside
-  its box, never cropped, nothing behind it — how a Squarespace image block
-  drew every GIF here. Lettering is words in the display face, centred.
-- **`media.over`** — a second picture laid over the first. The bookcase's
-  books are an animated layer over a still shelf.
-- **`arrange: 'carousel'`** — a holder shows one item at a time over its own
-  picture, with back / Go / forward keys (`controls: {prev, go, next}`). An
-  item with `area: [left, top, width, height]` in percent of the picture is a
-  hotspot: point at it and it shows, press it and you go. That is /writing.
-- **`onclick: 'shuffle'`** — the sun. A press tints the whole page at random,
-  a three-second hold puts it back, remembered per page. Never while editing:
-  a filter on `<body>` would make body the containing block of the fixed bar.
-- **Form fields `first` and `last`**, drawn side by side.
-- **`header: false` on a page's layout** hides the site header — Squarespace's
-  home page did (its custom CSS says `body.homepage #header{display:none}`)
-  and drew its own sun. A tick in the Board panel.
-
-**The page boards are 48 columns on a desk and 16 on a phone**, and so are the
-header and footer (a test holds header and footer to the same count). At 1440
-that is a 28.8px cell, fine enough that a box measured off the live site lands
-within about 15px of where it was; 24 columns could only hit every 58px. The
-footer was doubled exactly, so it looks as it did.
-
-**What still differs, knowingly:** the bookcase starts under our header rather
-than tucked up behind it, so it sits ~86px lower; the contact form wears the
-tool's dark fields, not Squarespace's white ones, and has no Web3Forms key yet;
-the footer exists here and not there; the home page's hidden lower section
-(cassette, a second card, "Dark Piano") is not rebuilt because a visitor never
-sees it; Spotify on /links is left out because it sat hidden under the QR code.
-
-### 3D models — the N64 key (September 2026)
-
-A `model` object draws a low-poly model in a canvas and turns it; a visitor
-can grab it and turn it by hand (side to side only, so a vertical swipe on a
-phone still scrolls). Three files, split so the modeller can leave later as
-its own thing:
-
-- **`model3d.js` is pure** — node and browser. A model is a short list of
-  PARTS, and that is the whole modelling language, deliberately: it is how an
-  N64 prop was built, it is small enough to live on the object and publish in
-  a layout, and it can be made in a panel with no 3D mouse gymnastics. Every
-  triangle is turned outward by one rule (`outward()`), not by trusting each
-  shape's winding, so light cannot come out inside-out. The camera fits the
-  model's bounding SPHERE, so it never leaves the frame however it turns —
-  there is a test that turns it and checks every corner.
-- **`model-view.js` is WebGL with no library**, because the parts pass
-  through each other (a stem into a note head) and only a depth buffer gets
-  that right. The look is three of the model's own fields: few polygons,
-  `shading` (flat shows every polygon; smooth is the soft Gouraud light of
-  the real console) and `pixel` — a small frame scaled up with hard edges,
-  the way the N64 drew 320 pixels across a television. The build does no 3D:
-  the page carries a canvas and the parts as JSON, and `interact.js` fetches
-  the renderer only on a page that has one. Paused off-screen; still for
-  anyone who asked for reduced motion.
-- **`model-editor.js` knows nothing about boards.** Handed a model, gives one
-  back. **Edit the model…** in a tile's menu opens it over the page; `/modeler`
-  stands it on a page of its own (noindex, draft kept in the browser). Drag to
-  orbit, wheel to zoom, click a part to pick it (a colour-per-part render read
-  back from the GPU, never a guess from the DOM). **There are no 3D drag
-  handles**: dragging a thing in a space you see flat is where small modellers
-  go wrong, so arrows move the picked part a step, PageUp/PageDown toward and
-  away — the board's own bargain. Keys are taken at the window in the capture
-  phase and stopped there, **because Delete in the 3D editor must delete a
-  part and not the tile the model lives on.** Undo is its own stack; Done is
-  one undo step on the board.
-- **Every number is a slider and a number box**, the same field twice: the
-  slider for a thumb, the box for exactly "0.4". Axes are coloured X red, Y
-  green, Z blue, as in every 3D program. A slider's range widens to take a
-  value already outside it, so it never quietly clamps a model. **The undo
-  "before" is taken on pointerdown, not only on focus**: an iPhone often
-  never focuses a slider, and a drag writes its value live, so without that
-  a whole drag left nothing to undo.
-
-Presets: **Note key** (first, and what a new model object starts as — it was
-the plain key until Timothy found the picker handing him the wrong one) and
-**Key** — a note whose head is the bow, whose stem
-is the shaft, and whose flag is three teeth. Both under 150 triangles.
-
-### The site is an app (PWA, September 2026)
-
-Installable, full screen from the home screen, and the pages you have opened
-work offline. `src/lib/pwa.js` is pure and site-blind (hard rule 4); the two
-endpoints hand it the name, icons, colours and base, so moving to the real
-domain changes nothing here.
-
-- **A worker controls only addresses BELOW its own folder**, and GitHub Pages
-  cannot send the header that widens that. `/Doppelganger-Website/sw.js`
-  covers `/Doppelganger-Website/…` but not the bare `/Doppelganger-Website`
-  — which is the home page, because `trailingSlash: 'never'`. So the app
-  starts at **`/Doppelganger-Website/index.html`**, the same page
-  (`build.format: 'file'` writes it) at an address the worker can see. The
-  manifest's scope is written WITHOUT its trailing slash so tapping Home does
-  not throw you out into the browser. At a root domain all of this collapses
-  to `/`. Tests hold both cases.
-- **Pages are network-first**, so a publish shows the moment it has built;
-  the cache is the offline fallback, and the home page the last resort.
-  `/_astro/` (hashed names) is cache-first; pictures and fonts are
-  stale-while-revalidate. **Never cached or intercepted:** anything not a GET,
-  `version.json` (it is how the editor asks what is live), GitHub's API
-  (Publish), SoundCloud, Web3Forms. The page cache is named for the build, so a
-  new deploy's worker drops the old pages.
-- **Registered only in a real build**, never under `npm run dev`.
-- **Icons** are the sun drawn on black (`public/icon-*.png`), with a padded
-  maskable one for Android's round crop. The sun is 128px at source, so the
-  512 is soft; it is shown at 60–180px.
-- **Shortcuts** (Android, hold the icon): Edit the site, 3D editor. iPhone has
-  none; **the corner dot is the way into edit mode in the app**, because a
-  full-screen app has no address bar to type `?edit=1` into.
-- **The corner dot hangs off `<html>`, not `<body>`.** The sun's shuffle puts
-  a filter on body, and a filtered element becomes the containing block for
-  everything `position: fixed` inside it — so the dot dropped to the bottom
-  of the PAGE, off-screen, on every page that had been tinted, and the tint
-  is remembered. In the app, where the dot is the only way in, that was "I
-  can't see the dot". It is also 44px now, set in from the rounded screen
-  corner and above the home indicator, and brighter in `display-mode:
-  standalone`. A test holds where it hangs.
-
-Checked in Chromium: installable with no errors in a normal profile, the
-worker controls `index.html`, and with the server actually stopped the
-visited pages still open (emulated offline in Playwright does not reach a
-service worker's own fetches, so it proves nothing — stop the server).
-
-### The look
-
-`src/data/look.json` is the site's dressing: page, ink and accent colours, the
-two checkerboard squares, the type face, and whether tiles are pinned (each
-leans a degree or two, off a hash of its id — Bureau's decision 75). `look.js`
-derives a full token set from those few values the way Bureau's `look.js` does
-(its decision 33), so the second and third tints of a colour agree with the
-first by construction. `Base.astro` emits them on `:root`; the editor's gear
-writes the same tokens live and publishes the file with everything else.
-
-Three more fields carry the Squarespace site's manner: **`wiggle`** (a linked
-picture wiggles under a mouse), **`sparks`** (a picture thrown five at a time
-from every click — the star) and **`cursor`** (`[pointer, pointer over a
-link]`). The pictures are `asset:` keys; `resolveLook()` turns them into
-addresses in `Base.astro`, because `look.js` may not know the site's assets
-(hard rule 4). The editor cannot resolve them, so `tokensFor()` only emits a
-cursor token for a real address and the build's own value stands. None of the
-three apply while the board is unlocked.
-
-### Header and footer are layouts too
-
-`header.json` and `footer.json` are ordinary layouts, rendered by the same
-engine and edited by the same editor. `Base.astro` puts them around every page,
-so a page no longer opts in. **This is the lesson from Bureau — everything sits
-on the grid, and chrome is not a special case with its own rules.** The payoff
-is that the header can be rearranged and the footer reworded without touching
-code, and neither needed a line of new engine code to get there.
-
-Consequences worth knowing:
-
-- **Ids are global across the whole document**, not per grid. Header, page and
-  footer all render into one page, so `site-*` prefixes keep them apart.
-  `scripts/site.test.mjs` asserts no two shipped layouts share an id — that
-  test was claimed here for a while before it existed, and the same hazard from
-  the other direction had `/editor` drawing a placeholder *and* the real object
-  under one id, so the footer's nav rendered twice on top of itself.
-- `/links` no longer carries `nav-home`/`nav-sun`; the header owns them.
-- **A site-relative link inside `text` content is rewritten at render** through
-  `ctx.link`, so hard rule 2 still holds for a footer nav that is a run of HTML
-  rather than a field. A bare `href="/writing"` stored in content is correct and
-  becomes `/Doppelganger-Website/writing` on the way out.
-
-### The editor cannot re-render, so there is exactly one place it cleans up
-
-Bureau's decision 8 is "full re-render on every change": every editor state —
-selected, lifted, invalid, the drop target — is emitted by the renderer from the
-model, so it cannot be left behind. **This editor cannot do that, because the
-page is Astro's markup.** So six visual states are poked onto the DOM by hand:
-`ag-selected`, `ag-lifted`, `ag-invalid`, `ag-drop`, the drag ghost and the
-sketch ghost.
-
-Every exit path was expected to remember all six, and `pointercancel` remembered
-two — it cleared the tile drag and never touched the sketch. So the sketch's
-ghost stayed in the grid, its timer went on to paint `ag-armed` onto it, and the
-next press assigned a fresh sketch and orphaned that node for the life of the
-page. **A `pointercancel` fires exactly when a second finger lands**, so every
-attempt to two-finger scroll off bare board left an amber box behind — which is
-why "highlights get stuck" and "two fingers barely scroll" were one bug reported
-from both ends.
-
-`clearGestureState()` is the answer and it is deliberately the *only* teardown:
-both gestures, both timers, both ghosts, all four classes, plus a sweep of the
-grid for anything still wearing one that we have lost the handle on — because
-losing the handle is the whole class of bug. It is wired to `pointercancel`,
-`blur`, `visibilitychange`, a second finger, and both pointer-up paths. **Do not
-add a seventh piece of hand-managed state without adding it here**, and do not
-add a second teardown.
-
-Two more rules follow from the same fact:
-
-- **A gesture has one owner.** `G` and `sketch` each carry the `pointerId` they
-  started with, and every later event checks it. Nothing used to, so a second
-  touch overwrote them and the *first* finger's release then cleaned up the
-  *second* gesture and left the first tile lifted and transformed for good.
-- **Never ask the DOM where the finger is.** The sketch used to call
-  `document.elementFromPoint` for a `.ag-cell` and give up when there wasn't
-  one, which is any time the pointer crossed a tile — tiles are `z-index: 1`,
-  cells are `0` — so the ghost froze and a box could not be drawn across
-  anything. `cellAt()` and `spanBetween()` do the arithmetic instead; they are
-  pure, exported, and tested. **The checkerboard is a look, not the thing that
-  decides where you pressed.**
-
-### A phone is the hard case
-
-Three defaults fight an editor on a touch screen, and all three are the browser
-being helpful about something else:
-
-- **A one-finger drag scrolls the page**, so a tile can never be picked up.
-  This was answered with `touch-action: pinch-zoom` on the grid, and **that was
-  the wrong instrument.** It gave the single finger to the drag, which costs
-  one-finger scrolling outright; and on iOS `pinch-zoom` buys two-finger *zoom*
-  rather than two-finger *pan* on an unzoomed page, so the scrolling it was
-  supposed to leave you barely answered either. **Bureau never sets
-  `touch-action` on its board.** The board is not a surface that declares what
-  gestures it takes; the editor decides per gesture. A non-passive `touchmove`
-  calls `preventDefault` while — and only while — `dragArmed()`, and the hold is
-  what makes that legal: the finger has been still for 300ms, so no native
-  scroll has begun, and `preventDefault` can still stop one from starting. Once
-  scrolling is under way the call is ignored, which is also why the hold cannot
-  grow much longer than it is. Two fingers cancels any gesture in flight and
-  hands the page straight back to the browser. Tests assert all three.
-- **Tapping paints a blue highlight box** — `-webkit-tap-highlight-color`.
-- **Holding starts a text selection** and iOS adds a callout menu on top, both
-  of which fight hold-to-drag. **While unlocked the DOCUMENT is not a selectable
-  surface**, and the bar and its panels never are, locked or not. Scoping this
-  to `.ag-grid` was not enough and is the bug worth remembering: a selection
-  that STARTS outside a tile — on `.ag-root`'s padding, on `.site-main`, on a
-  board label, on a word in the bar — runs straight through the tile anyway,
-  because `user-select: none` on a child cannot stop a drag that began
-  elsewhere. CSS alone is also not enough: `selectstart` and `dragstart` are
-  refused at the document while unlocked, and a stale selection is dropped on
-  the next press, because once a selection exists the browser extends it under
-  the finger and that is exactly what a hold feels like.
-- **The exceptions have to out-specify the ban.** `.ag-editing .ag-menu *` is
-  two classes and beats a bare `.ag-editing input`, which made every field in
-  Board and Publish unselectable the first time this was written. The
-  `contenteditable`, `input`, `textarea` and `select` exceptions carry
-  `.ag-menu`/`.ag-bar` copies for that reason.
-
-Also: **the bar is the only chrome a phone has.** It goes full-width along the
-bottom with a safe-area inset, every button is at least 34px tall, and it lost
-six controls (two device tabs, three grid tabs, Add image) to fit. A 24px
-button is a miss.
-
-**All three boards share one gutter**, `--site-gutter` on `:root` —
-`max(23px, 2vw)`, which is Squarespace's own, measured. Header, page
-and footer are separate grids and only read as one board if they are the same
-width — otherwise their columns do not line up and their cells are different
-sizes, which was most of "the grid looks weird on mobile".
-
-### One editor bar, however many grids
-
-Three grids on a page would have meant three floating bars, and an ambiguous
-"Publish". So the chrome is a singleton (`sharedChrome()`) that every editor
-registers with; the grid you last touched is the one the bar acts on, and the
-tabs list grids in **document order**, not the order they mounted in — a page's
-own grid registers before the header, so mount order reads wrong.
-
-### Adding an image from the editor
-
-Right-click an image element and choose one, or drop a file straight onto the
-tile. The pipeline is Bureau's, ported from `web/js/persist.js` (its decisions
-71 and 86), because it had already got the non-obvious parts right:
-
-- **Downscale on import** — 1600px on the long edge.
-- **Keep alpha only when there is alpha**, sampled ~20k pixels. Saving a cut-out
-  PNG as JPEG puts a box behind it.
-- **Never rasterise an SVG.** The source file is the asset.
-- **A GIF goes in whole or not at all** — a canvas holds only its first frame,
-  and this site is mostly animated GIFs.
-- **Refuse loudly, with a number.**
-
-Where it departs from Bureau: Bureau keeps bytes in IndexedDB for one device
-with a 60 MB ceiling. This commits them to git, which every clone carries
-forever, so the ceiling is **4 MB** and audio and video are not offered at all.
-
-A picked image sits in the tab until Publish, and the bar says so. Publishing
-commits the layout and its images as **one commit** — see below.
-
-### Editing a layout in the page
-
-`/links?edit=1` mounts the editor onto the real page. It is behind the query
-parameter, and behind a dynamic import, so a visitor never downloads it and can
-never pick a tile up.
-
-**Edit mode is a mode this browser is in, not a property of one URL.** `?edit=1`
-still means edit and still works, but it was also the bug: follow any link — the
-home icon, the footer nav — and the next page's address had no `edit` in it, the
-editor never mounted, and the bar vanished with no way back short of retyping
-the address. So:
-
-- **A target in the bottom-left corner of every page** is the way in. `⌘⇧E` /
-  `Ctrl-Shift-E` does the same on a desk. **`SHOW_CORNER` in `edit-mode.js` is
-  currently `true`, so it is a visible dot on every page**, one press, for
-  anyone — that is temporary, so it can be found. Set it to `false` and it goes
-  back to invisible and a **double press** until you have been in edit mode once
-  in this browser, after which it is a faint dot and one press; a visitor then
-  sees nothing and it is not announced to a screen reader.
-- **Pressing it mounts the editor where you stand**, with no reload — the page
-  in front of you is already the board.
-- **`?edit=1` turns the mode ON** as well as opening the editor, so it survives
-  the next link. `?edit=0` turns it off.
-- **Done in the bar is the way out**: it clears the mode, strips the parameter
-  and reloads as a visitor. A reload rather than an unmount, deliberately — the
-  editor has put a checkerboard, grips, labels and draft tiles into the page,
-  and asking the browser for the page again is the honest way to be sure none of
-  it is left over. Nothing is lost; drafts live in localStorage.
-
-None of this is access control and none of it is meant to be, exactly as
-`?edit=1` was not. A stranger who finds the corner can rearrange tiles in their
-own browser and change nothing for anyone, because publishing needs a token that
-only ever exists in Timothy's.
-
-**There is one lock, and it is which mode you are in.** Bureau's decision 74,
-taken whole: **locked** is the site exactly as a visitor sees it with a bar
-along the bottom — links work, nothing has an outline, double-click does
-nothing; **unlocked** is the board — a checkerboard under everything, outlines
-on what moves, every gesture live. The padlock in the bar (or `L`) flips it for
-every grid on the page at once. A first visit to `?edit=1` lands unlocked,
-because that is what asking for it means; after that it is whatever you left.
-
-**The checkerboard is real cells, not a gradient.** Now that cells are square
-and uniform a gradient *would* line up, the way Bureau's does — but a cell is
-also a **target**: one `<i class="ag-cell" data-col data-row>` per coordinate is
-what makes clicking bare board mean "here", and dragging across it mean "this
-big". A gradient cannot be pressed.
-
-Interaction follows bureau:
-
-- **hold bare board** for the picker — and what you pick lands on that cell at
-  its kind's size, or in the first free room. **A quick tap does not**, and that
-  is deliberate: one finger belongs to the board while you are arranging, so
-  every stray touch, every attempt to scroll with one finger and every tap
-  meant to deselect used to land in the picker. A tap now means what it means
-  everywhere else — nothing is selected any more. The ghost goes solid amber
-  the moment the hold lands, so the board says the picker is coming rather than
-  springing it on you
-- **drag across bare cells** to sketch a box; the new object takes that size.
-  A drawn box is deliberate by nature, so it opens the picker without the hold
-- **every panel has a ✕**, from `openMenu`, and **Escape closes whatever is
-  open** whichever board is active. A phone has no Escape key, a panel can
-  cover most of the screen, and "tap outside" is not a way out you can rely on.
-  A panel is also kept clear of the bar, which owns the bottom ~90px of a phone
-  — clamping only to the window put a panel's last row underneath it
-- **press a tile** to select it — the one the keys act on, ringed in the accent.
-  **There is one selection for the page, and the chrome holds it**, exactly as
-  Bureau keeps `S.sel` in the model. It was a variable inside each editor, and a
-  page mounts three of them, so pressing a tile in the page and then one in the
-  footer left *both* wearing the ring. `paint()` also re-asserts the class on
-  every commit rather than poking it on at the moment of pressing, so an undo
-  that re-mounts a tile cannot leave the selection pointing at a node that no
-  longer wears it
-- **arrow keys** move the selected tile one cell, **shift+arrows** resize it by
-  one, **⌘D** copies it, **Delete** removes it. A drag is right for "roughly
-  there" and wrong for "one cell left", which on a 24-column board is a few
-  pixels of pointer travel
-- **hold to pick a tile up** — 200ms with a mouse, **300ms with a finger**,
-  because 200 on glass is inside the window in which the browser is still
-  deciding whether you meant to scroll. There is no arrange mode, so the hold is
-  the only thing keeping an ordinary click from moving something
-- **keep holding without moving** and it becomes the settings panel instead —
-  a phone has no right button, and Bureau makes the same bargain. **The gesture
-  is not cancelled when the menu appears**: the tile is put back down but stays
-  under your finger, so keep holding and move and the menu goes away and you are
-  dragging. That is the iPhone home screen's gesture and Bureau's decision 47.
-  Cancelling made the hold a dead end — the menu came up and the press was
-  finished with, and you had to start again
-- **drag a band across tiles** and they are selected — the same drag as the
-  sketch, told apart by whether it touched anything. That is Bureau's rubber
-  band and it is why there is no "select tool": touch nothing and you are
-  drawing the size of a new thing, touch something and you are choosing. The
-  band goes solid accent with no fill (`ag-picking`) so it reads as a lasso.
-  **Shift+click** toggles one tile in or out; **shift+band** adds; **⌘A** takes
-  the lot. A decoration is passed over by a plain band, because it stands in
-  front of things and would always be caught first — shift+band picks it up
-  deliberately
-- **drag any member of a selection and the lot moves**, keeping its shape —
-  `G.group`, captured at the press. One ghost per thing in the air, and the
-  set lands as a whole or not at all: `boxesOk()` judges it together, and a
-  collision *inside* the set is not a collision. It is **one undo step**
-  (`kind: 'boxes'`), because it was one thing you did (decision 65)
-- **the toast carries its own Undo** — a real button, pinned to the step that
-  was on top when the words were written, so a toast still on screen after
-  something else has changed does not undo the newer thing. A phone has no ⌘Z,
-  and the toasts used to say "⌘Z puts it back" to a device with no ⌘. Bureau's
-  `toast(msg, undo)`; here `undoOf(step)` is the closure the editor hands over
-- **hold a tile at the top or bottom edge and the page scrolls** under it, faster
-  the nearer the edge, with the drag re-applied between pointer events — the
-  finger is holding still and the board is what moves. Bureau's `autoPan`. The
-  bottom edge is the *bar's* top, since the bar owns that strip. Without this a
-  tall board could not be dragged onto below the fold at all, because a native
-  scroll is the first thing the hold refuses
-- **Tab / shift-Tab** walk the selection in reading order; **⌥+arrows** walk it
-  spatially, by Bureau's rule (decision 70): nearest in the direction pressed,
-  weighing distance *across* the axis double, so Right from a tall tile finds
-  the thing beside it and not the thing three rows down. The plain arrows still
-  **nudge**, because that is what every drawing program does with them. With
-  nothing selected any of these selects the first tile, so the keyboard can get
-  started at all
-- **Group (⌘G) and Ungroup (⌘⇧G)** — Bureau's *gather* (decision 24), as a
-  website wants it. Select two or more notes, pictures or buttons and Group
-  makes ONE holder out of them, taking the room they had between them so the
-  board looks the same the moment after; its items are the objects themselves
-  with their geometry taken off (`toItem`), and Ungroup gives them back a place
-  (`fromItem` + `freeSpot`). **Drop a tile onto a holder and it is filed in**
-  — the holder wears the green drop ring and the ghost steps aside, because
-  the thing in hand is not landing on the board at all. The aim is the cell
-  under the pointer, never `elementFromPoint`. All three are one undo step.
-  A holder, a feed and a form cannot be held; a slot is the page
-- **corner grips** resize; there are no edge handles
-- **double click** the words and they become a field where they sit — the
-  body or the title, never the whole tile, because a drawer front has a picture
-  in it too. Click away keeps it, Escape reverts. What contenteditable produces
-  is cleaned down to `a/em/strong/b/i/br` before it is stored
-- **hold, or right click, or Enter** opens the object's **menu**: a short list
-  of things to DO — Edit…, choose an image, edit the words, Duplicate, Lock,
-  Delete, and on narrow "reset to derived position". It was one panel carrying
-  every field and every action at once, which made the common case a hunt
-  through a settings sheet and the uncommon case cramped in a 340px column
-- **Edit…, or `E`,** opens the **object editor**, and it is where an object is
-  changed rather than acted on. Three parts, in the order the model puts them:
-  **what it is** (its kind — a preset, so changing it swaps the attributes and
-  *keeps the data*), **what it carries** (a tick per attribute — this is the
-  combination the whole design is built to allow and had no way of being made),
-  and **its fields**, drawn from whatever it ends up carrying. Kind and
-  attributes land at once, because both are questions about identity and you
-  want to see the answer; the fields wait for Apply, because they are words
-  being typed
-- **Look** is the site's dressing: colours, type, pinned
-- **Works** is the catalogue — one row per thing you have made, its section, its
-  tags, its year and where it lives. It is site-wide, like the look, and
-  publishes in the same commit. Apply keeps the panel open, because forty works
-  are typed in over a while
-- **There are no grid tabs either.** Each board wears its own name while
-  unlocked — HEADER, FOOTER, the page — and the one you last touched is lit and
-  is the one the bar acts on. A page beats chrome as the default, so opening a
-  page puts you on the page
-- **Board** is this grid's own geometry: how many columns across (which is how
-  big one piece is), **the gap between cells**, a fixed height in cells, and
-  floating or set. **The height is the one for the board you are looking at** —
-  it wrote `rows` even on a phone, so the narrow height it was showing you
-  could not be set at all. **Tidy** repacks it top to bottom, **Copy JSON**
-  puts this board's file on the clipboard. **The header and footer are sized
-  here** — touch one first, since it is the board you last touched that the bar
-  acts on. A change recompiles the grid's inline CSS under its existing scope
-  class so you see it immediately, rather than waiting for the site to rebuild
-- **Board also carries the page**, for a board that is one: its **title**, a
-  **description** (what a search result shows under the title, and what a
-  shared link says) and a **picture for a shared link** — an `asset:` key, a
-  `media:` file or a URL. They are fields on the layout (`title`,
-  `description`, `image`), and both routes that render a board hand them to
-  `Base.astro` — `[...slug].astro` for every page, and `index.astro` for `/`,
-  which is the one route the dynamic one cannot make. Base falls back to the
-  site's line and wordmark when a board has none. Header and footer do not
-  offer them
-- **Pages** is the working list of every page there is, and **a page is a
-  ROUTE** — a file in `src/pages` or a layout the dynamic route turns into one.
-  It used to be built from the layout files alone, which meant it listed
-  exactly one page (`/links`) and every hand-written page was missing; and the
-  href went out bare, so on the deploy subpath it was a 404. **Hrefs are
-  resolved through `url()` in `LayoutEditor.astro` and travel to the editor as
-  data**, because `src/lib` may not import `assets.js` (hard rule 4). A row
-  says whether the page is a board or written by hand. **New page…** writes an
-  empty layout file, pending until Publish, so a page no longer has to be born
-  behind a drawer. Bureau's *desks* do not come over — a website has pages, and
-  how a visitor gets between them is whatever you build out of objects and menus
-- **Anywhere you say where something goes, the pages are offered** — a
-  `<datalist>` on every `link` field, including a holder's rows. A mistyped
-  path is a 404 nothing catches until a visitor finds it
-- **There is no device toggle.** Which of the two stored layouts you are
-  arranging is decided by the width on screen — narrow the window and you are
-  editing narrow, because that is the board in front of you. A ResizeObserver
-  watches the container, the grid being container-queried makes it the real
-  thing, and the bar says which you are in rather than asking
-- **⌘Z / Ctrl-Z** undoes, up to 20 steps — moves and text edits share one stack.
-  **⌘⇧Z redoes**, and Redo is in the bar beside Undo. Bureau's decision 65:
-  `applyStep()` applies a step backwards AND returns the step that would apply
-  it forwards, so redo is the same function pointed the other way rather than
-  a second set of cases — every kind of step (box, boxes, content, add, remove,
-  group, ungroup, filed) says what its own inverse is. A new move clears the
-  redo stack, because keeping it is how a redo comes to reinstate a change on
-  top of a board it no longer fits
-- **flick a tile off the left, right or top edge and it is thrown away** —
-  Bureau's decision 112. Three things have to be true, so it is hard to do by
-  accident: fast (past what a careful move ends at — velocity is smoothed, one
-  pointer event's worth is noise; and a mouse has to be going nearly twice as
-  fast as a thumb, because a mouse crosses a screen far faster than a thumb
-  crosses a phone), let go at the very edge or past it, and
-  travelling *out* through it. A slow carry to the edge is still a move that
-  finds no room. Down is not an edge: below the board is more page, and the
-  bar. The toast offers Undo
-- **grips show on the selected tile**, not only on hover — a phone has no
-  hover, and before this a tile could not be resized by touch at all
-- **Done** leaves edit mode altogether, which is a different thing from the
-  padlock: locked is still the editor, with a bar; Done is the site
-
-Saving has three levels. **localStorage** holds work in progress and survives a
-reload. **Copy JSON**, in the Board panel, gives you the file to paste into
-`src/data/layouts/` or to hand over for review.
-**Publish sends everything at once** — every grid on the page that changed,
-every picked image, any page a new drawer made, the look, and the works
-catalogue if either changed — as **one commit** to `main`, and the site rebuilds in about a minute. It uses the
-**git data API** (blob, tree, commit, move the ref) rather
-than the contents API, because a layout and the images it references have to
-arrive together: one commit, one rebuild, and never a published JSON pointing at
-an image that is not there yet. The ref move is not forced, so a push that
-landed while you were editing refuses the update instead of being overwritten.
-
-Publishing needs a token, and it is a real credential:
-
-- Use a **fine-grained** token limited to this one repo, **Contents: read and
-  write**, nothing else, short expiry. Not a classic token.
-- "Keep this token in this browser" puts it in `localStorage`. Anything running
-  on the origin could read it. Use **Forget token** when you're done.
-- `publish.js` never logs it, never puts it in a URL or a commit; it goes in the
-  `Authorization` header and nowhere else. There are tests asserting exactly
-  that — keep them passing.
-- Publishing clears the local draft, because the repo is the truth again.
-
-While editing, clicks on links inside the grid are suppressed. Half the tiles
-on `/links` are anchors, and without that, moving the home icon also navigates
-home and takes the editor and the arrangement with it.
-
-## Status: restarted, September 2026 — editor first, migration later
-
-**The rebuild is active again, and the order changed.** It was parked in August
-because content couldn't be edited; that is the thing now being fixed. See
-`docs/SCOPE.md` for the full plan — the short version:
-
-- Everything except large media can be built **on GitHub Pages as it stands**.
-  No server, no auth, no hosting move. So the migration is deferred and the
-  editor comes first.
-- Edit mode is the "admin mode", and it is deliberately not access control. The
-  corner target and `?edit=1` are both things anyone can find, and that is fine
-  because **saving needs a token that only ever exists in Timothy's browser** —
-  a stranger can rearrange tiles in their own session and change nothing for
-  anyone.
-- Media splits: images can be committed to the repo, **audio and video cannot**.
-  Git history is append-only, so a few dozen songs committed once is a few dozen
-  songs in every clone forever. They keep being embedded (SoundCloud, YouTube)
-  until object storage exists.
-- The domain is the one thing that does **not** wait, and it is not a rebuild
-  task. Both domains are registered by *Squarespace Domains LLC* and renew
-  **8 December 2026**. Until they are transferred out, cancelling Squarespace
-  and keeping the address are the same decision. See `docs/SCOPE.md` §0.
-
-Squarespace is still the live site meanwhile, and site changes still go there —
-use the `squarespace-ops` skill, which encodes the admin flow and a save-button
-hazard that silently discards work.
-
-**Interactive pieces are built in `widgets/` and pasted into Squarespace code
-blocks.** That is the active way of working now: Squarespace does page
-composition and content, this repo builds the self-contained blocks, and each
-one gets previewed in a deliberately hostile page before it goes near the live
-site. See `widgets/README.md`. Requires Core or above — JS in code blocks is a
-premium feature — and Timothy is on a grandfathered Business plan, so it is
-available.
-
-What's already done, so it isn't rediscovered:
-
-- Saving **is** solved. The editor publishes to `main` through the GitHub
-  contents API and the site rebuilds; 28 assertions cover it. The gap is
-  breadth, not persistence.
-- Element **content** is now editable too — text in place, image fields in the
-  settings panel — and it is the only kind of content the site has: every page
-  is a board and every page's boards are empty, so there is no markup left to
-  convert. See **Current state**.
-- **Header, footer and image upload are done.** Chrome is two layouts on every
-  page; images are picked or dropped in the editor and committed with the
-  layout.
-- **The object model is Bureau's, and the editor is a desk.** Lock, checkerboard,
-  a picker that makes notes, images, buttons and drawers, faces, and a look
-  panel. A drawer makes a page. This is the point at which the thing under
-  `src/lib/` stopped being "the editor for this site" and became the tool.
-- **There is a catalogue, and a feed is a query.** September 2026: `works.json`,
-  the `feed` attribute and the `works` kind, tag chips live for a visitor, and a
-  Works panel that publishes with everything else. The six sections and the
-  everything page are built on it.
-- **A hold opens a menu of things to do; Edit… opens the object editor.** Which
-  is also where a kind can be changed and an attribute ticked — the combination
-  the model was built for, finally reachable.
-- **The board is a plain grid, a holder can be filled, and a page can be made
-  without a drawer.** September 2026: the gap defaults to 0 and is per-board;
-  `items` is a field; Pages lists every route and its links work; selection and
-  the arrow keys; Duplicate; Copy JSON is back; the height field follows the
-  device. Two live bugs went with them — `url('')` pointing at a 404, and
-  `/editor` emitting duplicate ids.
-- **The gesture layer is Bureau's, ported from source.** September 2026, the
-  second pass: `clearGestureState()` as the one teardown; a gesture with one
-  owner; no `touch-action`, a `dragArmed()` predicate instead; the sketch from
-  arithmetic; one selection for the page; the lasso; group drag; `decor`; the
-  undo toast; the edge pan; keyboard walking; redo; the throw; `paint()`
-  asserting the whole board from the model. Group into a holder and drop into
-  one (Bureau's gather); a `form` kind that emails you; a page's own title,
-  description and share picture in the Board panel. Five Playwright harnesses
-  in the session scratchpad drove every one of these in a real browser before
-  it was committed — there is no editor test that presses anything in the
-  repo, and there should be; `scripts/` is the place.
-- **Every page is a board, and every board is empty.** September 2026: the
-  four hand-written pages carried over from Squarespace were removed and the
-  page layouts cleared, so the whole site is rebuilt from the picker. That is
-  the state to expect — see **Current state**.
-- The remaining work to replace Squarespace is: fill the boards; build the six
-  blog collections; pull the assets local.
-- **The asset dependency is no longer urgent.** Every image still comes from
-  Squarespace's CDN, and the `?format=` resizing that took the homepage from
-  15.3 MB to 0.7 MB depends on it. While the subscription continues that is
-  fine. It only becomes a deadline if cancelling — pull assets into `/public`
-  and repoint `assets.js` *before* the renewal date, not after.
-
-## Current state
-
-**Five pages are the Squarespace site again, as objects — 26 September 2026.**
-`/`, `/links`, `/writing`, `/music` and `/contact` were rebuilt from positions
-measured off the live site; see "The Squarespace pieces, as objects" above.
-`/uiux` and the six writing collections are linked again (the home button and
-the bookcase) and so are back on `PLANNED` in `scripts/site.test.mjs`; they are
-404s here until built. `/works`, `/film`, `/games`, `/art` and `/inventions`
-are still empty boards — `/games` was empty on Squarespace too. What follows
-describes the clearing that came before, and still holds for those.
-
-**Every page was an empty board, September 2026.** All page content was cleared
-so the site can be rebuilt object by object in the editor. This is the state to
-expect, not a build that went wrong: open any page, press the corner, and you
-get a 24-column checkerboard with nothing on it.
-
-Two things went at once, and the second is the point:
-
-- **The boards were emptied** — `/`, `/works`, `/film`, `/games`, `/writing`,
-  `/music`, `/art`, `/inventions`, `/links`, `/contact` all ship
-  `"elements": []`. Their `title`, `description`, columns and gap are kept, so
-  the page still says what it is to a search result while carrying nothing.
-- **The hand-written pages went with them.** `index.astro`, `writing.astro`,
-  `music.astro` and `contact.astro` were markup carried over from the
-  Squarespace site — a wordmark, four GIF section buttons, a persona, two link
-  lists and a form — and none of it was an object. It could not be selected,
-  long-pressed, right-clicked or deleted, which is exactly the complaint. They
-  are layout files now, made into pages by `[...slug].astro`. `/links` lost its
-  two `slot` elements for the same reason: a slot can be moved but its innards
-  are markup, so the flip card and the socials nav were untouchable too.
-
-**Everything on a page is now an object.** There is no page markup left for a
-tile to be made of, so the rule the model is built on — hold it, and it answers
-— holds everywhere rather than mostly.
-
-**No URL changed** (hard rule 3). The build still emits `/`, `/works`, `/film`,
-`/games`, `/writing`, `/music`, `/art`, `/inventions`, `/links`, `/contact`,
-`/editor`, `/404` and the `/contact-1` redirect. `/` is the one route the
-dynamic `[...slug]` route cannot make — it skips the name `index` on purpose,
-and a layout called `index` would build `/index` — so `src/pages/index.astro`
-stays, as the same six lines that route is, reading `layouts/index.json`.
-
-**Header and footer were deliberately NOT cleared.** They are chrome rather
-than page content, they are already ordinary objects that a long-press deletes
-in one gesture, and they are the only way to move between pages while building.
-Empty them from the editor if you want the blank slate to be total.
-
-Two things followed from the clearing, both of them the tests doing their job:
-
-- **`PLANNED` in `scripts/site.test.mjs` is empty.** The seven slugs it carried
-  — `/uiux` and the six writing collections — were excused because something
-  linked to them, and the only things that did were the pages just removed. A
-  plan nothing links to is a plan nobody is waiting for; put a slug back the
-  moment a link to it does. The content itself has not gone anywhere: `/uiux`
-  is still 40 images to place, and the six collections are still exported to
-  Markdown on Timothy's machine.
-- **`body` is a flex column now.** `.site-footer` has always carried
-  `margin-top: auto` and never had a flex container to resolve it against. It
-  never showed while every page filled the viewport with its own markup, and it
-  showed on every page the moment the boards were empty — the footer floating
-  halfway up with dead space beneath it.
-
-`FlipCard.astro` is kept but nothing renders it. The business card is real work
-and the component has its own shader; it comes back when there is an object
-kind that carries it, rather than as a slot in a hand-written page.
-
-## Decisions already made — don't relitigate
-
-- **Font: EB Garamond**, not Adobe Garamond Pro. Adobe Fonts cannot be self-hosted
-  and stops working when the Squarespace subscription ends. Timothy accepted a
-  close match. Amatic SC (display face) is OFL and self-hostable.
-- **Assets still load from Squarespace's CDN**, via `src/lib/assets.js`. This is
-  deliberate so pages render truthfully today. When they move into `/public`,
-  that one file is the only thing that changes.
-- **Ask the CDN for the size you actually render.** `images.squarespace-cdn.com`
-  honours `?format=<width>w` and keeps every frame of an animated GIF; use
-  `sized()` / `srcset()` from `assets.js` rather than a bare URL. The originals
-  are huge — the persona is 2057x2519 and 9 MB but never renders wider than
-  300px, which made the homepage 15.3 MB. `static1.squarespace.com` ignores the
-  parameter, so the helpers leave those URLs alone (business cards, sun, holo).
-- **Missing assets render as visible dashed placeholders** (4 of 5 social icons)
-  rather than silently vanishing. Don't remove the slots. The sun is *not*
-  missing — it is a real 26 KB GIF and `/links` now shows it like every other
-  page does.
-- **The favicon is the one local asset**, generated from the first frame of
-  Sun.gif into `/public`. Everything else still comes from the CDN.
-- **Contact form uses Web3Forms** (250/mo free, static-friendly). It is now an
-  OBJECT — the `form` kind, carrying the `form` attribute: `{key, fields,
-  button}`, drawn from the picker onto any board, its fields chosen from name,
-  email, subject and message. `interact.js` sends it with fetch so a visitor
-  stays on the page, and a browser with no script still gets the plain POST.
-  **With no key the button is disabled and the form says so** — a form that
-  looks live and drops every message is the worst thing a contact page can
-  do. The key is public by design (it is in the page for anyone to read), so
-  it is data like everything else and travels in the layout. The hand-written
-  `/contact` still stands with its placeholder key; drop a form object on a
-  board and give it the real key when there is one.
-- **Hosting stays GitHub Pages for now.** Cloudflare was considered and rejected
-  for the moment — Cloudflare has de-prioritised Pages in favour of Workers, and
-  the unmetered-bandwidth advantage solves a problem this site doesn't have.
-  Revisit only if serverless functions are needed.
-
-## Config gotchas
-
-`astro.config.mjs` sets `site` and `base` for project-Pages hosting. **Both come
-out when this moves to the real domain — that is the only change required.**
-`base` is a `const` at the top of that file because the redirects map needs it
-too.
-
-**The CSS minifier drops `-webkit-` prefixes it thinks the target does not
-need, and it dropped every `-webkit-user-select`.** Safari only took
-`user-select` unprefixed in 17, so on an older iPhone the entire "holding a tile
-must not select text" ruleset silently did nothing and only the JS guards were
-working. `vite.build.cssTarget` in `astro.config.mjs` names Safari 14 to keep
-them. Nothing else about the output changes — `color-mix`, which the look
-depends on, is emitted as written.
-
-**A redirect target must spell out the base.** Astro applies `base` to the route
-it generates but *not* to the destination, so `'/contact-1': '/contact'` builds
-a page that sends visitors to the domain root and 404s. Same trap as hard rule
-2, in the one place `url()` can't help.
-
-## Poetry content — read before importing posts
-
-Squarespace stores each line of a poem as its own `<p>`, and stanza breaks as
-**empty paragraphs**. Turndown and every other HTML-to-Markdown converter drops
-empty paragraphs, which silently flattens every poem into one undifferentiated
-run of lines. 19 of 25 poems have structure that a naive conversion destroys.
-
-The export script groups lines into stanzas, joining within a stanza using a
-markdown hard break (two trailing spaces). Poems carry `format: "verse"` in
-frontmatter. If importing content, preserve this.
+## When the split comes
+
+1. `git subtree split --prefix=digidesk` (or `git filter-repo`) carries the
+   tool's history into a new repository, `StarrySidekick/DigiDesk`.
+2. The site's `package.json` changes `"digidesk": "*"` to
+   `"github:StarrySidekick/DigiDesk#v0.NN"`: a tag, so the site moves to a
+   new tool only when that line changes.
+3. `site/` becomes the website repository's root. Publish keeps working with
+   no change: the integration asks git where the site sits, so its prefix goes
+   from `site/` to nothing on its own.
