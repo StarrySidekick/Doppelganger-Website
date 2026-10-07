@@ -69,6 +69,26 @@ from the picker.
 icons, offline for pages already opened, Android shortcuts. And the model
 picker now makes the note key, which is what he expected and did not get.
 
+**2026-10-07: the tool and the site are two things, in two folders.** In his
+words: "there is my personal website replication of starrysidekick.com, which
+is a project, and then there's the actual tool itself (digidesk), and those
+are two separate things… i want to be able to push updates to the tool, then
+there's tools be updated for my website too, but then push updates to my
+website separately." And: "let's keep them inside one repo for now for ease of
+use then split them later." Done: `digidesk/` is the tool, an Astro
+integration; `site/` is the website, which hands itself to the tool in its
+`astro.config.mjs`; each has its own version number. Bureau stays as it is.
+
+**Same day: room for "crazy stuff" on the website.** "I might also just start
+adding crazy stuff to my website, so we have to have room to be able to do
+that." That room is `site/src/custom/`: kinds of the site's own, drawn by its
+own code, that are still objects on a board. A starfield is there as the
+example. And **"update digidesk/doppelgänger website with all the
+functionality that we've since added to bureau, and further align it with the
+idea that it's a website builder"**: `digidesk/docs/BUREAU-PORT.md` is the
+inventory of Bureau since the port, each item marked port, adapt or skip, in
+the order to build; the first of them are ported.
+
 ## Deliberately not next
 
 - **`/uiux` and the six blog collections.** Still 404s, still on `PLANNED` in
@@ -82,7 +102,6 @@ picker now makes the note key, which is what he expected and did not get.
 - He **does** intend to leave Squarespace. The domains renew 8 December 2026 and
   transferring them out is the gate, so `docs/SCOPE.md` §0 still governs the
   timing of the asset migration.
-- **DigiDesk becoming its own repo is a real plan, just not yet.** That is the
-  whole reason hard rule 4 exists (`src/lib/` may not import `assets.js` or
-  anything under `src/data/`). Keep enforcing it; the seam is the thing that
-  makes the split cheap later.
+- **DigiDesk becoming its own repo is a real plan, just not yet.** It has its
+  own folder now (2026-10-07), and hard rule 4 is enforced by a test rather
+  than by convention. The root CLAUDE.md says how the split goes when it comes.

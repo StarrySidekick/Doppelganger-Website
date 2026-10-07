@@ -32,7 +32,7 @@ const CSS = `
 .me-side h3:first-child { margin-top: 0; }
 .me-btn { font: inherit; font-size: 13px; color: inherit; background: color-mix(in srgb, var(--ink, #fff) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--ink, #fff) 22%, transparent); border-radius: 5px; padding: 5px 10px; cursor: pointer; min-height: 32px; }
-.me-btn:hover { border-color: var(--accent, #ffd27a); }
+@media (hover: hover) { .me-btn:hover { border-color: var(--accent, #ffd27a); } }
 .me-btn[disabled] { opacity: .4; cursor: default; }
 .me-go { background: var(--accent, #ffd27a); color: #111; border-color: var(--accent, #ffd27a); }
 .me-row { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -218,7 +218,7 @@ export function mountModelEditor(root, { model, title = 'Model', onChange = () =
       ${p ? `
       <h3>Part ${sel + 1}</h3>
       <label class="me-field">Shape <select data-k="shape">${Object.entries(SHAPES).map(([k, v]) => `<option value="${k}"${k === p.shape ? ' selected' : ''}>${v.label}</option>`).join('')}</select></label>
-      <label class="me-field">Colour <input type="color" data-k="color" value="${esc(p.color)}" /></label>
+      <label class="me-field">Color <input type="color" data-k="color" value="${esc(p.color)}" /></label>
       ${SHAPES[p.shape]?.seg ? slide('seg', p.seg ?? SHAPES[p.shape].seg, LIMITS.seg, 1, 'Sides', true) : ''}
       ${p.shape === 'ring' ? slide('thick', p.thick ?? 0.25, [0.05, 0.95], 0.01, 'Thickness', true) : ''}
       ${three('Position', 'pos', p.pos, [-3, 3], 0.01)}

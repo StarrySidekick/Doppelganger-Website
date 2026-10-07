@@ -31,8 +31,8 @@ test('lookCSS is one :root rule', () => {
 test('a stored look is filled in and checked', () => {
   assert.deepEqual(normalizeLook({}).board, DEFAULT_LOOK.board);
   assert.deepEqual(validateLook({ bg: '#123', ink: '#abcdef', board: ['#000', '#111'] }), []);
-  assert.match(validateLook({ bg: 'red' }).join(), /hex colour/);
-  assert.match(validateLook({ board: ['#000'] }).join(), /two hex colours/);
+  assert.match(validateLook({ bg: 'red' }).join(), /hex color/);
+  assert.match(validateLook({ board: ['#000'] }).join(), /two hex colors/);
   assert.match(validateLook({ font: 'comic' }).join(), /serif or display/);
 });
 

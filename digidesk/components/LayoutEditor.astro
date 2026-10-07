@@ -322,7 +322,7 @@ const build = __BUILD__;
     cursor: cell;
   }
   .ag-unlocked .ag-cell.ag-cell-b { background: var(--board-2, #171717); }
-  .ag-unlocked .ag-cell:hover { outline: 1px solid rgba(255,255,255,.35); outline-offset: -1px; }
+  @media (hover: hover) { .ag-unlocked .ag-cell:hover { outline: 1px solid rgba(255,255,255,.35); outline-offset: -1px; } }
   /* The board is whatever colour the look says, so the grid lines cannot be a
      fixed grey — they are drawn as a translucent seam that reads on both. */
   .ag-unlocked .ag-cell { box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
@@ -336,8 +336,8 @@ const build = __BUILD__;
   }
   /* On hover, and on the selected tile — a phone has no hover, so before this
      the grips were invisible there and a tile could not be resized by touch. */
-  .ag-unlocked .ag-editable:hover .ag-grip,
   .ag-unlocked .ag-editable.ag-selected .ag-grip { opacity: .9; }
+  @media (hover: hover) { .ag-unlocked .ag-editable:hover .ag-grip { opacity: .9; } }
   .ag-grip-nw { top: -7px; left: -7px; cursor: nwse-resize; }
   .ag-grip-ne { top: -7px; right: -7px; cursor: nesw-resize; }
   .ag-grip-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
@@ -382,7 +382,7 @@ const build = __BUILD__;
     /* A 24px button is a miss on a phone. 34 is the smallest that is not. */
     padding: 8px 11px; min-height: 34px;
   }
-  .ag-bar button:hover { background: rgba(255,255,255,.12); }
+  @media (hover: hover) { .ag-bar button:hover { background: rgba(255,255,255,.12); } }
   .ag-bar button[aria-current] { background: #fff; color: #000; border-color: #fff; }
   .ag-lock { font-size: 17px; line-height: 1; padding: 6px 10px !important; }
   .ag-lock.on { color: #FFD27A; border-color: rgba(255,210,122,.6) !important; }
@@ -392,6 +392,8 @@ const build = __BUILD__;
   .ag-menu-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .ag-menu-kinds .ag-menu-btn { display: flex; flex-direction: column; gap: 2px; }
   .ag-menu-kinds small { opacity: .55; font-weight: 400; }
+  /* The kinds nearest a drawn box: lit, so the guess reads as a guess. */
+  .ag-menu-kinds .ag-menu-near { border-color: rgba(255,210,122,.6); }
   .ag-menu-pages { grid-template-columns: 1fr; }
   /* Same two-line shape as a row in the list above it, since it belongs to
      that list rather than to the buttons at the bottom of a panel. */
@@ -453,7 +455,7 @@ const build = __BUILD__;
   }
   .ag-feed { display: flex; flex-direction: column; gap: 6px; }
   .ag-menu-danger { border-color: rgba(255,107,107,.5) !important; color: #FFB4B4; }
-  .ag-menu-danger:hover { background: rgba(255,107,107,.15) !important; }
+  @media (hover: hover) { .ag-menu-danger:hover { background: rgba(255,107,107,.15) !important; } }
   .ag-menu-list { margin: 6px 0 0; padding-left: 16px; }
   .ag-menu-list li { margin: 2px 0; }
   .ag-tabs { display: flex; gap: 4px; }
@@ -484,13 +486,28 @@ const build = __BUILD__;
     border-radius: 4px; padding: 6px 8px !important; min-height: 0 !important;
     opacity: .55; letter-spacing: .04em;
   }
-  .ag-version:hover { opacity: 1; }
+  @media (hover: hover) { .ag-version:hover { opacity: 1; } }
   /* The tool's own number, beside the site's: quieter, since the site's is
      the one a publish moves. */
   .ag-tool-v { font-size: inherit; opacity: .7; }
   .ag-version.ag-behind {
     opacity: 1; color: #0b0b0b;
     background: #FFD27A; border-color: #FFD27A !important;
+  }
+  /* Tucked: the bar is a faint pill where it was, and a press brings it back.
+     Its own rule overrides the bar's box, so the phone rule below (full
+     width, flat against the bottom) does not stretch the pill. */
+  .ag-tuck { padding: 6px 9px !important; opacity: .6; }
+  .ag-bar.ag-tucked {
+    width: auto !important; left: 50% !important; right: auto !important; transform: translateX(-50%);
+    margin: 0 !important; padding: 6px !important; gap: 0;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    border-radius: 999px !important; border: 1px solid rgba(255,255,255,.18) !important;
+    opacity: .55; background: rgba(20,20,20,.7);
+  }
+  .ag-bar.ag-tucked .ag-untuck {
+    width: 56px; height: 22px; min-height: 0; padding: 0; border: 0; border-radius: 999px;
+    background: rgba(255,255,255,.35);
   }
   .ag-hint { opacity: .5; }
   /* The hint is the first thing worth losing when the bar runs out of room.
@@ -537,12 +554,13 @@ const build = __BUILD__;
     border: 1px solid rgba(255,255,255,.22);
     border-radius: 4px; cursor: pointer; opacity: .65;
   }
-  .ag-menu-close:hover, .ag-menu-close:focus-visible { opacity: 1; background: rgba(255,255,255,.14); }
+  .ag-menu-close:focus-visible { opacity: 1; background: rgba(255,255,255,.14); }
+  @media (hover: hover) { .ag-menu-close:hover { opacity: 1; background: rgba(255,255,255,.14); } }
   .ag-menu-title { font-weight: 700; padding-bottom: 2px; }
   /* The picker is the panel you are most likely to have opened by accident, so
      it says no in words rather than only with the ✕. */
   .ag-menu-cancel { text-align: center; opacity: .6; }
-  .ag-menu-cancel:hover { opacity: 1; }
+  @media (hover: hover) { .ag-menu-cancel:hover { opacity: 1; } }
   .ag-menu-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
   .ag-menu select { font: inherit; background: #111; color: #fff;
     border: 1px solid rgba(255,255,255,.28); border-radius: 4px; padding: 2px 4px; }
@@ -551,7 +569,7 @@ const build = __BUILD__;
     background: transparent; border: 1px solid rgba(255,255,255,.24);
     border-radius: 4px; padding: 5px 8px;
   }
-  .ag-menu-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+  @media (hover: hover) { .ag-menu-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); } }
   .ag-menu-btn:disabled { opacity: .4; cursor: default; }
   .ag-menu-note { opacity: .55; border-top: 1px solid rgba(255,255,255,.14); padding-top: 6px; }
   .ag-menu-note code { background: rgba(255,255,255,.1); padding: 0 3px; border-radius: 2px; }
@@ -580,7 +598,7 @@ const build = __BUILD__;
   /* The way out, and the only button that ends the session — set apart from
      Publish so the two are never pressed for each other. */
   .ag-leave { opacity: .7; }
-  .ag-leave:hover { opacity: 1; }
+  @media (hover: hover) { .ag-leave:hover { opacity: 1; } }
   .ag-commit { color: inherit; opacity: .8; text-underline-offset: 2px; }
 
   /* Above, not below: the bar wraps to two lines on a narrow window and a toast
@@ -602,7 +620,7 @@ const build = __BUILD__;
     padding: 6px 10px; min-height: 30px; margin: -4px -6px -4px 0;
     text-decoration: underline; text-underline-offset: 2px;
   }
-  .ag-toast-undo:hover { background: rgba(0,0,0,.08); }
+  @media (hover: hover) { .ag-toast-undo:hover { background: rgba(0,0,0,.08); } }
 
   @media (prefers-reduced-motion: reduce) {
     .ag-grip { transition: none; }

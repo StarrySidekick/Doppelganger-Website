@@ -1,6 +1,6 @@
 ---
 import { compileCSS, scopeFor, normalizeLayout } from '../src/adaptive-grid.js';
-import { renderElement, isTyped, faceOf, tiltFor, isDecor } from '../src/elements.js';
+import { renderElement, isTyped, faceOf, tiltFor, isDecor, sectionsOf, wordsAttrs } from '../src/elements.js';
 import { queryWorks, validateWorks, typesOf } from '../src/works.js';
 import { url } from '../src/url.js';
 import { resolveRef, sized, srcset } from '../src/site.js';
@@ -59,6 +59,8 @@ const ctx = {
   // Hard rule 2: an internal link must go through url(), or it breaks on the
   // deploy subpath. Anything with a scheme (mailto:, https:) passes through.
   link: (href) => (href?.startsWith('/') ? url(href.slice(1)) : href),
+  // What a Contents lists: this board's headings, in reading order.
+  sections: () => sectionsOf(layout.elements),
 
   /**
    * What a `feed` object is asking for.
@@ -100,13 +102,15 @@ const typed = layout.elements
     face: faceOf(o),
     decor: isDecor(o),
     tilt: tiltFor(o.id).toFixed(2) + 'deg',
+    // How its words are set (words.js): classes, and the properties they read.
+    words: wordsAttrs(o),
     html: renderElement(o, ctx),
   }));
 ---
 <div class:list={['ag-root', scope, className]}>
   <div class="ag-grid">
     {typed.map((t) => (
-      <div id={t.id} class:list={['ob', `fc-${t.face}`, t.decor && 'ob-decor']} style={`--tilt:${t.tilt}`} set:html={t.html} />
+      <div id={t.id} class:list={['ob', `fc-${t.face}`, t.decor && 'ob-decor', t.words.cls]} style={`--tilt:${t.tilt}${t.words.style ? ';' + t.words.style : ''}`} set:html={t.html} />
     ))}
     <slot />
   </div>

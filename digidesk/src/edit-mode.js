@@ -127,7 +127,8 @@ const STYLE = `
 /* In the installed app there is no address bar to type ?edit=1 into, so the
    dot is the only way in: brighter there. */
 @media (display-mode: standalone) { .ag-enter.is-known { opacity: .7; } }
-.ag-enter.is-known:hover, .ag-enter:focus-visible { opacity: .75; }
+.ag-enter:focus-visible { opacity: .75; }
+@media (hover: hover) { .ag-enter.is-known:hover { opacity: .75; } }
 /* Once the editor is mounted the bar has Done, so the corner steps out. */
 .ag-editing .ag-enter { display: none; }
 @media (prefers-reduced-motion: reduce) { .ag-enter { transition: none; } }

@@ -48,18 +48,20 @@ import {
 import {
   KINDS, PICKER_KINDS, FACES, ATTRS, USER_ATTRS, K, has, attrsOf, kindOf,
   isTyped, isInline, faceOf, clickOf, fieldsOf, getField, setField, setKind,
-  toggleAttr, itemsOf, makeItem, feedOf, SORTS, renderElement, unsafeHtml,
+  toggleAttr, itemsOf, makeItem, feedOf, SORTS, renderElement, unsafeHtml, shapeKinds, sectionsOf, wordsOf,
   tiltFor, escapeHtml, isDecor, toItem, fromItem,
 } from './elements.js';
 import { prepareImage, blobToBase64, mediaPath, mediaRef, ACCEPT } from './media.js';
 import { publishFiles, pathFor, TARGET } from './publish.js';
 import { storeKey, repoPath } from './config.js';
+import { wordFields } from './words.js';
 import { tokensFor, normalizeLook, validateLook } from './look.js';
 import { queryWorks, typesOf, validateWorks, worksOf } from './works.js';
 import { leaveEdit } from './edit-mode.js';
 
 const TOKEN_KEY = storeKey('ghToken');
 const LOCK_KEY = storeKey('locked');
+const TUCK_KEY = storeKey('tucked');
 const LOOK_KEY = storeKey('look');
 const LOOK_PATH = repoPath('src/data/look.json');
 const WORKS_KEY = storeKey('works');
@@ -349,6 +351,11 @@ export function mountEditor({
   const previewCtx = {
     image: (m) => ({ src: resolvePreview(m.src) }),
     link: (href) => href,
+    /* A Contents lists this board's headings as they stand right now, in the
+       layout you are arranging, so on a phone it counts what the phone shows.
+       The published page reads the desk's order (AdaptiveGrid), the order a
+       page is written in. */
+    sections: () => sectionsOf(layout.elements, device),
     /* A feed has to answer in the editor too, or a works tile is an empty box
        until the site rebuilds — and you would be arranging something you
        cannot see. The same query function the build uses, over the same
@@ -384,6 +391,14 @@ export function mountEditor({
     node.classList.toggle('ob-decor', isDecor(item));
     node.style.setProperty('--tilt', tiltFor(item.id).toFixed(2) + 'deg');
     node.classList.toggle('ag-empty', has(item, 'media') && !item.media?.src && !item.body && !item.title);
+    // Its words (words.js): take off what the last dressing put on, then put
+    // on what the object says now, so a cleared setting is really gone.
+    for (const c of [...node.classList]) if (c.startsWith('w-')) node.classList.remove(c);
+    for (const v of (node.dataset.wvars ?? '').split(' ').filter(Boolean)) node.style.removeProperty(v);
+    const w = wordsOf(item);
+    node.classList.add(...w.cls);
+    for (const [k, v] of Object.entries(w.vars)) node.style.setProperty(k, v);
+    node.dataset.wvars = Object.keys(w.vars).join(' ');
   }
   /** Redraw one tile from its object. Forget what it was drawn from; paint() does the rest. */
   function repaintContent(id) {
@@ -453,7 +468,11 @@ export function mountEditor({
       node.classList.toggle('ag-text', isInline(r));
       if (isTyped(r)) {
         const item = find(r.id);
-        const from = JSON.stringify(contentOf(item));
+        /* A Contents draws from the OTHER tiles (their headings and where
+           they sit), so its key includes the sections: rename or move a
+           heading and the Contents redraws with it. */
+        const from = JSON.stringify(contentOf(item))
+          + (has(item, 'contents') ? JSON.stringify(sectionsOf(layout.elements, device)) : '');
         // Never under a caret: the tile being written in is redrawn by endEdit.
         if (drawnFrom.get(r.id) !== from && editing?.id !== r.id) {
           node.innerHTML = renderElement(item, previewCtx) ?? '';
@@ -945,10 +964,18 @@ export function mountEditor({
   /* ---- the picker ---- */
 
   function openPicker(col, row, x, y, size = null) {
+    /* A drawn box is a question about shape (Bureau's decision 210), so the
+       kinds nearest it lead, and the first few say so. A hold with no box
+       carries no shape and gets the picker's own order. */
+    const order = size
+      ? shapeKinds(size.col[1], size.row[1], columnsFor(layout, device))
+      : PICKER_KINDS;
+    const NEAR = size ? 4 : 0;
     chrome.menu(x, y, `
-      <div class="ag-menu-title">New, at ${col},${row}${size ? ` · ${size.col[1]}×${size.row[1]}` : ''}</div>
+      <div class="ag-menu-title">New, at ${col},${row}${size ? ` · ${size.col[1]} × ${size.row[1]}` : ''}</div>
+      ${size ? '<div class="ag-menu-sub">Nearest that shape first</div>' : ''}
       <div class="ag-menu-kinds">
-        ${PICKER_KINDS.map((k) => `<button class="ag-menu-btn" data-act="new:${k}">${KINDS[k].label}<small>${KINDS[k].says}</small></button>`).join('')}
+        ${order.map((k, i) => `<button class="ag-menu-btn${i < NEAR ? ' ag-menu-near' : ''}" data-act="new:${k}">${KINDS[k].label}<small>${KINDS[k].says}</small></button>`).join('')}
       </div>
       <button class="ag-menu-btn ag-menu-cancel" data-act="none">Nothing, thanks</button>
     `, (act) => {
@@ -1733,14 +1760,17 @@ export function mountEditor({
         return `<input data-field="${f.key}" type="text" value="${escapeAttr((Array.isArray(v) ? v : []).join(', '))}" />`;
       }
       if (f.kind === 'select') {
-        return `<select data-field="${f.key}">${Object.entries(f.options).map(([k, label]) =>
+        // A list of [value, name] keeps its order; an object is its entries.
+        const opts = Array.isArray(f.options) ? f.options : Object.entries(f.options);
+        return `<select data-field="${f.key}">${opts.map(([k, label]) =>
           `<option value="${escapeAttr(k)}"${String(v ?? '') === k ? ' selected' : ''}>${escapeAttr(label)}</option>`).join('')}</select>`;
       }
       // Somewhere to go is nearly always a page on this site, and typing one by
       // hand is how you get a 404 that nothing catches until a visitor finds
       // it. The list is offered; anything else can still be typed.
       const list = f.key === 'link' ? ' list="ag-pages"' : '';
-      return `<input data-field="${f.key}" type="text"${list} value="${escapeAttr(v ?? '')}" />`;
+      const hint = f.placeholder ? ` placeholder="${escapeAttr(f.placeholder)}"` : '';
+      return `<input data-field="${f.key}" type="text"${list}${hint} value="${escapeAttr(v ?? '')}" />`;
     };
 
     chrome.menu(null, null, `
@@ -1766,6 +1796,10 @@ export function mountEditor({
       </div>
 
       ${fieldsOf(item).map((f) => `<label class="ag-menu-field">${escapeAttr(f.label)}${control(f)}</label>`).join('')}
+      ${has(item, 'text') && kindOf(item) !== 'html' ? `<details class="ag-words"${item.words ? ' open' : ''}>
+        <summary class="ag-menu-sub">Words: typeface, size, ink</summary>
+        ${wordFields().map((f) => `<label class="ag-menu-field">${escapeAttr(f.label)}${control(f)}</label>`).join('')}
+      </details>` : ''}
       ${has(item, 'media') ? '<button class="ag-menu-btn" data-act="pick">Choose an image…</button>' : ''}
 
       <label class="ag-menu-row">Face
@@ -1835,7 +1869,9 @@ export function mountEditor({
   /** Read every field control in a panel onto the object. */
   function applyFields(id, menuEl) {
     return setContent(id, (o) => {
-      for (const f of fieldsOf(o)) {
+      // The words are fields like any other, offered in their own fold.
+      const words = has(o, 'text') && kindOf(o) !== 'html' ? wordFields() : [];
+      for (const f of [...fieldsOf(o), ...words]) {
         if (f.kind === 'items') { o.items = readItems(menuEl); continue; }
         if (f.kind === 'feed') { o.feed = readFeed(menuEl); continue; }
         if (f.kind === 'model') continue;   // the 3D editor writes it, not this panel
@@ -2719,7 +2755,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     const types = typesOf(worksNow);
     const rows = worksOf(worksNow).map((w) => workRow(w, types)).join('');
     openMenu(null, null, `
-      <div class="ag-menu-title">Works <span class="ag-menu-kind">${worksOf(worksNow).length} in the catalogue</span></div>
+      <div class="ag-menu-title">Works <span class="ag-menu-kind">${worksOf(worksNow).length} in the catalog</span></div>
       <div class="ag-menu-note">
         Everything you have made, written down once. A <b>section</b> is where
         it lives; <b>tags</b> are everything else true about it — what you did
@@ -2918,10 +2954,48 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
     return out;
   }
 
+  /* ---- the bar tucks away (Bureau's decision 282) ----
+     Timothy, of Bureau: "want to have the top and bottom menu… sort of fade
+     away or be hidable somehow, so i can see a more full screen view." On a
+     phone the bar is most of the bottom of the page, so it can be tucked: a
+     flick down on it, or its ▾. What stays is a faint pill where it was, and
+     a press on it (or a flick up) brings the bar back. Kept across pages,
+     like the lock. */
+  let tucked = false;
+  try { tucked = localStorage.getItem(TUCK_KEY) === 'true'; } catch { /* ignore */ }
+  function setTucked(on) {
+    tucked = on;
+    try { localStorage.setItem(TUCK_KEY, String(on)); } catch { /* ignore */ }
+    if (on) closeMenu();
+    render();
+  }
+  {
+    let start = null;
+    bar.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { start = null; return; }
+      start = { y: e.touches[0].clientY, t: performance.now() };
+    }, { passive: true });
+    bar.addEventListener('touchend', (e) => {
+      if (!start) return;
+      const dy = (e.changedTouches[0]?.clientY ?? start.y) - start.y;
+      const fast = performance.now() - start.t < 400;
+      start = null;
+      // A flick, not a press: far enough and quick enough that a tap on a
+      // button is never read as one.
+      if (fast && dy > 36 && !tucked) setTucked(true);
+      else if (fast && dy < -36 && tucked) setTucked(false);
+    }, { passive: true });
+  }
+
   function render() {
     const a = active();
     bar.hidden = !a;
     if (!a) return;
+    bar.classList.toggle('ag-tucked', tucked);
+    if (tucked) {
+      bar.innerHTML = '<button class="ag-untuck" data-bar="untuck" aria-label="Bring the editing bar back" title="Bring the bar back"></button>';
+      return;
+    }
     const d = a.getDevice();
     const names = orderedNames();
     const waiting = gather();
@@ -2956,6 +3030,7 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
       <button data-bar="redo" title="⌘⇧Z">Redo</button>
       <button data-bar="publish" class="ag-publish"${waiting.length ? '' : ' disabled'}>Publish…</button>
       <button data-bar="leave" class="ag-leave" title="Leave edit mode and see the site as a visitor does">Done</button>
+      <button data-bar="tuck" class="ag-tuck" aria-label="Tuck the bar away" title="Tuck the bar away (or flick it down)">▾</button>
     `;
   }
 
@@ -3301,6 +3376,8 @@ function buildChrome(lookInitial, pages = [], worksInitial = { types: {}, works:
   bar.addEventListener('click', async (e) => {
     const act = e.target.closest('[data-bar]')?.dataset.bar;
     if (act === 'lock') return setLocked(!isLocked);
+    if (act === 'tuck') return setTucked(true);
+    if (act === 'untuck') return setTucked(false);
     if (act === 'look') return openLook();
     if (act === 'pages') return openPages();
     if (act === 'board') return openBoard();

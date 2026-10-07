@@ -97,11 +97,11 @@ export function validateLook(look, name = 'look') {
   const out = [];
   const hex = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
   for (const k of ['bg', 'ink', 'accent']) {
-    if (look?.[k] != null && !hex.test(look[k])) out.push(`${name}.${k} must be a hex colour, got ${JSON.stringify(look[k])}`);
+    if (look?.[k] != null && !hex.test(look[k])) out.push(`${name}.${k} must be a hex color, got ${JSON.stringify(look[k])}`);
   }
   if (look?.board != null) {
     if (!Array.isArray(look.board) || look.board.length !== 2 || !look.board.every((c) => hex.test(c))) {
-      out.push(`${name}.board must be two hex colours`);
+      out.push(`${name}.board must be two hex colors`);
     }
   }
   if (look?.font != null && !['serif', 'display'].includes(look.font)) out.push(`${name}.font must be serif or display`);

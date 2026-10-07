@@ -31,6 +31,7 @@
 
 import { PRESETS, validateModel } from './model3d.js';
 import { CUSTOM, onCustom } from './custom.js';
+import { wordAttrs, wordStyle, checkWords } from './words.js';
 
 /* ------------------------------------------------------------------ *
  * Escaping and the guard rail
@@ -124,6 +125,14 @@ export const ATTRS = {
      stored on the object (model3d.js), drawn by model-view.js, and made in
      model-editor.js, which the object editor opens. */
   model:     { label: '3D model',  says: 'A low-poly model, turning on its own', field: 'model' },
+  /* Bureau's decision 304: a board has sections. A heading starts one, and a
+     section is that heading and the rows down to the next. On a website a
+     heading is a real <h2>, and its tile's id is its anchor, so a link to
+     `#its-id` from anywhere goes there with no script at all. */
+  heading:   { label: 'Heading',   says: 'Starts a section; a Contents lists it' },
+  /* The Contents: the board's headings, read off the board rather than out of
+     the object, so nothing is stored and it is never out of date. */
+  contents:  { label: 'Contents',  says: 'Lists the headings on this board, and goes to each' },
   /* Drawn by the site's own code (custom.js). Structural like `container`:
      it comes with a custom kind and cannot be ticked onto a note, because
      there would be nothing to draw it with. Its fields live under `data`. */
@@ -168,7 +177,7 @@ export const formOf = (o) => ({
 });
 
 /** The attribute names an editor may toggle. `container` is deliberate, not a chip. */
-export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'spin', 'sound', 'model', 'decor'];
+export const USER_ATTRS = ['text', 'media', 'link', 'fold', 'holds', 'feed', 'form', 'spin', 'sound', 'model', 'decor', 'heading'];
 
 /** Does it stand above the board rather than take a place on it? */
 export const isDecor = (o) => has(o, 'decor');
@@ -193,7 +202,7 @@ export const CLICKS = {
   /* The sun on the Squarespace site: press it and the whole page takes on a
      random tint, hold it for three seconds and the tint is gone. Remembered
      per page. A mood, not a setting — see interact.js. */
-  shuffle: 'Shuffle the page\'s colours (hold to put them back)',
+  shuffle: 'Shuffle the page\'s colors (hold to put them back)',
 };
 
 /** What a click on this object does. */
@@ -291,11 +300,34 @@ export const KINDS = {
   form:   { label: 'Contact form',  says: 'Fields that email you when sent',         attrs: ['form', 'text'],              face: 'card',    size: [10, 9], form: { key: '', fields: ['name', 'email', 'message'], button: 'Send' } },
   card:   { label: 'Spinning card', says: 'Two sides, turning on its own',           attrs: ['media', 'spin'],             face: 'none',    size: [6, 6], spin: { seconds: 5 } },
   model:  { label: '3D model',      says: 'Low-poly, turning on its own — made in the 3D editor', attrs: ['model'], face: 'none', size: [8, 8], model: PRESETS.noteKey.model },
+  heading:  { label: 'Heading',      says: 'Starts a section; the Contents lists it',  attrs: ['text', 'heading'],           face: 'lettering', size: [16, 2], body: 'A section' },
+  contents: { label: 'Contents',     says: 'The headings on this board, each a way there', attrs: ['contents'],           face: 'card',    size: [8, 6], title: 'Contents' },
   player: { label: 'Player',        says: 'A SoundCloud playlist with its own buttons', attrs: ['sound'],                  face: 'none',    size: [12, 8], sound: { src: '' } },
 };
 
 /** Kinds the picker offers. `slot` is written by code, `html` is a tool. */
-export const PICKER_KINDS = ['note', 'image', 'button', 'drawer', 'fold', 'list', 'works', 'form', 'card', 'player', 'model'];
+export const PICKER_KINDS = ['note', 'heading', 'image', 'button', 'drawer', 'fold', 'list', 'contents', 'works', 'form', 'card', 'player', 'model'];
+
+/**
+ * The kinds nearest a drawn box, nearest first. Bureau's `shapeKinds()`
+ * (its panels.js, decision 210): "the shape you draw is the question". A
+ * box you sketch is a guess at what you want, so the picker leads with the
+ * kinds whose size is closest: fewest cells added or taken away, then the
+ * nearest proportions, then the picker's own order. `cols` is the board's
+ * width, since a kind wider than the board is made at the board's width.
+ * Pure, so it is tested without a board.
+ */
+export function shapeKinds(w, h, cols = Infinity, kinds = PICKER_KINDS) {
+  return kinds
+    .filter((k) => KINDS[k])
+    .map((k, i) => {
+      const kw = Math.min(KINDS[k].size[0], cols);
+      const kh = KINDS[k].size[1];
+      return { k, i, d: Math.abs(kw - w) + Math.abs(kh - h), a: Math.abs(Math.log((kw / kh) / (w / h))) };
+    })
+    .sort((p, q) => p.d - q.d || p.a - q.a || p.i - q.i)
+    .map((x) => x.k);
+}
 
 /* The site's own kinds join the registry here, as they are registered (see
    custom.js). A site may not reuse a built-in name: a layout written against
@@ -334,7 +366,7 @@ export const FACES = {
      shaped. Lettering is words set large in the display face and centred,
      the way the Squarespace headings were. */
   cutout:  { label: 'Cut-out',      says: 'The picture whole, never cropped, nothing behind it' },
-  lettering: { label: 'Lettering',  says: 'Words in the display face, large and centred' },
+  lettering: { label: 'Lettering',  says: 'Words in the display face, large and centered' },
 };
 
 /* ------------------------------------------------------------------ *
@@ -553,17 +585,20 @@ function inner(o, ctx, { linked = false, depth = 0 } = {}) {
   // the frames are laid over; everything else draws it first, here.
   if (!(has(o, 'holds') && arrangeOf(o) === 'carousel')) parts.push(mediaHtml(o, ctx, linked));
 
-  if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds') || has(o, 'feed'))) {
+  if (o.title && (has(o, 'container') || has(o, 'media') || has(o, 'holds') || has(o, 'feed') || has(o, 'contents'))) {
     parts.push(`<span class="ob-title" data-edit="title">${escapeHtml(o.title)}</span>`);
   }
 
   if (has(o, 'holds')) parts.push(renderHolder(o, ctx, depth));
   if (has(o, 'feed')) parts.push(renderFeed(o, ctx));
   if (has(o, 'form')) parts.push(renderForm(o));
+  if (has(o, 'contents')) parts.push(renderContents(o, ctx));
 
   if (has(o, 'text') && o.body != null && !has(o, 'fold')) {
     const body = rewriteLinks(o.body, ctx.link);
-    parts.push(kindOf(o) === 'html' ? body : `<div class="ob-body" data-edit="body">${body}</div>`);
+    parts.push(kindOf(o) === 'html' ? body
+      : has(o, 'heading') ? `<h2 class="ob-body ob-heading" data-edit="body">${body}</h2>`
+        : `<div class="ob-body" data-edit="body">${body}</div>`);
   }
   return parts.join('');
 }
@@ -796,11 +831,62 @@ function renderCustom(o, ctx) {
   return `<div class="ob-custom" data-custom="${escapeHtml(kind)}" data-o="${escapeHtml(JSON.stringify(data))}">${html}</div>`;
 }
 
+/**
+ * The sections of a board, in reading order: Bureau's `sectionsOf()` (its
+ * grid.js, decision 304), over a layout's elements rather than a container's
+ * children. Each heading, top to bottom then left to right, with how many
+ * things stand under it before the next (not decorations, other headings or
+ * a contents). Read off the desk boxes, since that is the order a page is
+ * written in; a phone's stack follows it.
+ */
+export function sectionsOf(elements = [], device = 'desk') {
+  const at = (o) => {
+    const b = o[device] ?? o.desk;
+    return b ? { row: b.row[0], col: b.col[0] } : null;
+  };
+  const heads = elements.filter((o) => has(o, 'heading') && at(o))
+    .map((o) => ({ o, b: at(o) }))
+    .sort((a, b) => a.b.row - b.b.row || a.b.col - b.b.col);
+  const counted = elements
+    .filter((o) => isTyped(o) && !has(o, 'heading') && !has(o, 'decor') && !has(o, 'contents') && at(o))
+    .map((o) => at(o).row);
+  return heads.map((h, i) => {
+    const r0 = h.b.row;
+    const r1 = i + 1 < heads.length ? heads[i + 1].b.row : Infinity;
+    return {
+      id: h.o.id,
+      // The heading's words without their markup. They are already HTML (a
+      // heading's body is checked like any body), so they are not escaped.
+      name: String(h.o.body ?? '').replace(/<[^>]*>/g, '').trim() || h.o.id,
+      row: r0,
+      n: counted.filter((r) => r >= r0 && r < r1).length,
+    };
+  });
+}
+
+/**
+ * A Contents: a numbered line per heading on the board, each an anchor to it.
+ * `ctx.sections()` is the board's sections, asked of the caller because the
+ * caller is the one holding the whole board (AdaptiveGrid, or the editor).
+ */
+function renderContents(o, ctx) {
+  const secs = ctx.sections?.() ?? [];
+  if (!secs.length) {
+    return '<p class="ob-empty">Put a Heading on this board and it is listed here.</p>';
+  }
+  return `<nav class="ob-contents" aria-label="${escapeHtml(o.title || 'Contents')}"><ol>`
+    + secs.map((s, i) => `<li><a class="ob-sec" href="#${escapeHtml(s.id)}">`
+      + `<span class="ob-sec-n">${i + 1}</span><span class="ob-sec-name">${s.name}</span>`
+      + (s.n ? `<span class="ob-sec-count" aria-label="${s.n} things">${s.n}</span>` : '')
+      + '</a></li>').join('')
+    + '</ol></nav>';
+}
+
 /** An object's inside, made into whatever its click is: a link, a shuffle, or nothing. */
 function wrapClick(o, ctx, guts) {
   if (goesSomewhere(o)) return linkWrap(o, ctx, guts);
   if (clickOf(o) === 'shuffle') {
-    const label = o.media?.alt || o.title || 'Shuffle the colours';
+    const label = o.media?.alt || o.title || 'Shuffle the colors';
     return `<button class="ob-shuffle" type="button" data-shuffle aria-label="${escapeHtml(label)}">${guts}</button>`;
   }
   return guts;
@@ -866,7 +952,7 @@ export function checkElement(o, at = 'element') {
 
   if (!isTyped(o)) {
     // A slot draws nothing from data, so carrying fields is a dropped kind.
-    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form', 'spin', 'sound', 'model', 'data']) {
+    for (const k of ['body', 'media', 'link', 'content', 'items', 'feed', 'form', 'spin', 'sound', 'model', 'data', 'words']) {
       if (o?.[k] != null) out.push(`${at} has ${k} but kind "slot", so it would never render`);
     }
     return out;
@@ -947,6 +1033,7 @@ export function checkElement(o, at = 'element') {
     }
   }
   if (has(o, 'model') && o.model != null) out.push(...validateModel(o.model, `${at}.model`));
+  out.push(...checkWords(o, at));
   if (has(o, 'custom')) {
     if (o.data != null && (typeof o.data !== 'object' || Array.isArray(o.data))) out.push(`${at}.data must be an object`);
     const def = CUSTOM[kindOf(o)];
@@ -1076,6 +1163,17 @@ export function toggleAttr(o, attr, on) {
   }
   return o;
 }
+
+/**
+ * How an object's words are set (words.js), for whoever draws its tile: a
+ * class list and custom properties. Nothing for an object with no words, or
+ * one that is not written (a picture, raw markup).
+ */
+export const wordsOf = (o) => (has(o, 'text') && kindOf(o) !== 'html'
+  ? wordStyle(o, K(o).words) : { cls: [], vars: {} });
+/** The same, as attribute strings for markup built as text. */
+export const wordsAttrs = (o) => (has(o, 'text') && kindOf(o) !== 'html'
+  ? wordAttrs(o, K(o).words) : { cls: '', style: '' });
 
 /** A stable small hash, for the tilt a pinned tile gets. Bureau decision 75. */
 export function tiltFor(id, max = 2.4) {

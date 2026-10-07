@@ -76,7 +76,7 @@ export function validateModel(m, at = 'model') {
     if (!SHAPES[p.shape]) out.push(`${w}.shape ${JSON.stringify(p.shape)} is not one of ${Object.keys(SHAPES).join(', ')}`);
     for (const k of ['pos', 'rot', 'size']) if (p[k] != null && !vec3(p[k])) out.push(`${w}.${k} must be three numbers`);
     if (vec3(p.size) && !p.size.every((n) => n > 0)) out.push(`${w}.size must be bigger than nothing in every direction`);
-    if (p.color != null && !HEX.test(p.color)) out.push(`${w}.color must be a colour like #d9a441`);
+    if (p.color != null && !HEX.test(p.color)) out.push(`${w}.color must be a color like #d9a441`);
     if (p.seg != null && !(Number.isInteger(p.seg) && p.seg >= LIMITS.seg[0] && p.seg <= LIMITS.seg[1])) {
       out.push(`${w}.seg must be a whole number from ${LIMITS.seg[0]} to ${LIMITS.seg[1]}`);
     }

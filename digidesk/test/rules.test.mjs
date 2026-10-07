@@ -132,3 +132,32 @@ test('the build stamp reaches a visitor through the tool too', () => {
   assert.match(read('index.js'), /__BUILD__: JSON\.stringify/);
   assert.match(read('src/editor.js'), /data-bar="version"/);
 });
+
+/* ---------------- a phone has no hover ---------------- */
+
+test('every :hover is inside a hover-capable media query', () => {
+  /* Bureau's decision 277, found in WebKit: on an iPhone a tap leaves :hover
+     stuck on whatever it touched until the next tap lands elsewhere, so a
+     button stays lit and a grip stays shown. A rule that only a mouse should
+     see says so with @media (hover: hover). */
+  const bad = [];
+  for (const f of ['components/LayoutEditor.astro', 'styles/faces.css', 'src/edit-mode.js', 'src/model-editor.js']) {
+    // Comments may say ":hover"; blank them out but keep the line count.
+    const src = read(f).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+    const stack = [];   // the at-rule heading each open brace belongs to
+    let head = '';
+    let line = 1;
+    for (const ch of src) {
+      if (ch === '\n') line++;
+      if (ch === '{') { stack.push(head); head = ''; continue; }
+      if (ch === '}') { stack.pop(); head = ''; continue; }
+      if (ch === ';') { head = ''; continue; }
+      head += ch;
+      // Switching something OFF for reduced motion may name :hover anywhere.
+      if (head.endsWith(':hover') && !stack.some((h) => /@media[^{]*(hover:\s*hover|prefers-reduced-motion)/.test(h))) {
+        bad.push(`${f}:${line}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, [], 'wrap these in @media (hover: hover)');
+});

@@ -21,6 +21,7 @@ is about that site.
 | `src/site.js` | The site at build time, as data: layouts, the checked look, `resolveRef()` for `asset:`/`media:`, `pageOf()` for a board's title and share picture. Build only; the one module that knows a site exists. |
 | `src/custom.js` | **A site's own kinds**: the registry, `registerCustom()`, and waking them in the browser. Imports nothing, because visitors load it. |
 | `src/url.js` | `joinBase()` and `url()`: hard rule 2. |
+| `src/words.js` | **The words** (Bureau 247): how a written thing is set, stored under `o.words`, drawn by `wordStyle()` as `w-*` classes and custom properties on the tile. Imports nothing. |
 | `src/routes.js` | Names shared by routes and editor: `CHROME_LAYOUTS`, `TOOL_PAGES`. |
 | `components/Head.astro`, `Scripts.astro` | What a site's shell puts in `<head>` and at the end of `<body>`. The shell is the site's; these are the tool's part of it. |
 | `routes/` | Pages the tool makes on every site: a board per layout, home, `/editor`, `/modeler`, manifest, worker, `/version.json`. |
@@ -47,6 +48,12 @@ takes `title`, `path`, `description`, `image`, `header`, `noindex`.
 defaults, and a test that needs the tool told something imports
 `test/site-fixture.js` first. Nothing in `src/` may import a virtual module
 except `site.js` and `layouts.js`, which only the build loads.
+
+## What came from Bureau, and what is next
+
+`docs/BUREAU-PORT.md` is the inventory of Bureau since the port (decisions
+~150 to 311): what is ported, the order to build the rest, and what stays
+Bureau's. Read it before porting anything, and update it when you do.
 
 ## Custom kinds
 
@@ -200,6 +207,9 @@ never inferred from a name. A **kind** is a named preset of attributes, and a
 | `card` | media, spin | plain | yes — **the business card**: front, back, a shimmer, turning on its own |
 | `model` | model | plain | yes — **the N64 key**: opens the 3D editor |
 | `player` | sound | plain | yes — **a SoundCloud playlist with buttons of your own**, the /music player |
+| `heading` | text, heading | lettering | yes — **starts a section**: a real `<h2>`, its tile's id its anchor (Bureau 304) |
+| `contents` | contents | card | yes — **the board's headings, each a link to it**, read off the board by `sectionsOf()` |
+| *a site's own* | custom, … | its own | yes — **a custom kind** (see *Custom kinds* above) |
 | `slot` | — | — | no, written by code |
 
 **What a click does is a field**, `onclick`, asked of every object — Bureau's

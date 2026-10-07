@@ -48,7 +48,7 @@
   line-height: 1.15;
 }
 .fc-lettering .ob-body a { text-decoration: none; }
-.fc-lettering .ob-body a:hover { text-decoration: underline; }
+@media (hover: hover) { .fc-lettering .ob-body a:hover { text-decoration: underline; } }
 
 /* ---- card ---------------------------------------------------------- */
 .fc-card {
@@ -110,7 +110,7 @@
   font-size: clamp(.62rem, .9cqi, .8rem);
 }
 .fc-plaque .ob-link { display: grid; place-items: center; }
-.fc-plaque:hover { border-color: var(--accent-2); }
+@media (hover: hover) { .fc-plaque:hover { border-color: var(--accent-2); } }
 
 /* ---- drawer front: a front with a pull ------------------------------ */
 .fc-front {
@@ -226,7 +226,7 @@
   background: transparent; color: var(--ink);
   border: 1px solid var(--line); border-radius: 4px; padding: .35em 1.2em;
 }
-.ob-form .ob-send:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+@media (hover: hover) { .ob-form .ob-send:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 10%, transparent); } }
 .ob-form .ob-send:disabled { opacity: .5; cursor: default; }
 .ob-form[data-unready]::after {
   content: 'Not wired up yet: this form needs a Web3Forms access key before it can send.';
@@ -284,7 +284,7 @@
   padding: 3px 11px; cursor: pointer;
   transition: background-color .14s ease, border-color .14s ease;
 }
-.ob-tag:hover { border-color: var(--accent-2); }
+@media (hover: hover) { .ob-tag:hover { border-color: var(--accent-2); } }
 .ob-tag[aria-pressed="true"] {
   background: var(--accent); border-color: var(--accent);
   color: var(--paper);
@@ -303,7 +303,7 @@
   border: 1px solid var(--line); border-radius: 6px;
   transition: border-color .14s ease, transform .14s ease;
 }
-a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
+@media (hover: hover) { a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); } }
 /* A work hidden by a chip, rather than removed: filtering is a view of the
    same list, and the browser keeps its scroll position. */
 .ob-work[hidden] { display: none; }
@@ -385,7 +385,7 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
   cursor: pointer; transition: transform .2s ease;
 }
 .ob-car-key img { width: 100%; height: 100%; object-fit: contain; }
-.ob-car-key:hover { transform: scale(1.2); }
+@media (hover: hover) { .ob-car-key:hover { transform: scale(1.2); } }
 .ob-car-key:active { transform: scale(.85); }
 
 /* ================= a player =========================================
@@ -411,7 +411,7 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
   background: var(--ink); opacity: .5; outline: none;
   transition: opacity .2s; cursor: pointer;
 }
-.ob-play-scrub:hover { opacity: 1; }
+@media (hover: hover) { .ob-play-scrub:hover { opacity: 1; } }
 .ob-play-scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); cursor: pointer; }
 .ob-play-scrub::-moz-range-thumb { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--ink); cursor: pointer; }
 .ob-play-keys { display: flex; justify-content: center; gap: 7.5cqw; }
@@ -421,7 +421,7 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
   transition: transform .2s ease;
 }
 .ob-play-key img { width: 100%; height: 100%; object-fit: contain; }
-.ob-play-key:hover { transform: scale(1.1); }
+@media (hover: hover) { .ob-play-key:hover { transform: scale(1.1); } }
 .ob-play-key:active { transform: scale(.9); }
 .ob-player iframe { display: none; }
 
@@ -433,7 +433,7 @@ a.ob-work:hover { border-color: var(--accent-2); transform: translateY(-1px); }
   padding: 0; border: 0; background: none; color: inherit; cursor: pointer;
   transition: transform .3s ease;
 }
-.ob-shuffle:hover { transform: scale(1.2); }
+@media (hover: hover) { .ob-shuffle:hover { transform: scale(1.2); } }
 .ob-shuffle:active { transform: scale(.85); }
 .ob-shuffle .ob-img { animation: obDialTurn 24s infinite linear; }
 @keyframes obDialTurn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -465,7 +465,10 @@ html.ag-editing body { filter: none !important; }
   100% { transform: rotate(0deg) scale(.9); }
 }
 html:not(.ag-unlocked) body { cursor: var(--cursor, auto); }
-html:not(.ag-unlocked) body :is(a, button, input, img):hover { cursor: var(--cursor-over, pointer); }
+/* Every :hover is inside a hover-capable media query (Bureau's decision 277):
+   on an iPhone a tap leaves :hover stuck on whatever it touched until the
+   next tap somewhere else. */
+@media (hover: hover) { html:not(.ag-unlocked) body :is(a, button, input, img):hover { cursor: var(--cursor-over, pointer); } }
 
 /* ---- pinned: every tile leans a degree or two (Bureau decision 75) ----
    The angle is a hash of the object's id so it never changes between renders.
@@ -494,3 +497,59 @@ html:not(.ag-unlocked) body :is(a, button, input, img):hover { cursor: var(--cur
 }
 .ob-model:active { cursor: grabbing; }
 html.ag-unlocked .ob-model { cursor: inherit; }
+
+/* ================= sections: headings and the Contents ===============
+   Bureau's decision 304. A heading is a real <h2>, its tile's id is its
+   anchor, and a Contents is a list of anchors to them, so going to a section
+   needs no script. The face (lettering by default) still decides how the
+   heading looks; the h2 only says what it is. */
+.ob .ob-heading { margin: 0; font: inherit; }
+/* Arriving at a heading leaves a little air above it rather than its top
+   edge flush with the window. */
+.ob { scroll-margin-top: clamp(12px, 3vw, 32px); }
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.ob-contents) { scroll-behavior: smooth; }
+}
+.ob-contents ol { list-style: none; margin: .4em 0 0; padding: 0; display: grid; gap: 2px; }
+.ob-contents .ob-sec {
+  display: grid; grid-template-columns: 1.6em 1fr auto; align-items: baseline; gap: .5em;
+  padding: .3em .2em; color: inherit; text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.ob-sec-n { opacity: .5; font-variant-numeric: tabular-nums; }
+.ob-sec-count { opacity: .45; font-size: .85em; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .ob-contents .ob-sec:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); } }
+
+/* ================= the words: how a written thing is set ==============
+   Bureau's decision 247, through digidesk/src/words.js. Each class is put on
+   the tile only when the object sets it, and reads the custom property put
+   beside it, so a tile with no words of its own is exactly as it was. Two
+   classes deep (.ob.w-…) to win over a face's own rule on the same tile. */
+.ob.w-font { font-family: var(--wfam); }
+.ob.w-font .ob-title, .ob.w-font .ob-body { font-family: inherit; }
+.ob.w-weight { font-weight: var(--wweight); }
+.ob.w-italic { font-style: italic; }
+.ob.w-case-upper { text-transform: uppercase; }
+.ob.w-case-lower { text-transform: lowercase; }
+.ob.w-case-caps { font-variant-caps: all-small-caps; }
+/* The size multiplies the face's, on what is inside the tile, so 1em there
+   is the face's size and Large is a quarter bigger than it, at any width. */
+.ob.w-size > * { font-size: calc(var(--wscale) * 1em); }
+.ob.w-track { letter-spacing: var(--wtrack); }
+.ob.w-lead, .ob.w-lead > * { line-height: var(--wlead); }
+.ob.w-al-left { text-align: left; justify-items: start; }
+.ob.w-al-center { text-align: center; justify-items: center; }
+.ob.w-al-right { text-align: right; justify-items: end; }
+.ob.w-al-justify { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+.ob.w-v-top, .ob.w-v-middle, .ob.w-v-bottom { display: grid; }
+.ob.w-v-top { align-content: start; }
+.ob.w-v-middle { align-content: center; }
+.ob.w-v-bottom { align-content: end; }
+.ob.w-ink { color: var(--wink); --ink: var(--wink); }
+.ob.w-paper { background: var(--wpaper); --paper-2: var(--wpaper); }
+.ob.w-clear { background: none; border-color: transparent; box-shadow: none; }
+.ob.w-halo-soft { text-shadow: 0 0 .45em color-mix(in srgb, currentColor 55%, transparent); }
+.ob.w-halo-shadow { text-shadow: 0 .06em .14em rgba(0, 0, 0, .55); }
+.ob.w-halo-outline {
+  text-shadow: -1px -1px 0 var(--paper), 1px -1px 0 var(--paper), -1px 1px 0 var(--paper), 1px 1px 0 var(--paper);
+}

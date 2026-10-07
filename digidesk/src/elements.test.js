@@ -426,3 +426,90 @@ test('a first and a last name share a row', () => {
   const html = renderElement({ kind: 'form', form: { key: 'k', fields: ['first', 'last', 'email'] } }, ctx);
   assert.match(html, /<div class="ob-pair"><label class="ob-field">First name <input type="text" name="first"/);
 });
+
+/* ---------------- the shape you draw is the question ---------------- */
+
+import { shapeKinds } from './elements.js';
+
+test('a drawn box offers the kinds nearest its shape first (Bureau decision 210)', () => {
+  // A long thin box is a button or a fold; a big square one is not.
+  const thin = shapeKinds(4, 1);
+  assert.equal(thin[0], 'button', 'a 4×1 is a button');
+  assert.ok(thin.indexOf('fold') < thin.indexOf('works'));
+  const big = shapeKinds(14, 10);
+  assert.equal(big[0], 'works', 'a 14×10 is the works');
+  // Every kind is still offered: the order changes, never the list.
+  assert.deepEqual([...thin].sort(), [...big].sort());
+});
+
+test('a kind wider than the board is judged at the board\'s width', () => {
+  // On a 4-column board a 14-wide kind is made 4 wide, so it is nearer a 4×10.
+  const narrow = shapeKinds(4, 10, 4);
+  assert.ok(narrow.indexOf('works') < shapeKinds(4, 10).indexOf('works'));
+});
+
+/* ---------------- sections and the Contents (Bureau decision 304) ---------------- */
+
+import { sectionsOf } from './elements.js';
+
+const box = (col, row, w = 4, h = 1) => ({ col: [col, w], row: [row, h] });
+const board = [
+  { id: 'later', kind: 'heading', body: 'Later', desk: box(1, 10) },
+  { id: 'intro', kind: 'heading', body: '<em>Intro</em>', desk: box(1, 1) },
+  { id: 'a', kind: 'note', body: 'x', desk: box(1, 3) },
+  { id: 'b', kind: 'note', body: 'y', desk: box(6, 1) },     // beside the heading counts
+  { id: 'sun', kind: 'image', attrs: ['media', 'decor'], desk: box(1, 4) },
+  { id: 'toc', kind: 'contents', desk: box(10, 2) },
+  { id: 'c', kind: 'note', body: 'z', desk: box(1, 12) },
+];
+
+test('a board\'s sections are its headings in reading order, with what stands under each', () => {
+  assert.deepEqual(sectionsOf(board), [
+    { id: 'intro', name: 'Intro', row: 1, n: 2 },   // a and b; not the decoration or the contents
+    { id: 'later', name: 'Later', row: 10, n: 1 },
+  ]);
+});
+
+test('a Contents is a numbered anchor per heading, read off the board', () => {
+  const html = renderElement({ id: 'toc', kind: 'contents', title: 'On this page' }, { sections: () => sectionsOf(board) });
+  assert.match(html, /<span class="ob-title" data-edit="title">On this page<\/span>/);
+  assert.match(html, /<a class="ob-sec" href="#intro"><span class="ob-sec-n">1<\/span><span class="ob-sec-name">Intro<\/span>/);
+  assert.match(html, /href="#later"><span class="ob-sec-n">2<\/span>/);
+  assert.match(renderElement({ id: 't', kind: 'contents' }, {}), /Put a Heading on this board/);
+});
+
+test('a heading is a real h2 whose words are edited in place', () => {
+  const html = renderElement({ id: 'h', kind: 'heading', body: 'Music' }, {});
+  assert.equal(html, '<h2 class="ob-body ob-heading" data-edit="body">Music</h2>');
+});
+
+/* ---------------- the words (Bureau decision 247) ---------------- */
+
+import { wordsOf, wordsAttrs } from './elements.js';
+
+test('an object with no words is drawn exactly as before', () => {
+  assert.deepEqual(wordsOf({ kind: 'note', body: 'x' }), { cls: [], vars: {} });
+  assert.deepEqual(wordsAttrs({ kind: 'note', body: 'x' }), { cls: '', style: '' });
+});
+
+test('the words become classes and the properties they read', () => {
+  const o = { kind: 'heading', body: 'Music', words: { font: 'display', size: '2', ink: '#2b4c8c', case: 'upper', paper: 'none' } };
+  const w = wordsOf(o);
+  assert.deepEqual(w.cls, ['w-font', 'w-case-upper', 'w-size', 'w-ink', 'w-clear']);
+  assert.equal(w.vars['--wfam'], 'var(--font-display, inherit)');
+  assert.equal(w.vars['--wscale'], '2');
+  assert.equal(w.vars['--wink'], '#2b4c8c');
+});
+
+test('only a written thing is set by the words', () => {
+  assert.deepEqual(wordsOf({ kind: 'image', words: { font: 'serif' } }).cls, []);
+  assert.deepEqual(wordsOf({ kind: 'html', body: '<b>x</b>', words: { font: 'serif' } }).cls, []);
+});
+
+test('the words are checked like any field', () => {
+  assert.deepEqual(checkElement({ kind: 'note', words: { font: 'serif', weight: '700', ink: '#fff' } }), []);
+  assert.match(checkElement({ kind: 'note', words: { font: 'comic' } }, 'x').join(), /x\.words\.font "comic" is not one of/);
+  assert.match(checkElement({ kind: 'note', words: { ink: 'blue' } }, 'x').join(), /must be a hex color/);
+  assert.match(checkElement({ kind: 'note', words: { glow: '1' } }, 'x').join(), /x\.words\.glow is not one of/);
+  assert.deepEqual(checkElement({ kind: 'note', words: { paper: 'none' } }), []);
+});
