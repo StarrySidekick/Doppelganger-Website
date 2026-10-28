@@ -11,6 +11,24 @@ There are two sizes of "custom", and they live in different places:
   can't run a script, which is deliberate.
 - **Anything that needs code.** Add a kind here.
 
+## The kinds here
+
+| Kind | File | On | What it is |
+| --- | --- | --- | --- |
+| `film` | `film.js` | /film | A film credit, as a frame of 35mm film |
+| `trading-card` | `trading-card.js` | /games | A game as a card that turns over, Play on the back |
+| `disc` | `disc.js` | /music | A song as a record you press to play |
+| `turntable` | `turntable.js` | /music | Plays the records: drop the needle, scratch, loop |
+| `art-frame` | `art-frame.js` | /art | A framed picture that opens large |
+| `invention` | `invention.js` | /inventions | An app or object as a patent sheet |
+| `starfield` | `starfield.js` | nowhere yet | The small example to copy |
+
+Shared by them: `sketch.js` (drawing in Timothy's chalk hand, with the
+three-frame boil), `sketch.css` (the boil's stylesheet), `parts.js` (escaping,
+pictures, links, and `arranging()`, which every kind checks so a press while
+the board is unlocked moves things rather than playing them), and `player.js`
+(the one player the records and the turntable share).
+
 ## Adding a kind
 
 1. Make a file here, for example `confetti.js`, that exports one object:
@@ -29,7 +47,8 @@ There are two sizes of "custom", and they live in different places:
    };
    ```
 
-2. Add it to `index.js`: `export const kinds = { starfield, confetti };`
+2. Add it to `index.js`, in `export const kinds = { … }`. A name with a dash
+   is quoted: `'trading-card': tradingCard`.
 
 3. Run `npm run dev` from the repository root, open a page, press the
    corner dot, and hold the board. It's in the picker.

@@ -1,0 +1,42 @@
+/* A record on the shelf: the disc as large as the tile allows, its name under it. */
+.ss-disc {
+  position: absolute; inset: 0; margin: 0;
+  container: ss-disc / size;
+  display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 4px;
+  color: var(--ink);
+}
+.ss-disc-play {
+  min-height: 0; height: 100%; aspect-ratio: 1; max-width: 100cqw;
+  padding: 0; border: 0; background: none; color: inherit;
+  border-radius: 50%; cursor: var(--cursor-over, pointer);
+}
+.ss-disc-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ss-disc-record { display: block; width: 100%; height: 100%; transition: transform .35s ease, opacity .35s; }
+.ss-disc-svg { display: block; width: 100%; height: 100%; color: var(--ink); overflow: visible; }
+
+.ss-disc-vinyl { fill: color-mix(in srgb, var(--paper) 92%, var(--ink)); }
+.ss-disc-paper { fill: var(--label, #b8836b); }
+.ss-disc-hole { fill: var(--paper); }
+
+.ss-disc-name {
+  max-width: 100%; text-align: center;
+  font-family: var(--font-display); font-weight: 700; letter-spacing: .02em;
+  font-size: clamp(.95rem, 9cqw, 1.35rem); line-height: 1.05;
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.ss-disc-len { font-family: var(--font-body); font-weight: 400; font-size: .7em; color: var(--ink-2); }
+
+/* Pointing at a record lifts it a little off the shelf. */
+@media (hover: hover) {
+  .ss-disc-play:hover .ss-disc-record { transform: translateY(-3%) rotate(-8deg); }
+}
+/* Playing where it sits: it goes round, at 33⅓ (1.8 seconds a turn). */
+.ss-disc[data-playing]:not([data-out]) .ss-disc-record { animation: ssDiscTurn 1.8s linear infinite; }
+@keyframes ssDiscTurn { to { transform: rotate(360deg); } }
+/* On the turntable: the sleeve is empty, so it goes pale. */
+.ss-disc[data-out] .ss-disc-record { opacity: .28; transform: scale(.94); }
+.ss-disc[data-current] .ss-disc-name { color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-disc[data-playing]:not([data-out]) .ss-disc-record { animation: none; }
+}

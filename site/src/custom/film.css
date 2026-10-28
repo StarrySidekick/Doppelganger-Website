@@ -1,0 +1,59 @@
+/* A film credit: a frame of film, sprockets along both edges. It measures
+   itself (container-type: size), so its type scales with the tile rather
+   than with the window. */
+.ss-film {
+  position: absolute; inset: 0;
+  container: ss-film / size;
+  display: grid; grid-template-rows: auto 1fr auto;
+  color: var(--ink);
+  /* A strip of film is a dark grey band, not the black of the page. */
+  background: color-mix(in srgb, var(--paper) 86%, var(--ink));
+  border-block: 1px solid var(--line);
+}
+.ss-film-holes { display: block; width: 100%; height: 22px; color: var(--ink-2); }
+
+.ss-film-frame {
+  min-height: 0;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 0 clamp(10px, 3cqw, 28px);
+  align-items: start;
+  margin: 0 clamp(8px, 2cqw, 20px);
+  padding: clamp(6px, 4cqh, 14px) clamp(8px, 2cqw, 18px);
+  background: var(--paper);
+  outline: 1px solid var(--line);
+  overflow: hidden;
+  position: relative;
+}
+.ss-film-poster { height: 100%; min-height: 0; aspect-ratio: 2 / 3; display: grid; place-items: center; }
+.ss-film-pic { width: 100%; height: 100%; object-fit: cover; }
+.ss-film-clap { width: 80%; height: auto; color: var(--ink-2); }
+
+.ss-film-words { min-width: 0; overflow: hidden; }
+.ss-film-title {
+  margin: 0; font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(1.3rem, 15cqh, 3rem); line-height: 1; letter-spacing: .02em;
+}
+.ss-film-meta { margin: .2em 0 0; color: var(--ink-2); font-style: italic; font-size: clamp(.8rem, 6.5cqh, 1.05rem); }
+.ss-film-roles {
+  margin: .45em 0 0; font-variant: small-caps; letter-spacing: .06em;
+  color: var(--accent); font-size: clamp(.85rem, 7cqh, 1.15rem);
+}
+.ss-film-about {
+  margin: .4em 0 0; color: var(--ink-2); font-size: clamp(.78rem, 6cqh, 1rem); line-height: 1.35;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.ss-film-watch { display: inline-block; margin-top: .4em; font-size: clamp(.8rem, 6cqh, 1rem); color: var(--ink); text-underline-offset: 3px; }
+.ss-film-year {
+  margin: 0; font-family: var(--font-display); color: var(--ink-2);
+  font-size: clamp(1.1rem, 12cqh, 2.4rem); line-height: 1;
+}
+
+/* A phone's strip is narrow and taller: the poster narrows, the year sits
+   in the corner (not in a grid cell, which would push the words to a row of
+   their own), and the film's line about itself gets one more line. */
+@container ss-film (max-width: 520px) {
+  .ss-film-frame { grid-template-columns: 22cqw 1fr; }
+  .ss-film-poster { height: auto; width: 100%; }
+  .ss-film-year { position: absolute; top: .5em; right: .6em; font-size: clamp(1rem, 7cqh, 1.5rem); }
+  .ss-film-title { padding-right: 2.2em; font-size: clamp(1.25rem, 10cqh, 2rem); }
+  .ss-film-about { -webkit-line-clamp: 3; }
+}

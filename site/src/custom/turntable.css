@@ -1,0 +1,71 @@
+/* The turntable: the platter beside its panel on a desk, above it on a
+   phone. It measures itself, so the panel's type scales with the deck.
+   The grid is on .ss-deck-in, not the deck: a container query styles what
+   is inside its container, never the container itself, and the phone's
+   layout below is a container query. */
+.ss-deck {
+  position: absolute; inset: 0;
+  container: ss-deck / size;
+  color: var(--ink);
+}
+.ss-deck-in {
+  position: absolute; inset: 0;
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center; gap: 0 4cqw;
+  padding: 4cqh 4cqw;
+}
+.ss-deck-platter { position: relative; width: 100%; max-height: 92cqh; aspect-ratio: 1; justify-self: center; }
+.ss-deck-platter-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; color: var(--ink-2); z-index: 1; pointer-events: none; }
+.ss-deck-platter-svg .ss-deck-arm { color: var(--ink); }
+
+/* The record on the platter: a 340-wide disc centred at (190, 200) of the
+   platter's 400 box, which is where these percentages come from. */
+.ss-deck-record {
+  position: absolute; left: 5%; top: 7.5%; width: 85%; aspect-ratio: 1;
+  border-radius: 50%; cursor: grab;
+  transition: opacity .4s;
+}
+html:not(.ag-unlocked) .ss-deck-record { touch-action: none; }
+.ss-deck-record:active { cursor: grabbing; }
+.ss-deck-record:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.ss-deck-record-svg { display: block; width: 100%; height: 100%; color: var(--ink); }
+.ss-deck[data-idle] .ss-deck-record { opacity: .3; cursor: default; }
+
+.ss-deck-panel { min-width: 0; display: grid; gap: 2.2cqh; align-content: center; }
+.ss-deck-title {
+  margin: 0; font-family: var(--font-display); font-weight: 700; letter-spacing: .02em;
+  font-size: clamp(1.4rem, min(9cqh, 6cqw), 3rem); line-height: 1;
+}
+.ss-deck-time { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: clamp(.85rem, 4.5cqh, 1.15rem); }
+.ss-deck-keys { display: flex; align-items: center; gap: 2cqw; }
+.ss-deck-key {
+  padding: 0; border: 0; background: none; color: var(--ink); cursor: var(--cursor-over, pointer);
+  width: clamp(40px, 12cqh, 76px); aspect-ratio: 1; display: grid; place-items: center;
+}
+.ss-deck-key img, .ss-deck-key svg { width: 100%; height: 100%; object-fit: contain; }
+.ss-deck-loop { width: clamp(34px, 9cqh, 56px); opacity: .45; transition: opacity .2s; }
+.ss-deck-loop[aria-pressed="true"] { opacity: 1; color: var(--accent); }
+.ss-deck-key:focus-visible, .ss-deck-speed button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ss-deck-speed { display: flex; gap: 6px; }
+.ss-deck-speed[hidden] { display: none; }
+.ss-deck-speed button {
+  font: inherit; font-family: var(--font-display); font-weight: 700; font-size: clamp(1rem, 5cqh, 1.4rem);
+  color: var(--ink-2); background: none; border: 1px solid var(--ink-3); border-radius: 999px; padding: .05em .7em;
+  cursor: var(--cursor-over, pointer);
+}
+.ss-deck-speed button[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+
+.ss-deck-vol { display: flex; align-items: center; gap: 10px; font-variant: small-caps; letter-spacing: .06em; color: var(--ink-2); font-size: clamp(.8rem, 4cqh, 1rem); }
+.ss-deck-vol input { flex: 1; min-width: 0; accent-color: var(--ink); }
+.ss-deck-hint { margin: 0; color: var(--ink-3); font-style: italic; font-size: clamp(.75rem, 3.6cqh, .95rem); line-height: 1.3; }
+
+/* Taller than wide: a phone. The platter on top, the panel beneath it. */
+@container ss-deck (max-aspect-ratio: 1 / 1) {
+  .ss-deck-in { grid-template-columns: 1fr; grid-template-rows: auto 1fr; align-items: start; gap: 3cqh; padding: 5cqw; }
+  .ss-deck-platter { width: min(100%, 52cqh); }
+  .ss-deck-panel { gap: 1.6cqh; }
+  .ss-deck-title { font-size: clamp(1.4rem, 8cqw, 2.4rem); }
+  .ss-deck-key { width: clamp(40px, 13cqw, 64px); }
+  .ss-deck-loop { width: clamp(34px, 10cqw, 50px); }
+}

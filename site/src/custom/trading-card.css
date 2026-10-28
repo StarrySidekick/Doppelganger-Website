@@ -1,0 +1,90 @@
+/* A trading card, 5 by 7, as large as its tile allows and centred in it.
+   The card measures itself (container ss-trading-card), so its type is sized
+   in its own width and a small card is a small copy of a large one. */
+.ss-trading-card {
+  position: absolute; inset: 0;
+  container: ss-trading-card-tile / size;
+  display: grid; place-items: center;
+  perspective: 1400px;
+}
+.ss-trading-card-inner {
+  container: ss-trading-card / inline-size;
+  position: relative;
+  width: min(100cqw, 71.4cqh);
+  aspect-ratio: 5 / 7;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--lean-y, 0deg)) rotateY(calc(var(--lean-x, 0deg) + var(--turned, 0deg)));
+  transition: transform .7s cubic-bezier(.3, 1.4, .5, 1);
+}
+.ss-trading-card[data-over] { --turned: 180deg; }
+
+.ss-trading-card-face {
+  position: absolute; inset: 0;
+  display: grid; align-content: start;
+  margin: 0; padding: 9cqw 9cqw 7cqw;
+  color: var(--ink); background: var(--paper);
+  border: 0; border-radius: 4cqw;
+  font: inherit; text-align: left;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line), 0 1.5cqw 6cqw rgba(0, 0, 0, .6);
+}
+.ss-trading-card-front { cursor: var(--cursor-over, pointer); grid-template-rows: auto 1fr auto auto; gap: 3cqw; }
+.ss-trading-card-back { transform: rotateY(180deg); gap: 3cqw; grid-template-rows: auto auto 1fr auto; }
+
+.ss-trading-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 2cqw; }
+.ss-trading-card-name {
+  margin: 0; font-family: var(--font-display); font-weight: 700;
+  font-size: 11cqw; line-height: .95; letter-spacing: .02em;
+}
+.ss-trading-card-year { font-family: var(--font-display); font-size: 8cqw; color: var(--ink-2); }
+
+.ss-trading-card-art {
+  position: relative; min-height: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--ink-3);
+  background: color-mix(in srgb, var(--paper) 90%, var(--ink));
+  overflow: hidden;
+}
+.ss-trading-card-pic { width: 100%; height: 100%; object-fit: cover; }
+.ss-trading-card-noart { width: 80%; height: auto; color: var(--ink-2); }
+
+.ss-trading-card-type {
+  font-variant: small-caps; letter-spacing: .08em; font-size: 5.4cqw;
+  border-block: 1px solid var(--ink-3); padding: .25em 0;
+}
+.ss-trading-card-flavor { font-style: italic; font-size: 5.2cqw; line-height: 1.3; color: var(--ink-2); }
+
+/* The holo: his picture, laid over the front in a light-only blend, sliding
+   against the lean so the shine moves the way a real foil card's does. */
+.ss-trading-card-holo {
+  position: absolute; inset: 0; pointer-events: none;
+  background: var(--holo, linear-gradient(115deg, #7af, #f7a, #af7, #7af)) center / 220% 220%;
+  background-position: var(--shine-x, 30%) var(--shine-y, 30%);
+  mix-blend-mode: color-dodge; opacity: .15;
+  transition: opacity .3s;
+}
+.ss-trading-card:hover .ss-trading-card-holo { opacity: .34; }
+
+.ss-trading-card-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 1.4cqw 3cqw; font-size: 5.2cqw; line-height: 1.25; }
+.ss-trading-card-facts dt { font-variant: small-caps; letter-spacing: .06em; color: var(--ink-2); }
+.ss-trading-card-facts dd { margin: 0; }
+.ss-trading-card-about { margin: 0; font-size: 5cqw; line-height: 1.35; color: var(--ink-2); overflow: hidden; }
+
+.ss-trading-card-keys { display: flex; gap: 3cqw; align-items: center; justify-content: space-between; }
+.ss-trading-card-play,
+.ss-trading-card-turn {
+  font: inherit; font-family: var(--font-display); font-weight: 700; font-size: 8cqw; line-height: 1;
+  color: var(--ink); background: none; text-decoration: none;
+  border: 1px solid var(--ink); border-radius: 999px; padding: .2em .7em .25em;
+  cursor: var(--cursor-over, pointer);
+}
+.ss-trading-card-play { color: var(--paper); background: var(--ink); }
+.ss-trading-card-turn { border-color: var(--ink-3); color: var(--ink-2); font-size: 6.5cqw; }
+.ss-trading-card-face:focus-visible,
+.ss-trading-card-play:focus-visible,
+.ss-trading-card-turn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-trading-card-inner { transition-duration: .01s; }
+}

@@ -1,0 +1,45 @@
+/* A patent sheet: a ruled head, the figure, a stamp, and the words at the foot. */
+.ss-invention {
+  position: absolute; inset: 0;
+  container: ss-invention / size;
+  display: grid; grid-template-rows: auto 1fr auto;
+  padding: 3.5cqh 4cqw;
+  color: var(--ink);
+}
+.ss-invention-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 2cqw;
+  padding-bottom: 1.6cqh; border-bottom: 1px solid var(--ink-3);
+  font-variant: small-caps; letter-spacing: .08em; color: var(--ink-2);
+  font-size: clamp(.68rem, 3cqh, .9rem);
+}
+.ss-invention-head > :last-child { text-align: right; }
+.ss-invention-title {
+  margin: 0; color: var(--ink); text-align: center;
+  font-family: var(--font-display); font-weight: 700; font-variant: normal; letter-spacing: .03em;
+  font-size: clamp(1.3rem, min(8cqh, 7cqw), 2.8rem); line-height: 1;
+}
+.ss-invention-fig { position: relative; min-height: 0; display: grid; grid-template-rows: 1fr auto; place-items: center; padding: 2cqh 0 0; }
+.ss-invention-pic { min-height: 0; max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain; }
+.ss-invention-fig-draw { min-height: 0; height: 100%; max-width: 92%; color: var(--ink); }
+.ss-invention-nums { fill: var(--ink-2); font-family: var(--font-body); font-style: italic; }
+.ss-invention-figno { margin: .3em 0 0; font-variant: small-caps; letter-spacing: .12em; color: var(--ink-2); font-size: clamp(.7rem, 3cqh, .95rem); }
+
+/* The stamp: inked, at an angle, the accent colour, a little worn. */
+.ss-invention-stamp {
+  position: absolute; right: 3cqw; top: 6cqh; margin: 0;
+  transform: rotate(-9deg);
+  padding: .15em .55em .2em;
+  border: 3px double var(--accent); border-radius: 4px;
+  color: var(--accent); opacity: .85;
+  font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+  font-size: clamp(.95rem, 5cqh, 1.6rem); line-height: 1;
+  mix-blend-mode: screen;
+}
+
+.ss-invention-foot { padding-top: 1.6cqh; border-top: 1px solid var(--ink-3); display: grid; gap: .3em; }
+.ss-invention-meta { margin: 0; font-variant: small-caps; letter-spacing: .06em; color: var(--accent); font-size: clamp(.8rem, 3.4cqh, 1.05rem); }
+.ss-invention-about {
+  margin: 0; color: var(--ink-2); line-height: 1.35; font-size: clamp(.82rem, 3.4cqh, 1.05rem);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.ss-invention-link { justify-self: start; color: var(--ink); font-size: clamp(.82rem, 3.4cqh, 1.05rem); text-underline-offset: 3px; }
