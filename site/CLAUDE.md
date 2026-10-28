@@ -18,10 +18,106 @@ shell: SEO, fonts, header and footer around every page), `src/components/`,
 a change to how the board, the editor or an object works is a change to the
 tool, not to the site.
 
-The portfolio splits what Timothy has made into sections (film, games,
-writing, music, art, inventions), which is why the catalogue
-(`src/data/works.json`) and the `feed` exist. Blog posts will fall under the
-same system.
+**This is what is being built now (2026-10-28).** The tool is parked;
+`INTENT.md` at the root has Timothy's page list in his words and where each
+page stands.
+
+## The site's pages (October 2026)
+
+Every page is a board of objects, as before. What changed is what the section
+pages are made of: **each thing on them is one object of a kind the site
+brings itself** (`src/custom/`), drawn in Timothy's chalk hand, carrying its
+own words and links under `data`. To add a film, a game, a record, a piece or
+an invention, **duplicate one on its page and change its fields** in the
+object editor (hold it, Edit…): nothing to type into a file, and it works
+from the phone.
+
+| Page | Layout | Made of | Content came from |
+| --- | --- | --- | --- |
+| `/` | `index.json` | the live home page's objects; six section buttons; the portrait links to `/about` | the live site |
+| `/film` | `film.json` | `film`: a frame of 35mm film per credit | his Backstage crew profile |
+| `/games` | `games.json` | `trading-card`: turns over when pressed; Play on the back | itch.io and the live `/uiux` |
+| `/music` | `music.json` | `disc` per song, one `turntable`, a `heading` per crate | the SoundCloud playlist the old player used |
+| `/inventions` | `inventions.json` | `invention`: a patent sheet | Bureau and DigiDesk, from this repo's own notes |
+| `/art` | `art.json` | `art-frame` per picture, a `heading` per room; press opens a lightbox | the 40 pictures on the live `/uiux` |
+| `/writing` | `writing.json` | the bookcase carousel, seven books | the live site |
+| `/about` | `about.json` | the portrait, a heading, a note | his own Backstage "About me", lightly edited |
+| `/contact` | `contact.json` | the `form` kind, dressed like live in `Base.astro` | the live site |
+| `/links` | `links.json` | the live pieces, in labelled groups | the live site |
+
+`/uiux` was a Squarespace page and is now a redirect to `/art`, where its
+pictures hang (`astro.config.mjs`). `/works` (the catalogue's everything page)
+is still built and still empty, and nothing links to it.
+
+### The kinds, and what to know about each
+
+The contract for a kind is `src/custom/README.md`. All of them stand down while
+the board is unlocked (`arranging()` in `parts.js`), so a press arranges
+rather than flips, plays or opens; locked, they behave as a visitor's do.
+
+- **`sketch.js` is his hand.** Seeded wobbly lines, torn-paper squares, hand
+  circles, his curling vines, and the **boil**: every drawing traced three
+  times, 200ms a frame, which is the rhythm of every GIF on the Squarespace
+  site (measured: 3 frames, 200ms each). Seeded so a rebuild draws the same
+  thing. `sketch.css` turns the frames over; the same rules are inside every
+  placeholder SVG, and a test holds the two copies together.
+- **`film`** is a strip frame. Desk: two columns. Phone: one, taller. With no
+  picture it draws a clapperboard.
+- **`trading-card`** turns on a press (or Enter), and the face turned away is
+  `inert` so Tab cannot reach it. His holo picture is the foil, in a
+  light-only blend, and follows a mouse. Art is the object's own picture.
+- **`disc` and `turntable` share `player.js`**, one player for the page, so
+  one record plays at a time and the next on the page follows when one ends.
+  **SoundCloud's widget can only play, pause, seek and set the volume.** So the
+  manipulations are built on seeking: tap the grooves to drop the needle (outer
+  edge is the start, the label's edge the end), hold the record and turn it to
+  scratch (one turn is 1.8s, 33⅓ rpm; the sound stops under your hand), loop,
+  back and forward. **Speed (33/45/78, pitch with it) needs a record whose
+  song is a file** (`data.audio`, an address of an mp3 hosted somewhere other
+  than this repository); the buttons hide otherwise. Measure the record off
+  the platter, never the record: it is rotated, and a rotated square's box is
+  up to 1.41 times wider (that bug was caught by driving it).
+- **`art-frame`** fits the picture whole. Its lightbox is one per page, hung
+  off `<html>` (the sun's filter on `<body>` would otherwise make it open at
+  the top of the page, the corner dot's bug), walks every frame in reading
+  order, takes Escape, arrows and a swipe, and keeps Tab inside itself. It
+  asks the CDN for the picture at 1500 wide.
+- **`invention`** is a patent sheet with a rubber stamp for its status.
+
+### Placeholder art
+
+`npm run placeholders` (`scripts/placeholder-art.mjs`) draws every picture that
+Timothy has not drawn yet into `public/media/placeholder/`: the Films,
+Inventions and Art buttons, the Interactive Novels cover (an overlay of the
+bookcase like his six, tinting the game controller and book on top of the
+case), the itch.io icon and a "Coming soon" sign. Words are drawn with **EMS
+Elfin**, a single-stroke pen-plotter font from the `hersheytext` package
+(OFL), because his letters are single strokes and an SVG shown as a picture
+cannot load a web font anyway. Each is named in `src/assets.js` under
+`LOCAL`; **to replace one with his drawing, put his file in `public/media/`
+and change that line.** `LOCAL` uses getters because `url()` needs the
+bundler's base and the tests run in plain node.
+
+### Tests that hold this together
+
+`npm test` registers the site's kinds the way the build does (and stubs their
+stylesheets with `scripts/no-css.mjs`, since node cannot import CSS), so every
+board's objects are validated, and checks: every custom object draws, the two
+copies of the boil agree, every placeholder file exists, the home page goes to
+every section and the portrait to About, and `/uiux` still lands.
+
+### Traps
+
+- **The Works panel drops fields it does not show.** It rebuilds each work
+  from its six inputs, so a `media` (or anything else) on a work in
+  `works.json` is deleted by the next Apply. Nothing shown uses the catalogue
+  now, which is why it was left; fix `readWorks()` in `digidesk/src/editor.js`
+  before anything depends on it.
+- **A container query cannot style its own container.** `@container x (…)`
+  reaches what is inside `x`. The turntable's phone layout did nothing until
+  its grid moved to an inner element (`.ss-deck-in`).
+- **The board is rigid.** A note longer than its box clips, on a phone
+  especially (About's words needed 46 rows there). Give a box room.
 
 ### The Squarespace pieces, as objects (September 2026)
 
@@ -60,7 +156,10 @@ the footer exists here and not there; the home page's hidden lower section
 (cassette, a second card, "Dark Piano") is not rebuilt because a visitor never
 sees it; Spotify on /links is left out because it sat hidden under the QR code.
 
-## Status: restarted, September 2026 — editor first, migration later
+## History: the editor came first (September 2026)
+
+Kept for the decisions in it; the direction it describes is superseded by
+`INTENT.md` (2026-10-28).
 
 **The rebuild is active again, and the order changed.** It was parked in August
 because content couldn't be edited; that is the thing now being fixed. See
@@ -147,73 +246,28 @@ What's already done, so it isn't rediscovered:
   fine. It only becomes a deadline if cancelling — pull assets into `/public`
   and repoint `assets.js` *before* the renewal date, not after.
 
-## Current state
+## Current state (October 2026)
 
-**Five pages are the Squarespace site again, as objects — 26 September 2026.**
-`/`, `/links`, `/writing`, `/music` and `/contact` were rebuilt from positions
-measured off the live site; see "The Squarespace pieces, as objects" above.
-`/uiux` and the six writing collections are linked again (the home button and
-the bookcase) and so are back on `PLANNED` in `scripts/site.test.mjs`; they are
-404s here until built. `/works`, `/film`, `/games`, `/art` and `/inventions`
-are still empty boards — `/games` was empty on Squarespace too. What follows
-describes the clearing that came before, and still holds for those.
+Every page in the table above is built and carries content. What is not done
+is in `INTENT.md` under "What is next": his genre principles for the crates,
+his words and titles for the art, the collection pages behind the bookcase,
+the contact form's key, his drawings for the placeholders, and a check on the
+iPhone itself (only an iPhone-sized Chromium was available; WebKit was not).
 
-**Every page was an empty board, September 2026.** All page content was cleared
-so the site can be rebuilt object by object in the editor. This is the state to
-expect, not a build that went wrong: open any page, press the corner, and you
-get a 24-column checkerboard with nothing on it.
+**No URL changed** (hard rule 3). The build emits `/`, `/film`, `/games`,
+`/music`, `/inventions`, `/art`, `/writing`, `/about`, `/links`, `/contact`,
+`/works`, `/editor`, `/modeler`, `/404` and the redirects `/contact-1` and
+`/uiux`. `/about` is new. `/` is the one route the dynamic route cannot make;
+the tool makes it from `layouts/index.json` (`digidesk/routes/home.astro`), so
+the site has no `index.astro`, and writing one would take `/` back.
 
-Two things went at once, and the second is the point:
+The live site's other addresses, which the domain move must keep: the six
+writing collections and their posts, `/home`, `/secret-poem-1`,
+`/hello-hypixel-studios`, `/becauseimeanit26` and `/physics-test`. Taken from
+its sitemap, 2026-10-28.
 
-- **The boards were emptied** — `/`, `/works`, `/film`, `/games`, `/writing`,
-  `/music`, `/art`, `/inventions`, `/links`, `/contact` all ship
-  `"elements": []`. Their `title`, `description`, columns and gap are kept, so
-  the page still says what it is to a search result while carrying nothing.
-- **The hand-written pages went with them.** `index.astro`, `writing.astro`,
-  `music.astro` and `contact.astro` were markup carried over from the
-  Squarespace site — a wordmark, four GIF section buttons, a persona, two link
-  lists and a form — and none of it was an object. It could not be selected,
-  long-pressed, right-clicked or deleted, which is exactly the complaint. They
-  are layout files now, made into pages by `DigiDesk's board route`. `/links` lost its
-  two `slot` elements for the same reason: a slot can be moved but its innards
-  are markup, so the flip card and the socials nav were untouchable too.
-
-**Everything on a page is now an object.** There is no page markup left for a
-tile to be made of, so the rule the model is built on — hold it, and it answers
-— holds everywhere rather than mostly.
-
-**No URL changed** (hard rule 3). The build still emits `/`, `/works`, `/film`,
-`/games`, `/writing`, `/music`, `/art`, `/inventions`, `/links`, `/contact`,
-`/editor`, `/404` and the `/contact-1` redirect. `/` is the one route the
-dynamic `[...slug]` route cannot make — it skips the name `index` on purpose,
-and a layout called `index` would build `/index`. Since DigiDesk moved into
-its own folder (2026-10-07) the tool makes `/` itself from `layouts/index.json`
-(`digidesk/routes/home.astro`), so the site has no `index.astro`; writing one
-would take `/` back.
-
-**Header and footer were deliberately NOT cleared.** They are chrome rather
-than page content, they are already ordinary objects that a long-press deletes
-in one gesture, and they are the only way to move between pages while building.
-Empty them from the editor if you want the blank slate to be total.
-
-Two things followed from the clearing, both of them the tests doing their job:
-
-- **`PLANNED` in `scripts/site.test.mjs` is empty.** The seven slugs it carried
-  — `/uiux` and the six writing collections — were excused because something
-  linked to them, and the only things that did were the pages just removed. A
-  plan nothing links to is a plan nobody is waiting for; put a slug back the
-  moment a link to it does. The content itself has not gone anywhere: `/uiux`
-  is still 40 images to place, and the six collections are still exported to
-  Markdown on Timothy's machine.
-- **`body` is a flex column now.** `.site-footer` has always carried
-  `margin-top: auto` and never had a flex container to resolve it against. It
-  never showed while every page filled the viewport with its own markup, and it
-  showed on every page the moment the boards were empty — the footer floating
-  halfway up with dead space beneath it.
-
-`FlipCard.astro` is kept but nothing renders it. The business card is real work
-and the component has its own shader; it comes back when there is an object
-kind that carries it, rather than as a slot in a hand-written page.
+`FlipCard.astro` is kept but nothing renders it; the business card on /links
+is the tool's `card` kind.
 
 ## Decisions already made — don't relitigate
 

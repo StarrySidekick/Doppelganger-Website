@@ -16,6 +16,11 @@ those are two separate things"):
 | `digidesk/` | **The tool.** A website builder where everything sits on a grid: Bureau's object model for the web. The grid engine, objects and kinds, faces, the in-page editor, publishing, the look, 3D models, the app layer. An Astro integration and a package named `digidesk`. | [`digidesk/CLAUDE.md`](digidesk/CLAUDE.md) |
 | `site/` | **The project built with it.** A self-hosted rebuild of **timothyvlangas.com** (brand: StarrySidekick.com), replacing a Squarespace 7.1 site. Its layouts, catalogue, look, pictures, page shell and its own custom kinds. | [`site/CLAUDE.md`](site/CLAUDE.md) |
 
+**The website is the focus (2026-10-28).** In Timothy's words: "reorient
+this repo to just making my website … other objectives surrounding making
+digidesk and stuff are pushed to the side for now." `INTENT.md` has the page
+list and where each page stands. Change the tool only when the site needs it.
+
 They are in one repository **for now, for ease of use**, and will be split
 later (Timothy, 2026-10-07: "let's keep them inside one repo for now for ease
 of use then split them later"). Everything below is arranged so that the split
@@ -95,6 +100,7 @@ npm test           # both suites: the tool's, then the site's
 npm run test:tool  # DigiDesk only (engine, objects, editor rules, the seam)
 npm run test:site  # the site's own facts (layouts, catalogue, links, deploy)
 npm run widgets    # build Squarespace code blocks → site/widgets/dist/
+npm run placeholders  # redraw the placeholder art → site/public/media/placeholder/
 ```
 
 Deploy is automatic: push to `main` → GitHub Actions installs, runs both
@@ -194,9 +200,12 @@ site/                        THE WEBSITE
   src/assets.js              every remote picture
   src/layouts/Base.astro     the page shell: SEO, fonts, header and footer
   src/components/            SiteChrome (header and footer), FlipCard
-  src/custom/                the site's own kinds
+  src/custom/                the site's own kinds: the film credit, the trading
+                             card, the record and turntable, the framed piece,
+                             the patent sheet; and sketch.js, his chalk hand
   src/pages/                 pages written by hand (404)
-  public/                    icons, favicon, media the editor commits
+  public/                    icons, favicon, media the editor commits,
+                             media/placeholder/ (npm run placeholders)
   widgets/                   Squarespace code blocks
   scripts/site.test.mjs      the site's facts
   docs/SCOPE.md              what it takes to leave Squarespace

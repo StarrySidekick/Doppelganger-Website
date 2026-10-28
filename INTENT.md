@@ -1,107 +1,109 @@
 # Intent
 
-What this is for, and what to build next. Recorded **2026-09-06** from Timothy's
-own answers to a direct set of questions, so this is *stated* intent rather than
-intent inferred from the code.
+What this is for, and what to build next, in Timothy's own words, dated.
 
 **Read this before choosing what to build.** Where it disagrees with the rest of
 the docs about **direction**, this file is newer and wins. Where it disagrees
-about **mechanics** — how the code works, what was decided deliberately, the
-invariants — the other docs win, always.
+about **mechanics** (how the code works, what was decided deliberately, the
+invariants) the other docs win, always.
 
 When something here is done, or turns out to be wrong, **edit it**. A stale
 intent file is worse than no intent file.
 
-## What it is for
+## What it is for (2026-10-28)
 
-Two things share this repo, and they are not equally important right now.
+**The website. DigiDesk is parked.** In his words: "i want to sort of reorient
+this repo to just making my website, as i need to get that done. other
+objectives surrounding making digidesk and stuff are pushed to the side for
+now. the core of my site will be similar in some ways to my live squarespace
+site, but there will be new pages and the material inside pages will be
+different and built out."
 
-**The tool (DigiDesk) is what Timothy wants pushed on.** The website is the
-guinea pig that proves the tool works, not the deliverable.
+This reverses 2026-09-06, when the tool was the point and the site its guinea
+pig. The tool stays (the site is built with it and is edited with it), but a
+session spends its time on pages, content and pieces of the site. A change to
+`digidesk/` is fine when the site needs it (a bug, or something a page can't do
+without), and is still its own `DigiDesk:` commit.
+
+## The pages
+
+His list, in his words, and where each stands.
+
+| Page | His words | Where it is (2026-10-28) |
+| --- | --- | --- |
+| `/` | "home (very similar to how it is now on live)" | **Built.** The live page with six section buttons instead of four. The portrait goes to About. |
+| `/film` | "films (will list all the films i've worked on or made, and what i did for them)" | **Built.** 13 credits from his Backstage profile, as film-strip frames (`film` kind). |
+| `/games` | "games (will list all my games and stuff as trading cards you can flip to see info on and play" | **Built.** Composer's Key and Starcassonne as cards that turn over (`trading-card`), plus one placeholder card. |
+| `/music` | "music (right now on live it's a simple player, but here it's going to be a collection of music discs you can play and manipulate in different ways, organization based in a few genre principles" | **Built.** 20 SoundCloud tracks as records in crates, and a turntable (`disc`, `turntable`). Crates are SoundCloud's own genre tags for now: Chiptune, Piano, Ambient, Not sorted yet. **His genre principles are still to come.** |
+| `/inventions` | "inventions (new sections that is for my apps or physical objects that aren't games)" | **Built.** Bureau and DigiDesk as patent sheets (`invention`), plus one placeholder for a physical object. |
+| `/art` | "art (organized like a gallery, and contain my paintings, drawings, style guides, ui, graphics, etc)" | **Built.** All 40 pictures from Squarespace's `/uiux`, framed (`art-frame`), in rooms: Paintings, Drawings, Style guides (empty, a sign), UI, Graphics. `/uiux` redirects here. |
+| `/writing` | "writing (very similar to now but with upgraded ux, holds my poems, essays, short stories, interactive novels, etc.)" | **The bookcase, plus a seventh book (Interactive Novels), swipe and arrow keys.** The collection pages behind the books are not built: that is the next big piece (see below). |
+| `/about` | "about (new, get to it by clicking my portrait on the home page" | **Built.** His portrait and a bio taken from his own Backstage "About me". |
+| `/contact` | "email form (where the letter is right now, same as live)" | **Built**, dressed like live. **Sends nothing until it has a Web3Forms key.** |
+| `/links` | "links (same as live but just more organized)" | **Built.** The live pieces in groups: Say hello, Listen and watch, Follow along, Work with me, Play. |
+
+And: "there will also be secret pages and a bunch of other crazy stuff added
+later, as the site itself will serve as a portfolio piece." The live site has
+secret pages already, and their addresses must keep working when the domain
+moves (hard rule 3): `/secret-poem-1`, `/hello-hypixel-studios`,
+`/becauseimeanit26`, `/physics-test`, and `/home`. None is rebuilt yet.
+
+**Pictures**: "for stuff that already has assets, like the music page button
+and stuff, we use that, if it doesn't have an asset yet, we create placeholder
+art that matches my style." Every placeholder is drawn by
+`site/scripts/placeholder-art.mjs` and named in `site/src/assets.js` under
+`LOCAL`; swapping in his drawing is replacing the file and that line. See
+`site/CLAUDE.md`.
 
 ## What is next
 
-DigiDesk: the engine, the editor, the object model, the faces. The useful
-question is what a person building a page would reach for and not find.
-
-**One answer taken 2026-09-06: copy and paste (⌘C / ⌘V), across boards and
-across pages.** Duplicate put a copy beside the original and there was nothing
-that crossed a boundary — so a nav item made on the page could not be moved into
-the header, and anything wanted on a second page had to be built twice. The
-clipboard is `localStorage` rather than a variable, and deliberately: each page
-is its own document, so an in-memory clipboard dies on exactly the navigation
-worth supporting. Ids are re-assigned on landing, because ids are global to the
-document (hard rule 0), which also makes pasting onto the board you copied from
-a duplicate rather than a collision.
-
-**Two things it turned up that are worth knowing.** The keyboard handler returns
-early when nothing is selected, and clicking another board clears the selection —
-so paste has to sit *above* that gate or it can never fire on the board you just
-moved to. And on `/editor`, more than one editor instance answers to the active
-board name, so a single ⌘V pasted twice there while behaving correctly on a real
-page; the event is stamped so one press is one paste, but **the underlying
-`/editor` name collision is still there** and would bite anything else that acts
-on a keypress.
-
-**Still not answered:** there is no editor test in the repo that presses
-anything, which the README already says should exist. All of the above was
-verified by driving a browser from a scratch file, which is not the same as
-being guarded.
-
-
-**Asked for 2026-09-26, in his words: "replicate our website as close as we
-can, sort of on top of our new bureau style system … as close as possible."**
-Done for the five pages that had content on Squarespace. Everything that was a
-code block there became a general object here (card, player, carousel,
-shuffle), so it counts for the tool as much as the site. What is left of
-parity: the bookcase's vertical position, the contact form's dressing and key,
-and the pages below.
-
-**Asked for 2026-09-28: a simple 3D polygon editor, to make an N64-style key
-that rotates on the site and can be placed around — ultimately a key shaped
-like a music note, with three rectangular teeth where the note's tail is.**
-Built as a `model` object plus a 3D editor that is its own module ("maybe this
-could eventually be its own thing" — so it depends on nothing in the board
-editor). Both keys are presets. Not yet placed on any page; that is his to do
-from the picker.
-
-**2026-09-28, later: "we need a full pwa"** — done: manifest, service worker,
-icons, offline for pages already opened, Android shortcuts. And the model
-picker now makes the note key, which is what he expected and did not get.
-
-**2026-10-07: the tool and the site are two things, in two folders.** In his
-words: "there is my personal website replication of starrysidekick.com, which
-is a project, and then there's the actual tool itself (digidesk), and those
-are two separate things… i want to be able to push updates to the tool, then
-there's tools be updated for my website too, but then push updates to my
-website separately." And: "let's keep them inside one repo for now for ease of
-use then split them later." Done: `digidesk/` is the tool, an Astro
-integration; `site/` is the website, which hands itself to the tool in its
-`astro.config.mjs`; each has its own version number. Bureau stays as it is.
-
-**Same day: room for "crazy stuff" on the website.** "I might also just start
-adding crazy stuff to my website, so we have to have room to be able to do
-that." That room is `site/src/custom/`: kinds of the site's own, drawn by its
-own code, that are still objects on a board. A starfield is there as the
-example. And **"update digidesk/doppelgänger website with all the
-functionality that we've since added to bureau, and further align it with the
-idea that it's a website builder"**: `digidesk/docs/BUREAU-PORT.md` is the
-inventory of Bureau since the port, each item marked port, adapt or skip, in
-the order to build; the first of them are ported.
+1. **Content only he has.** His genre principles for the music crates; the
+   real titles and words for the art (they are descriptive guesses now); film
+   stills or posters; a picture and words for the Starcassonne card; the
+   physical inventions; style guides for the Art room that is empty.
+2. **Writing's collections.** Six books link to pages that do not exist here
+   yet (`/poems`, `/essays-about-everything`, `/short-stories`, `/journal`,
+   `/game-design`, `/expressiveaether`) plus `/interactive-novels`. The posts
+   are public on the live site and exported to Markdown on his machine. Read
+   "Poetry content" in `site/CLAUDE.md` before importing anything: a naive
+   conversion destroys every stanza break.
+3. **A Web3Forms key** for the contact form (free, made with his email), typed
+   into the form's settings in the editor.
+4. **His own drawings** for the placeholders: the Films, Inventions and Art
+   buttons, the Interactive Novels book, the itch.io icon, the "coming soon"
+   sign.
+5. **Check it on the iPhone.** Everything was driven in a desk browser and an
+   iPhone-sized Chromium; WebKit itself was not available. Worth checking by
+   hand: a record playing from the first tap (SoundCloud's widget and iOS's
+   autoplay rules), swiping the bookcase, and scrolling past it.
+6. **The secret pages** and the "crazy stuff". Room for it is
+   `site/src/custom/` (a kind of the site's own) or `site/src/pages/` (a page
+   written by hand).
 
 ## Deliberately not next
 
-- **`/uiux` and the six blog collections.** Still 404s, still on `PLANNED` in
-  `scripts/site.test.mjs`, and deliberately parked. Do not spend a session on
-  routes he has deprioritised.
-- **Blog content import.** Still behind the tool. (Page parity was asked for
-  and done on 2026-09-26 — see above.)
+- **DigiDesk for its own sake**: the Bureau port (`digidesk/docs/BUREAU-PORT.md`),
+  the editor, the 3D modeller. Parked 2026-10-28.
+- **The Works catalogue** (`works.json`, the `/works` page, feeds). The section
+  pages are built from objects on each board instead, so a work is added on
+  its page from the phone. The catalogue is still there; nothing shown uses it.
 
 ## Worth knowing
 
-- He **does** intend to leave Squarespace. The domains renew 8 December 2026 and
-  transferring them out is the gate, so `docs/SCOPE.md` §0 still governs the
-  timing of the asset migration.
-- **DigiDesk becoming its own repo is a real plan, just not yet.** It has its
-  own folder now (2026-10-07), and hard rule 4 is enforced by a test rather
-  than by convention. The root CLAUDE.md says how the split goes when it comes.
+- He **does** intend to leave Squarespace. The domains renew **8 December
+  2026** and transferring them out is the gate, so `site/docs/SCOPE.md` §0
+  still governs the timing of the asset migration. Every picture still comes
+  from Squarespace's CDN.
+- **DigiDesk becoming its own repo is a real plan, just not yet.** The root
+  CLAUDE.md says how the split goes when it comes.
+
+## Earlier intent, for the record
+
+- **2026-09-06**: the tool was the point, and copy and paste across boards was
+  built. (The `/editor` name collision noted then is still there.)
+- **2026-09-26**: "replicate our website as close as we can". Done for the five
+  pages Squarespace had.
+- **2026-09-28**: a 3D editor for an N64-style key, and "we need a full pwa".
+  Both done.
+- **2026-10-07**: the tool and the site are two folders in one repository,
+  with room in the site for "crazy stuff" (`site/src/custom/`).

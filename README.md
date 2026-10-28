@@ -15,3 +15,6 @@ npm test       # both
 
 Live at https://starrysidekick.github.io/Doppelganger-Website/ . See
 [`CLAUDE.md`](CLAUDE.md) for how the two are wired and how to work on each.
+
+**The website is what is being built right now; the tool is parked.** See
+[`INTENT.md`](INTENT.md).
