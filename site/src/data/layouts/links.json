@@ -23,22 +23,52 @@
       },
       "desk": {
         "col": [
-          21,
+          20,
           10
         ],
         "row": [
-          5,
+          2,
           10
         ]
       },
       "narrow": {
         "col": [
           3,
-          13
+          12
+        ],
+        "row": [
+          1,
+          12
+        ]
+      }
+    },
+    {
+      "id": "links-hello",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Say hello",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          14
         ],
         "row": [
           3,
-          13
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          14,
+          2
         ]
       }
     },
@@ -51,11 +81,11 @@
       "body": "<a href=\"mailto:TimothyVlangas@gmail.com\">Email: timothyvlangas@gmail.com</a>",
       "desk": {
         "col": [
-          3,
-          12
+          2,
+          16
         ],
         "row": [
-          12,
+          5,
           2
         ]
       },
@@ -65,7 +95,7 @@
           16
         ],
         "row": [
-          29,
+          16,
           2
         ]
       }
@@ -79,11 +109,11 @@
       "body": "<a href=\"tel:+14012978580\">Phone: 401-297-8580</a>",
       "desk": {
         "col": [
-          3,
-          12
+          2,
+          16
         ],
         "row": [
-          15,
+          7,
           2
         ]
       },
@@ -93,7 +123,240 @@
           16
         ],
         "row": [
-          32,
+          18,
+          2
+        ]
+      }
+    },
+    {
+      "id": "links-letter",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:mail",
+        "alt": "Write me a letter",
+        "width": 324,
+        "height": 323,
+        "sizes": "120px",
+        "widths": [
+          300
+        ]
+      },
+      "link": "/contact",
+      "desk": {
+        "col": [
+          8,
+          4
+        ],
+        "row": [
+          9,
+          4
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          20,
+          5
+        ]
+      }
+    },
+    {
+      "id": "links-listen",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Listen and watch",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          33,
+          14
+        ],
+        "row": [
+          3,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          26,
+          2
+        ]
+      }
+    },
+    {
+      "id": "links-soundcloud",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:soundcloudIcon",
+        "alt": "SoundCloud",
+        "width": 335,
+        "height": 202,
+        "sizes": "120px",
+        "widths": [
+          300
+        ]
+      },
+      "link": "https://soundcloud.com/user-682162199",
+      "desk": {
+        "col": [
+          34,
+          4
+        ],
+        "row": [
+          5,
+          4
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          6
+        ],
+        "row": [
+          28,
+          5
+        ]
+      }
+    },
+    {
+      "id": "links-soundcloud-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "SoundCloud",
+      "words": {
+        "size": "0.7"
+      },
+      "desk": {
+        "col": [
+          34,
+          4
+        ],
+        "row": [
+          9,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          6
+        ],
+        "row": [
+          33,
+          1
+        ]
+      }
+    },
+    {
+      "id": "links-youtube",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:youtube",
+        "alt": "YouTube",
+        "width": 324,
+        "height": 247,
+        "sizes": "120px",
+        "widths": [
+          300
+        ]
+      },
+      "link": "https://www.youtube.com/channel/UCFH2j-gvDvHyl4rKCQoNT_w",
+      "desk": {
+        "col": [
+          41,
+          4
+        ],
+        "row": [
+          5,
+          4
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          6
+        ],
+        "row": [
+          28,
+          5
+        ]
+      }
+    },
+    {
+      "id": "links-youtube-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "YouTube",
+      "words": {
+        "size": "0.7"
+      },
+      "desk": {
+        "col": [
+          41,
+          4
+        ],
+        "row": [
+          9,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          6
+        ],
+        "row": [
+          33,
+          1
+        ]
+      }
+    },
+    {
+      "id": "links-follow",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Follow along",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          4,
+          10
+        ],
+        "row": [
+          14,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          35,
           2
         ]
       }
@@ -116,59 +379,83 @@
       "link": "https://www.instagram.com/starrysidekick/",
       "desk": {
         "col": [
-          15,
+          7,
           4
         ],
         "row": [
-          17,
+          16,
           4
         ]
       },
       "narrow": {
         "col": [
-          5,
-          8
+          6,
+          6
         ],
         "row": [
-          62,
-          6
+          37,
+          5
         ]
       }
     },
     {
-      "id": "links-youtube",
-      "kind": "image",
-      "face": "cutout",
-      "flow": "keep",
-      "media": {
-        "src": "asset:youtube",
-        "alt": "YouTube",
-        "width": 324,
-        "height": 247,
-        "sizes": "120px",
-        "widths": [
-          300
-        ]
+      "id": "links-instagram-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "Instagram",
+      "words": {
+        "size": "0.7"
       },
-      "link": "https://www.youtube.com/channel/UCFH2j-gvDvHyl4rKCQoNT_w",
       "desk": {
         "col": [
-          19,
+          7,
           4
         ],
         "row": [
-          17,
-          4
+          20,
+          1
         ]
       },
       "narrow": {
         "col": [
-          5,
-          8
+          6,
+          6
         ],
         "row": [
-          55,
-          6
+          42,
+          1
+        ]
+      }
+    },
+    {
+      "id": "links-work",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Work with me",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          18,
+          14
+        ],
+        "row": [
+          14,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          44,
+          2
         ]
       }
     },
@@ -190,59 +477,53 @@
       "link": "https://www.backstage.com/crew/timothy-vlangas/",
       "desk": {
         "col": [
-          23,
+          19,
           4
         ],
         "row": [
-          17,
+          16,
           4
         ]
       },
       "narrow": {
         "col": [
-          5,
-          8
+          2,
+          6
         ],
         "row": [
-          36,
-          6
+          46,
+          5
         ]
       }
     },
     {
-      "id": "links-soundcloud",
-      "kind": "image",
-      "face": "cutout",
-      "flow": "keep",
-      "media": {
-        "src": "asset:soundcloudIcon",
-        "alt": "SoundCloud",
-        "width": 335,
-        "height": 202,
-        "sizes": "120px",
-        "widths": [
-          300
-        ]
+      "id": "links-backstage-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "Backstage",
+      "words": {
+        "size": "0.7"
       },
-      "link": "https://soundcloud.com/user-682162199",
       "desk": {
         "col": [
-          27,
+          19,
           4
         ],
         "row": [
-          17,
-          4
+          20,
+          1
         ]
       },
       "narrow": {
         "col": [
-          5,
-          8
+          2,
+          6
         ],
         "row": [
-          49,
-          6
+          51,
+          1
         ]
       }
     },
@@ -264,22 +545,147 @@
       "link": "https://www.linkedin.com/in/timothy-vlangas-01ba13251",
       "desk": {
         "col": [
-          31,
+          27,
           4
         ],
         "row": [
-          17,
+          16,
           4
         ]
       },
       "narrow": {
         "col": [
-          5,
-          8
+          9,
+          6
         ],
         "row": [
-          42,
+          46,
+          5
+        ]
+      }
+    },
+    {
+      "id": "links-linkedin-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "LinkedIn",
+      "words": {
+        "size": "0.7"
+      },
+      "desk": {
+        "col": [
+          27,
+          4
+        ],
+        "row": [
+          20,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
           6
+        ],
+        "row": [
+          51,
+          1
+        ]
+      }
+    },
+    {
+      "id": "links-play",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Play",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          36,
+          10
+        ],
+        "row": [
+          14,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          53,
+          2
+        ]
+      }
+    },
+    {
+      "id": "links-itch",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:itchIcon",
+        "alt": "itch.io",
+        "width": 300,
+        "height": 300
+      },
+      "link": "https://starry-sidekick.itch.io/",
+      "desk": {
+        "col": [
+          39,
+          4
+        ],
+        "row": [
+          16,
+          4
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          6
+        ],
+        "row": [
+          55,
+          5
+        ]
+      }
+    },
+    {
+      "id": "links-itch-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "itch.io",
+      "words": {
+        "size": "0.7"
+      },
+      "desk": {
+        "col": [
+          39,
+          4
+        ],
+        "row": [
+          20,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          6
+        ],
+        "row": [
+          60,
+          1
         ]
       }
     },
@@ -309,7 +715,7 @@
           8
         ],
         "row": [
-          22,
+          23,
           9
         ]
       },
@@ -319,8 +725,39 @@
           10
         ],
         "row": [
-          18,
+          63,
           11
+        ]
+      }
+    },
+    {
+      "id": "links-qr-label",
+      "kind": "note",
+      "face": "lettering",
+      "flow": "stack",
+      "onclick": "none",
+      "body": "This page, as a code",
+      "words": {
+        "size": "0.7"
+      },
+      "desk": {
+        "col": [
+          19,
+          12
+        ],
+        "row": [
+          32,
+          1
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          74,
+          1
         ]
       }
     }

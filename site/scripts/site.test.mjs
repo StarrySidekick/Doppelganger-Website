@@ -17,8 +17,19 @@ import { dirname, join } from 'node:path';
 
 import { validateLayout, normalizeLayout } from 'digidesk/src/adaptive-grid.js';
 import { validateWorks, typesOf, worksOf, queryWorks } from 'digidesk/src/works.js';
-import { joinBase } from '../src/assets.js';
+import { registerCustom, CUSTOM } from 'digidesk/src/custom.js';
+import { renderElement, has } from 'digidesk/src/elements.js';
+import { joinBase, PLACEHOLDERS } from '../src/assets.js';
 import { TOOL_PAGES } from 'digidesk/src/routes.js';
+import { existsSync } from 'node:fs';
+import * as custom from '../src/custom/index.js';
+import { BOIL_CSS } from '../src/custom/sketch.js';
+
+/* The site's own kinds, registered the way the build registers them (the
+   generated virtual:digidesk/custom module does exactly this). Without it a
+   board with a film credit or a record on it is "a kind nobody registered".
+   Their stylesheets are stubbed out by scripts/no-css.mjs. */
+registerCustom(custom);
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -109,6 +120,61 @@ test('a board is continuous unless it says otherwise', () => {
   }
 });
 
+/* ---------------- the site's own kinds ---------------- */
+
+test('every custom object on every board draws', () => {
+  /* render() runs in node at build time, so a throw here is a failed deploy;
+     better found by the tests. A stub ctx stands in for the build's: it
+     names a picture and a link without resolving them. */
+  const ctx = { image: (m) => ({ src: m?.src ?? '' }), link: (h) => h };
+  let drawn = 0;
+  for (const [name, l] of Object.entries(layouts)) {
+    for (const o of l.elements) {
+      if (!has(o, 'custom')) continue;
+      const html = renderElement(o, ctx);
+      assert.ok(html && html.includes(`data-custom="${o.kind}"`), `${name}: ${o.id} drew nothing`);
+      drawn++;
+    }
+  }
+  assert.ok(drawn > 0, 'no board carries a custom object, so this proves nothing');
+});
+
+test('every kind the site brings is registered', () => {
+  for (const k of ['film', 'trading-card', 'disc', 'turntable', 'art-frame', 'invention', 'starfield']) {
+    assert.ok(CUSTOM[k], `${k} is not registered`);
+  }
+});
+
+test('the boil in the stylesheet is the boil in the placeholder files', () => {
+  /* Two copies of one rule set, on purpose: the page's stylesheet cannot
+     reach inside an SVG shown as a picture. They must not drift, or a
+     placeholder and a drawing beside it would shiver at different speeds. */
+  const flat = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, '').replace(/;}/g, '}');
+  const sheet = flat(read('src/custom/sketch.css'));
+  for (const rule of flat(BOIL_CSS).split('}').filter(Boolean)) {
+    assert.ok(sheet.includes(rule), `sketch.css is missing ${rule}}`);
+  }
+});
+
+test('every placeholder picture named in assets.js is in public/', () => {
+  for (const [key, path] of Object.entries(PLACEHOLDERS)) {
+    assert.ok(existsSync(join(root, 'public', path)), `asset:${key} names ${path}, which is not there (npm run placeholders)`);
+  }
+});
+
+test('the home page goes to every section, and the portrait to About', () => {
+  const links = new Set(layouts.index.elements.map((e) => e.link).filter(Boolean));
+  for (const page of ['/film', '/games', '/music', '/inventions', '/art', '/writing', '/about', '/contact', '/links']) {
+    assert.ok(links.has(page), `nothing on the home page goes to ${page}`);
+  }
+  assert.equal(layouts.index.elements.find((e) => e.id === 'home-persona')?.link, '/about');
+});
+
+test('the old /uiux address still lands, on the gallery', () => {
+  // Hard rule 3: a Squarespace address keeps working. Its pictures hang at /art.
+  assert.match(read('astro.config.mjs'), /'\/uiux':\s*`\$\{base\}\/art`/);
+});
+
 /* ---------------- the catalogue ---------------- */
 
 const catalogue = JSON.parse(read('src/data/works.json'));
@@ -159,13 +225,13 @@ test('every link in the footer goes somewhere that exists', () => {
    line rather than leaving a permanent excuse behind. */
 
 const PLANNED = new Set([
-  /* Back, because something links to them again. The home page's UI & UX
-     button and the bookcase on /writing were rebuilt as objects from the live
-     Squarespace site (September 2026), and both point where Squarespace's did.
-     The pages themselves are still parked (INTENT.md): /uiux is 40 images to
-     place and the six collections are Markdown on Timothy's machine. */
-  'uiux',
+  /* The bookcase on /writing points where Squarespace's did, and the six
+     collections are not rebuilt yet: their posts are on the live site and in
+     Markdown on Timothy's machine. /uiux is no longer here: its pictures hang
+     at /art and the old address redirects there (astro.config.mjs). */
   'game-design', 'essays-about-everything', 'expressiveaether', 'short-stories', 'journal', 'poems',
+  /* The seventh book, new in October 2026: interactive novels. */
+  'interactive-novels',
 ]);
 
 const routeExists = (slug) =>
@@ -298,7 +364,7 @@ test('no page board carries the corner navigation', () => {
   /* The home icon and the sun live in the header layout. If either comes back
      onto a page board the site has two of it, and because an id is a global
      name it is the header's tile that silently loses its position. */
-  for (const name of ['index', 'links', 'works', 'film', 'games', 'writing', 'music', 'art', 'inventions', 'contact']) {
+  for (const name of ['index', 'links', 'works', 'film', 'games', 'writing', 'music', 'art', 'inventions', 'about', 'contact']) {
     const ids = shipped(name).elements.map((e) => e.id);
     assert.equal(ids.some((id) => id.startsWith('nav-') || id.startsWith('site-')), false, name);
   }

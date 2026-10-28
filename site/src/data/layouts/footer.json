@@ -35,7 +35,7 @@
           2
         ]
       },
-      "body": "<a href=\"/\">Home</a> · <a href=\"/works\">Everything</a> · <a href=\"/film\">Film</a> · <a href=\"/games\">Games</a> · <a href=\"/writing\">Writing</a> · <a href=\"/music\">Music</a> · <a href=\"/art\">Art</a> · <a href=\"/inventions\">Inventions</a> · <a href=\"/links\">Links</a> · <a href=\"/contact\">Contact</a>"
+      "body": "<a href=\"/\">Home</a> · <a href=\"/film\">Films</a> · <a href=\"/games\">Games</a> · <a href=\"/music\">Music</a> · <a href=\"/inventions\">Inventions</a> · <a href=\"/art\">Art</a> · <a href=\"/writing\">Writing</a> · <a href=\"/about\">About</a> · <a href=\"/links\">Links</a> · <a href=\"/contact\">Contact</a>"
     },
     {
       "id": "site-colophon",

@@ -1,10 +1,1741 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Art",
-  "description": "Art by Timothy Vlangas — paintings, drawings and pieces.",
-  "elements": []
+  "description": "Art by Timothy Vlangas — paintings, drawings, style guides, UI and graphics — hung as a gallery.",
+  "elements": [
+    {
+      "id": "art-title",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Art",
+      "words": {
+        "size": "2"
+      },
+      "desk": {
+        "col": [
+          13,
+          22
+        ],
+        "row": [
+          2,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "art-lede",
+      "kind": "note",
+      "face": "none",
+      "flow": "stack",
+      "body": "A gallery, room by room. Press a piece to see it large.",
+      "words": {
+        "font": "body",
+        "italic": "true",
+        "align": "center",
+        "valign": "middle",
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          11,
+          26
+        ],
+        "row": [
+          5,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "art-room-paintings",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Paintings",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          44
+        ],
+        "row": [
+          8,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          8,
+          2
+        ]
+      }
+    },
+    {
+      "id": "art-aether83",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:aether83",
+        "alt": "A tower in the long grass, Expressive Aether",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "A tower in the long grass",
+        "project": "Expressive Aether"
+      },
+      "desk": {
+        "col": [
+          15,
+          6
+        ],
+        "row": [
+          11,
+          15
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          8
+        ],
+        "row": [
+          11,
+          20
+        ]
+      }
+    },
+    {
+      "id": "art-aether82",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:aether82",
+        "alt": "A sun, burning, Expressive Aether",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "A sun, burning",
+        "project": "Expressive Aether"
+      },
+      "desk": {
+        "col": [
+          22,
+          12
+        ],
+        "row": [
+          11,
+          13
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          32,
+          16
+        ]
+      }
+    },
+    {
+      "id": "art-room-drawings",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Drawings",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          44
+        ],
+        "row": [
+          27,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          49,
+          2
+        ]
+      }
+    },
+    {
+      "id": "art-doodle84",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:doodle84",
+        "alt": "Doodle, Doodles",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Doodle",
+        "project": "Doodles"
+      },
+      "desk": {
+        "col": [
+          20,
+          9
+        ],
+        "row": [
+          30,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          8
+        ],
+        "row": [
+          52,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-room-style-guides",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Style guides",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          44
+        ],
+        "row": [
+          41,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          62,
+          2
+        ]
+      }
+    },
+    {
+      "id": "art-style-guides-soon",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "media": {
+        "src": "asset:comingSoon",
+        "alt": "Coming soon",
+        "width": 600,
+        "height": 300
+      },
+      "attrs": [
+        "media"
+      ],
+      "onclick": "none",
+      "desk": {
+        "col": [
+          19,
+          10
+        ],
+        "row": [
+          44,
+          5
+        ]
+      },
+      "narrow": {
+        "col": [
+          4,
+          10
+        ],
+        "row": [
+          65,
+          5
+        ]
+      }
+    },
+    {
+      "id": "art-room-ui",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "UI",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          44
+        ],
+        "row": [
+          50,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          71,
+          2
+        ]
+      }
+    },
+    {
+      "id": "art-bureauinbox1",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:bureauInbox1",
+        "alt": "Inbox, slate, Bureau",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Inbox, slate",
+        "project": "Bureau"
+      },
+      "desk": {
+        "col": [
+          4,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          74,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-bureauinbox",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:bureauInbox",
+        "alt": "Inbox, honey, Bureau",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Inbox, honey",
+        "project": "Bureau"
+      },
+      "desk": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          74,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-bureauinbox4",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:bureauInbox4",
+        "alt": "Inbox, frost, Bureau",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Inbox, frost",
+        "project": "Bureau"
+      },
+      "desk": {
+        "col": [
+          14,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          74,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-bureauinbox2",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:bureauInbox2",
+        "alt": "Inbox, teal, Bureau",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Inbox, teal",
+        "project": "Bureau"
+      },
+      "desk": {
+        "col": [
+          19,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          87,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-bureauinbox3",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:bureauInbox3",
+        "alt": "Inbox, paper, Bureau",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Inbox, paper",
+        "project": "Bureau"
+      },
+      "desk": {
+        "col": [
+          24,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          87,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-cafeclubstart",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:cafeClubStart",
+        "alt": "Start page, Cafe Club",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Start page",
+        "project": "Cafe Club"
+      },
+      "desk": {
+        "col": [
+          29,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          87,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-cafeclubphone",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:cafeClubPhone",
+        "alt": "On the phone, Cafe Club",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "On the phone",
+        "project": "Cafe Club"
+      },
+      "desk": {
+        "col": [
+          34,
+          6
+        ],
+        "row": [
+          53,
+          11
+        ]
+      },
+      "narrow": {
+        "col": [
+          2,
+          8
+        ],
+        "row": [
+          100,
+          14
+        ]
+      }
+    },
+    {
+      "id": "art-cafeclubmap",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:cafeClubMap",
+        "alt": "Map page, Cafe Club",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Map page",
+        "project": "Cafe Club"
+      },
+      "desk": {
+        "col": [
+          41,
+          4
+        ],
+        "row": [
+          53,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          10,
+          5
+        ],
+        "row": [
+          100,
+          12
+        ]
+      }
+    },
+    {
+      "id": "art-shmush5",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:shmush5",
+        "alt": "Screen one, Shmush",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Screen one",
+        "project": "Shmush"
+      },
+      "desk": {
+        "col": [
+          20,
+          4
+        ],
+        "row": [
+          65,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          4,
+          5
+        ],
+        "row": [
+          115,
+          11
+        ]
+      }
+    },
+    {
+      "id": "art-shmush3",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:shmush3",
+        "alt": "Screen two, Shmush",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Screen two",
+        "project": "Shmush"
+      },
+      "desk": {
+        "col": [
+          25,
+          4
+        ],
+        "row": [
+          65,
+          10
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          5
+        ],
+        "row": [
+          115,
+          11
+        ]
+      }
+    },
+    {
+      "id": "art-room-graphics",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Graphics",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          3,
+          44
+        ],
+        "row": [
+          76,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          127,
+          2
+        ]
+      }
+    },
+    {
+      "id": "art-starcassonnebridges",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneBridges",
+        "alt": "Bridges, Starcassonne",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Bridges",
+        "project": "Starcassonne"
+      },
+      "desk": {
+        "col": [
+          5,
+          7
+        ],
+        "row": [
+          79,
+          8
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          130,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-starcassonnetowers",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneTowers",
+        "alt": "Towers, Starcassonne",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Towers",
+        "project": "Starcassonne"
+      },
+      "desk": {
+        "col": [
+          13,
+          7
+        ],
+        "row": [
+          79,
+          8
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          130,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-starcassonnehalflings",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneHalflings",
+        "alt": "Halflings, Starcassonne",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Halflings",
+        "project": "Starcassonne"
+      },
+      "desk": {
+        "col": [
+          21,
+          7
+        ],
+        "row": [
+          79,
+          8
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          140,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-starcassonnecastles",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneCastles",
+        "alt": "Castles, Starcassonne",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Castles",
+        "project": "Starcassonne"
+      },
+      "desk": {
+        "col": [
+          29,
+          7
+        ],
+        "row": [
+          79,
+          8
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          140,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-starcassonneabbeys",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneAbbeys",
+        "alt": "Abbeys, Starcassonne",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Abbeys",
+        "project": "Starcassonne"
+      },
+      "desk": {
+        "col": [
+          37,
+          7
+        ],
+        "row": [
+          79,
+          8
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          150,
+          9
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer4",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer4",
+        "alt": "Track 1, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 1",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          4,
+          8
+        ],
+        "row": [
+          88,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          150,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57group1",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Group1",
+        "alt": "The long track, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "The long track",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          13,
+          14
+        ],
+        "row": [
+          88,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          160,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer1",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer1",
+        "alt": "Track 2, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 2",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          28,
+          8
+        ],
+        "row": [
+          88,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          168,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer2",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer2",
+        "alt": "Track 3, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 3",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          37,
+          8
+        ],
+        "row": [
+          88,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          168,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer3",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer3",
+        "alt": "Track 4, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 4",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          5,
+          8
+        ],
+        "row": [
+          96,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          176,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer7",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer7",
+        "alt": "Track 5, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 5",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          14,
+          8
+        ],
+        "row": [
+          96,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          176,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer5",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer5",
+        "alt": "Track 6, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 6",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          23,
+          8
+        ],
+        "row": [
+          96,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          8
+        ],
+        "row": [
+          184,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-o57layer9",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:o57Layer9",
+        "alt": "Track 7, O57 Motorsports",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Track 7",
+        "project": "O57 Motorsports"
+      },
+      "desk": {
+        "col": [
+          32,
+          8
+        ],
+        "row": [
+          96,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          8
+        ],
+        "row": [
+          184,
+          7
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey67",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey67",
+        "alt": "Sprite 1, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 1",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          41,
+          4
+        ],
+        "row": [
+          96,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          4
+        ],
+        "row": [
+          192,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey72",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey72",
+        "alt": "Sprite 2, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 2",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          3,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          4
+        ],
+        "row": [
+          192,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey68",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey68",
+        "alt": "Sprite 3, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 3",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          8,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          192,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey79",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey79",
+        "alt": "Sprite 4, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 4",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          13,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          13,
+          4
+        ],
+        "row": [
+          192,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey69",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey69",
+        "alt": "Sprite 5, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 5",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          18,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          4
+        ],
+        "row": [
+          199,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey80",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey80",
+        "alt": "Sprite 6, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 6",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          23,
+          4
+        ],
+        "row": [
+          104,
+          5
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          4
+        ],
+        "row": [
+          199,
+          5
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey70",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey70",
+        "alt": "Sprite 7, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 7",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          28,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          199,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey77",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey77",
+        "alt": "Sprite 8, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 8",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          33,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          13,
+          4
+        ],
+        "row": [
+          199,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey71",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey71",
+        "alt": "Sprite 9, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 9",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          38,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          4
+        ],
+        "row": [
+          206,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey75",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey75",
+        "alt": "Sprite 10, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 10",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          43,
+          4
+        ],
+        "row": [
+          104,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          4
+        ],
+        "row": [
+          206,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey68b",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey68b",
+        "alt": "Sprite 11, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 11",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          15,
+          4
+        ],
+        "row": [
+          111,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          206,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey73",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey73",
+        "alt": "Sprite 12, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 12",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          20,
+          4
+        ],
+        "row": [
+          111,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          13,
+          4
+        ],
+        "row": [
+          206,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey78",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey78",
+        "alt": "Sprite 13, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 13",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          25,
+          4
+        ],
+        "row": [
+          111,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          5,
+          4
+        ],
+        "row": [
+          213,
+          6
+        ]
+      }
+    },
+    {
+      "id": "art-composerskey74",
+      "kind": "art-frame",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKey74",
+        "alt": "Sprite 14, Composer’s Key",
+        "widths": [
+          300,
+          500
+        ]
+      },
+      "data": {
+        "title": "Sprite 14",
+        "project": "Composer’s Key"
+      },
+      "desk": {
+        "col": [
+          30,
+          4
+        ],
+        "row": [
+          111,
+          6
+        ]
+      },
+      "narrow": {
+        "col": [
+          9,
+          4
+        ],
+        "row": [
+          213,
+          6
+        ]
+      }
+    }
+  ]
 }

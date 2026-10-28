@@ -5,29 +5,25 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Music",
-  "description": "Music by Timothy Vlangas — songs and scores.",
+  "description": "Music by Timothy Vlangas — chiptune, piano and soundtrack — as records to put on a turntable and play with.",
   "elements": [
     {
-      "id": "music-player",
-      "kind": "player",
-      "face": "none",
+      "id": "music-title",
+      "kind": "heading",
+      "face": "lettering",
       "flow": "stack",
-      "sound": {
-        "src": "https://api.soundcloud.com/playlists/1794732483?secret_token=s-yNczkEJ2C5o",
-        "title": "Their Forest, Aflame",
-        "prev": "asset:skipLeft",
-        "play": "asset:play",
-        "pause": "asset:pause",
-        "next": "asset:skipRight"
+      "body": "Music",
+      "words": {
+        "size": "2"
       },
       "desk": {
         "col": [
-          16,
-          18
+          13,
+          22
         ],
         "row": [
-          7,
-          13
+          2,
+          3
         ]
       },
       "narrow": {
@@ -36,8 +32,850 @@
           16
         ],
         "row": [
-          6,
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "music-lede",
+      "kind": "note",
+      "face": "none",
+      "flow": "stack",
+      "body": "Records, sorted into crates. Press one to put it on.",
+      "words": {
+        "font": "body",
+        "italic": "true",
+        "align": "center",
+        "valign": "middle",
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          11,
+          26
+        ],
+        "row": [
+          5,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "music-turntable",
+      "kind": "turntable",
+      "flow": "keep",
+      "data": {
+        "hint": "Tap the record to drop the needle there · hold it and turn to scratch"
+      },
+      "desk": {
+        "col": [
+          11,
+          28
+        ],
+        "row": [
+          8,
           15
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          8,
+          24
+        ]
+      }
+    },
+    {
+      "id": "music-crate-chiptune",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Chiptune",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          4,
+          42
+        ],
+        "row": [
+          25,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          33,
+          2
+        ]
+      }
+    },
+    {
+      "id": "music-pomp-prince-of-style",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Pomp, Prince Of Style",
+        "sound": "https://soundcloud.com/user-682162199/pomp-prince-of-style",
+        "group": "Chiptune",
+        "length": 86,
+        "color": "#6f9a8d",
+        "year": 2022
+      },
+      "desk": {
+        "col": [
+          4,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          35,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-the-town-they-live-in",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "The Town They Live In",
+        "sound": "https://soundcloud.com/user-682162199/the-town-they-live-in",
+        "group": "Chiptune",
+        "length": 34,
+        "color": "#6f9a8d",
+        "year": 2022
+      },
+      "desk": {
+        "col": [
+          10,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          35,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-the-accordianist-has-fallen",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "The Accordianist Has Fallen!",
+        "sound": "https://soundcloud.com/user-682162199/the-accordianist-has-fallen",
+        "group": "Chiptune",
+        "length": 124,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          16,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          35,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-i-bought-everything-in-the-store",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "I Bought Everything In The Store",
+        "sound": "https://soundcloud.com/user-682162199/i-bought-everything-in-the-store",
+        "group": "Chiptune",
+        "length": 126,
+        "color": "#6f9a8d",
+        "year": 2023
+      },
+      "desk": {
+        "col": [
+          22,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          42,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-carrot-town-festival",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Carrot Town Festival",
+        "sound": "https://soundcloud.com/user-682162199/carrot-town-festival",
+        "group": "Chiptune",
+        "length": 34,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          28,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          42,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-surprise-shopping-break",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Surprise Shopping Break!",
+        "sound": "https://soundcloud.com/user-682162199/surprise-shopping-break",
+        "group": "Chiptune",
+        "length": 174,
+        "color": "#6f9a8d",
+        "year": 2023
+      },
+      "desk": {
+        "col": [
+          34,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          42,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-gustavs-garage",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Gustav’s Garage",
+        "sound": "https://soundcloud.com/user-682162199/gustavs-garage",
+        "group": "Chiptune",
+        "length": 62,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          40,
+          6
+        ],
+        "row": [
+          27,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          49,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-mega-man-battle-network-5-battle-theme-rem",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Mega Man Battle Network 5 Battle Theme (Remix)",
+        "sound": "https://soundcloud.com/user-682162199/mega-man-battle-network-5-battle-theme-remix",
+        "group": "Chiptune",
+        "length": 138,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          4,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          49,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-dusk-dash-dance",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Dusk Dash Dance",
+        "sound": "https://soundcloud.com/user-682162199/dusk-dash-dance",
+        "group": "Chiptune",
+        "length": 47,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          10,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          49,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-dodging-darkness",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Dodging Darkness",
+        "sound": "https://soundcloud.com/user-682162199/dodging-darkness",
+        "group": "Chiptune",
+        "length": 268,
+        "color": "#6f9a8d",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          16,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          56,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-you-won-now-please-go-home",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "You Won, Now Please Go Home",
+        "sound": "https://soundcloud.com/user-682162199/you-won-now-please-go-home",
+        "group": "Chiptune",
+        "length": 104,
+        "color": "#6f9a8d",
+        "year": 2023
+      },
+      "desk": {
+        "col": [
+          22,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          56,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-carlile-doomier-dancer",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Carlile, Doomier Dancer",
+        "sound": "https://soundcloud.com/user-682162199/carlile-doomier-dancer",
+        "group": "Chiptune",
+        "length": 117,
+        "color": "#6f9a8d",
+        "year": 2024
+      },
+      "desk": {
+        "col": [
+          28,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          56,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-i-can-actually-see-it",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "I Can Actually See It",
+        "sound": "https://soundcloud.com/user-682162199/i-can-actually-see-it",
+        "group": "Chiptune",
+        "length": 35,
+        "color": "#6f9a8d",
+        "year": 2024
+      },
+      "desk": {
+        "col": [
+          34,
+          6
+        ],
+        "row": [
+          35,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          63,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-crate-piano",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Piano",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          4,
+          18
+        ],
+        "row": [
+          44,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          71,
+          2
+        ]
+      }
+    },
+    {
+      "id": "music-their-forest-aflame",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Their Forest, Aflame",
+        "sound": "https://soundcloud.com/user-682162199/his-forest-aflame",
+        "group": "Piano",
+        "length": 84,
+        "color": "#b8836b",
+        "year": 2022
+      },
+      "desk": {
+        "col": [
+          4,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          73,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-down-dusk-wake-walking",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Down Dusk Wake Walking",
+        "sound": "https://soundcloud.com/user-682162199/down-dusk-wake-walking",
+        "group": "Piano",
+        "length": 192,
+        "color": "#b8836b",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          10,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          73,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-something-kind-through-here",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Something Kind Through Here",
+        "sound": "https://soundcloud.com/user-682162199/something-kind-through-here",
+        "group": "Piano",
+        "length": 112,
+        "color": "#b8836b",
+        "year": 2021
+      },
+      "desk": {
+        "col": [
+          16,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          73,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-crate-ambient",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Ambient",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          22,
+          6
+        ],
+        "row": [
+          44,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          81,
+          2
+        ]
+      }
+    },
+    {
+      "id": "music-below-the-stars",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Below The Stars",
+        "sound": "https://soundcloud.com/user-682162199/below-the-stars",
+        "group": "Ambient",
+        "length": 106,
+        "color": "#5d7690",
+        "year": 2024
+      },
+      "desk": {
+        "col": [
+          22,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          83,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-crate-not-sorted-yet",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Not sorted yet",
+      "words": {
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          28,
+          18
+        ],
+        "row": [
+          44,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          91,
+          2
+        ]
+      }
+    },
+    {
+      "id": "music-i-can-focus-when-im-driving",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "I Can Focus When I’m Driving",
+        "sound": "https://soundcloud.com/user-682162199/i-can-focus-when-im-driving",
+        "group": "Not sorted yet",
+        "length": 183,
+        "color": "#8c8a86",
+        "year": 2023
+      },
+      "desk": {
+        "col": [
+          28,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          5
+        ],
+        "row": [
+          93,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-its-almost-night",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "It’s Almost Night",
+        "sound": "https://soundcloud.com/user-682162199/its-almost-night",
+        "group": "Not sorted yet",
+        "length": 52,
+        "color": "#8c8a86",
+        "year": 2022
+      },
+      "desk": {
+        "col": [
+          34,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          6,
+          5
+        ],
+        "row": [
+          93,
+          6
+        ]
+      }
+    },
+    {
+      "id": "music-tenet-stone-terror",
+      "kind": "disc",
+      "flow": "keep",
+      "data": {
+        "title": "Tenet, Stone Terror",
+        "sound": "https://soundcloud.com/user-682162199/tenet-stone-terror",
+        "group": "Not sorted yet",
+        "length": 206,
+        "color": "#8c8a86",
+        "year": 2023
+      },
+      "desk": {
+        "col": [
+          40,
+          6
+        ],
+        "row": [
+          46,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          11,
+          5
+        ],
+        "row": [
+          93,
+          6
         ]
       }
     }

@@ -59,7 +59,78 @@ export const asset = {
   star:         CDN + '65c1730a3dfa56218f95fc91/1707176714824/Star.png',
   cursor:       CDN + '658a48cb06fdfa7abb78a76a/1703561419043/Cursor_-_Empty.png',
   cursorOver:   CDN + '658a48c7549719130fedf014/1703561415052/Cursor_-_Solid.png',
+
+  // The Art page's wall: every picture that was on /uiux, by project, in the
+  // order the live page showed them (October 2026).
+  starcassonneBridges: IMG + '234efeaa-cc6e-47e9-aeaa-04164e6a1fcc/Bridges.png',
+  starcassonneTowers: IMG + '31b0ae52-559a-47b6-921e-b310b9c5aaac/Towers.png',
+  starcassonneHalflings: IMG + '8a16f6c9-0a75-4d8b-beae-7e0cfb29a564/Halflings.png',
+  starcassonneCastles: IMG + '11dfe874-6b7b-4ecb-a181-b5100a245b3c/Castles.png',
+  starcassonneAbbeys: IMG + '15bf6f58-90a9-4a0f-85a2-3f246460197e/Abbeys.png',
+  composersKey67: IMG + 'c356588c-fdf8-4bc4-8304-ab1ddb4522a5/Untitled_Artwork+67.png',
+  composersKey72: IMG + '17a44092-d840-40fc-bd92-b0e7b67a1615/Untitled_Artwork+72.png',
+  composersKey68: IMG + '17437ace-5c4d-4ebe-ab59-bd5b6d6969a5/Untitled_Artwork+68.png',
+  composersKey79: IMG + '024793b5-8428-4b45-99f2-63719f587d51/Untitled_Artwork+79.png',
+  composersKey69: IMG + 'b1822475-4bfa-48e1-9e3e-bfbbb770cd55/Untitled_Artwork+69.png',
+  composersKey80: IMG + '3f98c056-2dda-4f4f-b2ff-e066df809ecb/Untitled_Artwork+80.png',
+  composersKey70: IMG + '77d0a985-7357-4f47-bd54-ed678ca08792/Untitled_Artwork+70.png',
+  composersKey77: IMG + '7144836e-6b19-4817-b1e3-0a12e0d3a7e1/Untitled_Artwork+77.png',
+  composersKey71: IMG + 'e1df8c72-702b-4056-9549-0157d454942c/Untitled_Artwork+71.png',
+  composersKey75: IMG + '8d9fbeef-6004-49bd-b14f-7b546ad87060/Untitled_Artwork+75.png',
+  composersKey68b: IMG + '344d94e4-9dc1-4733-8823-51e5f86dd5a1/Untitled_Artwork+68.png',
+  composersKey73: IMG + 'b8b0994c-90ba-4f9a-bff6-5af53c70538a/Untitled_Artwork+73.png',
+  composersKey78: IMG + 'b743c74e-db1f-4f8f-8fc8-be818dc8af41/Untitled_Artwork+78.png',
+  composersKey74: IMG + 'f800755d-137f-4a62-a61a-7ac9cca74e28/Untitled_Artwork+74.png',
+  shmush5: IMG + '0bea00f9-f321-418f-9766-522a73c458d1/MacBook+Pro+16_+-+5.png',
+  shmush3: IMG + '628ce7d0-4e86-4ec2-8abe-ca255df17d79/MacBook+Pro+16_+-+3+%281%29.png',
+  cafeClubStart: IMG + '79ea9f7b-0e7c-4135-8a52-cc34838f1b62/Start+Page.png',
+  cafeClubPhone: IMG + '75c6515e-6288-4df8-9f2a-7e50f1816a3c/Untitled_Artwork+81.png',
+  cafeClubMap: IMG + '3a0290c0-9b82-4a98-83cf-a3ccea3c49e9/Map+Page+-+Map.png',
+  bureauInbox1: IMG + '73396861-2bd1-4d01-b93b-8fc2310270e4/Inbox-1.png',
+  bureauInbox: IMG + 'cf55d280-d0c1-43ae-b17f-de41e7fbcc07/Inbox.png',
+  bureauInbox4: IMG + '07f8c501-6e21-4613-b103-fa07677e82a3/Inbox-4.png',
+  bureauInbox2: IMG + '5c5fb631-ebc4-4d11-ab02-3a96b1215477/Inbox-2.png',
+  bureauInbox3: IMG + '037a56b4-0f60-4974-8d4b-3977e1f60343/Inbox-3.png',
+  o57Layer4: IMG + '2871e76d-ee00-4fb2-aec8-4ce6bfb545f5/Layer-4.png',
+  o57Group1: IMG + '168a47cf-e1a4-4664-95f1-156fff8c2d7b/Group+1.png',
+  o57Layer1: IMG + '963aa050-726a-4262-b09a-7ae7f8f1ba78/Layer-1.png',
+  o57Layer2: IMG + 'bff57361-27a5-4e78-ad3b-7a82c60c05c7/Layer-2.png',
+  o57Layer3: IMG + 'f7d3c359-09c5-42e6-b43c-622a05dafc7d/Layer-3.png',
+  o57Layer7: IMG + '07140102-9ff7-4ffa-8aa7-5c1386ab34f3/Layer-7.png',
+  o57Layer5: IMG + 'a188080e-e80c-4266-8225-d373d799a0ad/Layer-5.png',
+  o57Layer9: IMG + 'b2832986-61d0-4112-b6ee-404398f3c2f4/Layer-9.png',
+  aether83: IMG + '8894092c-17de-44b2-827b-2073a19a0a84/Untitled_Artwork+83.png',
+  aether82: IMG + 'cda6500e-286e-4b48-b4a8-ecd8ad710d2a/Untitled_Artwork+82.png',
+  doodle84: IMG + 'c4d53d79-068f-49ba-bdf8-215b57d2c3ac/Untitled_Artwork+84.png',
+
+  // Composer's Key's own lettering, the cover of its itch.io page.
+  composersKeyLogo: 'https://img.itch.zone/aW1nLzg2NTU1NzEucG5n/original/AsNbVH.png',
 };
+
+/*
+ * Pictures that live in this repository rather than on the CDN: placeholders
+ * in Timothy's manner (scripts/placeholder-art.mjs, `npm run placeholders`)
+ * for things he has not drawn yet. When he does, his file goes in
+ * public/media/ and the line here changes to point at it.
+ *
+ * Getters, because `url()` needs the bundler's base (import.meta.env), and
+ * plain node, which runs the site's tests and imports this file, has none.
+ * Asked for during a build or in the browser, they answer like the rest.
+ */
+const LOCAL = {
+  films:       'media/placeholder/films-button.svg',
+  inventions:  'media/placeholder/inventions-button.svg',
+  art:         'media/placeholder/art-button.svg',
+  bookCover7:  'media/placeholder/book-interactive-novels.svg',
+  itchIcon:    'media/placeholder/itch-icon.svg',
+  comingSoon:  'media/placeholder/coming-soon.svg',
+};
+for (const [key, path] of Object.entries(LOCAL)) {
+  Object.defineProperty(asset, key, { get: () => url(path), enumerable: true });
+}
+
+/** The placeholders, by key, so a test can check each file exists. */
+export const PLACEHOLDERS = LOCAL;
 
 /** An `asset:` key, a `media:` file or an address, as the address it names. */
 export const resolveAsset = (ref) => {
@@ -69,7 +140,7 @@ export const resolveAsset = (ref) => {
   return ref;
 };
 
-export const GAMES_URL = 'https://starry-sidekick.itch.io/composers-key';
+export const GAMES_URL = 'https://starry-sidekick.itch.io/composers-key-proof-of-concept';
 export const SOUNDCLOUD = 'https://soundcloud.com/user-682162199';
 
 /** The real domain. Single source of truth — SEO tags read this, not a literal. */

@@ -5,7 +5,7 @@
   "gap": 0,
   "reflowBelow": 700,
   "title": "Writing",
-  "description": "Writing by Timothy Vlangas \u2014 poems, essays, journals and stories.",
+  "description": "Writing by Timothy Vlangas — poems, essays, journals and stories.",
   "elements": [
     {
       "id": "writing-bookcase",
@@ -142,6 +142,25 @@
             55,
             5.5,
             18
+          ]
+        },
+        {
+          "kind": "note",
+          "attrs": [
+            "media",
+            "link"
+          ],
+          "face": "none",
+          "title": "Interactive Novels",
+          "link": "/interactive-novels",
+          "media": {
+            "src": "asset:bookCover7"
+          },
+          "area": [
+            27.2,
+            13.6,
+            16.6,
+            4.8
           ]
         }
       ],

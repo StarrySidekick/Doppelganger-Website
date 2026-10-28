@@ -1,0 +1,118 @@
+{
+  "version": 5,
+  "columns": 48,
+  "narrowColumns": 16,
+  "gap": 0,
+  "reflowBelow": 700,
+  "title": "About",
+  "description": "About Timothy Vlangas: composer, sound recordist, game maker and artist, making things as Starry Sidekick.",
+  "elements": [
+    {
+      "id": "about-persona",
+      "kind": "image",
+      "face": "cutout",
+      "flow": "keep",
+      "attrs": [
+        "media"
+      ],
+      "onclick": "none",
+      "media": {
+        "src": "asset:persona",
+        "alt": "Timothy, drawn",
+        "width": 2057,
+        "height": 2519,
+        "sizes": "(max-width: 700px) 70vw, 420px",
+        "widths": [
+          500,
+          750,
+          1000
+        ]
+      },
+      "desk": {
+        "col": [
+          5,
+          14
+        ],
+        "row": [
+          3,
+          17
+        ]
+      },
+      "narrow": {
+        "col": [
+          3,
+          12
+        ],
+        "row": [
+          1,
+          15
+        ]
+      }
+    },
+    {
+      "id": "about-title",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "About",
+      "words": {
+        "size": "2",
+        "align": "left"
+      },
+      "desk": {
+        "col": [
+          22,
+          22
+        ],
+        "row": [
+          3,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          16,
+          3
+        ]
+      }
+    },
+    {
+      "id": "about-words",
+      "kind": "note",
+      "face": "none",
+      "flow": "stack",
+      "words": {
+        "font": "body",
+        "size": "1.25",
+        "align": "left",
+        "valign": "top",
+        "lead": "open"
+      },
+      "body": "<p>I’m Timothy Vlangas, and Starry Sidekick is the name I make things under.</p><p>I have been working on film projects since 2017, and these days I work as a composer and sound recordist, which takes in boom operation and mixing. I work for, and am a graduate of, HUDSY, a nonprofit film studio in Kingston, New York.</p><p>People around me know me as a generalist problem solver, leaning toward anything and everything to do with sound and music. I have made albums, played live, made a video game, and worked on a web series, where I learned the ins and outs of a film set and how to get the day’s work done as joyfully as possible.</p><p>Everything is here: <a href=\"/film\">films</a>, <a href=\"/games\">games</a>, <a href=\"/music\">music</a>, <a href=\"/inventions\">inventions</a>, <a href=\"/art\">art</a> and <a href=\"/writing\">writing</a>. To say hello, <a href=\"/contact\">write me a letter</a>, or find me through <a href=\"/links\">the links</a>.</p>",
+      "desk": {
+        "col": [
+          22,
+          22
+        ],
+        "row": [
+          7,
+          16
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          20,
+          46
+        ]
+      }
+    }
+  ]
+}

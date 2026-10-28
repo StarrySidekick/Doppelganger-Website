@@ -1,10 +1,196 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
   "title": "Games",
-  "description": "Games by Timothy Vlangas — design, systems and play.",
-  "elements": []
+  "description": "Games by Timothy Vlangas, as trading cards: what each is, what he did on it, and where to play it.",
+  "elements": [
+    {
+      "id": "games-title",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Games",
+      "words": {
+        "size": "2"
+      },
+      "desk": {
+        "col": [
+          13,
+          22
+        ],
+        "row": [
+          2,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "games-lede",
+      "kind": "note",
+      "face": "none",
+      "flow": "stack",
+      "body": "Trading cards. Press one to turn it over; the back says how to play.",
+      "words": {
+        "font": "body",
+        "italic": "true",
+        "align": "center",
+        "valign": "middle",
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          9,
+          30
+        ],
+        "row": [
+          5,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "games-composers-key",
+      "kind": "trading-card",
+      "flow": "keep",
+      "media": {
+        "src": "asset:composersKeyLogo",
+        "alt": "Composer’s Key, lettered by hand"
+      },
+      "data": {
+        "title": "Composer’s Key",
+        "genre": "Puzzle",
+        "year": 2022,
+        "flavor": "Solve a few music puzzles and have a good day!",
+        "roles": [
+          "Developer",
+          "Designer",
+          "Composer",
+          "Artist"
+        ],
+        "status": "Proof of concept",
+        "about": "A puzzle game about music. The proof of concept is up on itch.io.",
+        "play": "https://starry-sidekick.itch.io/composers-key-proof-of-concept",
+        "playLabel": "Play it"
+      },
+      "desk": {
+        "col": [
+          8,
+          9
+        ],
+        "row": [
+          8,
+          13
+        ]
+      },
+      "narrow": {
+        "col": [
+          3,
+          12
+        ],
+        "row": [
+          8,
+          17
+        ]
+      }
+    },
+    {
+      "id": "games-starcassonne",
+      "kind": "trading-card",
+      "flow": "keep",
+      "media": {
+        "src": "asset:starcassonneCastles",
+        "alt": "A castle tile from Starcassonne",
+        "widths": [
+          500,
+          750
+        ]
+      },
+      "data": {
+        "title": "Starcassonne",
+        "genre": "Board game",
+        "flavor": "Bridges, towers, halflings, castles and abbeys.",
+        "roles": [
+          "Artist"
+        ],
+        "about": "Tile art for a Carcassonne of my own. The rest of the tiles hang in the gallery.",
+        "play": "/art",
+        "playLabel": "See the tiles"
+      },
+      "desk": {
+        "col": [
+          20,
+          9
+        ],
+        "row": [
+          8,
+          13
+        ]
+      },
+      "narrow": {
+        "col": [
+          3,
+          12
+        ],
+        "row": [
+          26,
+          17
+        ]
+      }
+    },
+    {
+      "id": "games-next",
+      "kind": "trading-card",
+      "flow": "keep",
+      "data": {
+        "title": "The next one",
+        "genre": "To be dealt",
+        "flavor": "Still in the deck.",
+        "status": "Coming soon",
+        "about": "A card waiting for the next game. (Placeholder: duplicate a card and change its fields to add one.)"
+      },
+      "desk": {
+        "col": [
+          32,
+          9
+        ],
+        "row": [
+          8,
+          13
+        ]
+      },
+      "narrow": {
+        "col": [
+          3,
+          12
+        ],
+        "row": [
+          44,
+          17
+        ]
+      }
+    }
+  ]
 }

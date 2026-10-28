@@ -170,4 +170,27 @@ const ogImage = image
      than the viewport is never squashed to fit. */
   body.has-chrome { display: flex; flex-direction: column; }
   body.has-chrome .site-main { flex: 1 0 auto; }
+
+  /* The letter: /contact's form, dressed the way the Squarespace one is
+     (measured off the live page, October 2026): pale grey fields with dark
+     words in them, letter-spaced labels, and Submit centred in an outlined
+     blue box. Hung off the form's own id, so any other form on the site
+     keeps the tool's dark fields. Ids are global (hard rule 0), and this one
+     is only ever the contact page's. */
+  #contact-form .ob-field { letter-spacing: .08em; font-size: clamp(1rem, 1.25cqi, 1.3rem); gap: 8px; }
+  #contact-form .ob-field input,
+  #contact-form .ob-field textarea {
+    background: #c8c8c8; color: #111; border: 0; border-radius: 0;
+    font: inherit; letter-spacing: 0; padding: .7em .8em;
+  }
+  #contact-form .ob-field input { min-height: 3.2em; }
+  #contact-form .ob-field input:focus-visible,
+  #contact-form .ob-field textarea:focus-visible { outline: 2px solid #1d6db5; outline-offset: 2px; }
+  #contact-form .ob-send {
+    justify-self: center; margin-top: .4em;
+    background: none; color: #3f8fd9; border: 3px solid #1d6db5; border-radius: 0;
+    font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: .3em;
+    font-size: 1.15rem; padding: .55em 2.2em .6em 2.5em;
+  }
+  #contact-form .ob-send:disabled { opacity: .55; }
 </style>

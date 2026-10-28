@@ -1,10 +1,533 @@
 {
   "version": 5,
-  "columns": 24,
-  "narrowColumns": 8,
+  "columns": 48,
+  "narrowColumns": 16,
   "gap": 0,
   "reflowBelow": 700,
-  "title": "Film",
-  "description": "Films by Timothy Vlangas — directing, sound design and score.",
-  "elements": []
+  "title": "Films",
+  "description": "Films Timothy Vlangas has worked on or made, and what he did on each: sound, music, producing.",
+  "elements": [
+    {
+      "id": "film-title",
+      "kind": "heading",
+      "face": "lettering",
+      "flow": "stack",
+      "body": "Films",
+      "words": {
+        "size": "2"
+      },
+      "desk": {
+        "col": [
+          13,
+          22
+        ],
+        "row": [
+          2,
+          3
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "film-lede",
+      "kind": "note",
+      "face": "none",
+      "flow": "stack",
+      "body": "Every film I’ve worked on or made, and what I did on it.",
+      "words": {
+        "font": "body",
+        "italic": "true",
+        "align": "center",
+        "valign": "middle",
+        "size": "1.25"
+      },
+      "desk": {
+        "col": [
+          11,
+          26
+        ],
+        "row": [
+          5,
+          2
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "id": "film-delivery-driver",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Delivery Driver",
+        "year": 2025,
+        "roles": [
+          "Head of sound"
+        ],
+        "form": "Short film, 48 Hour Film Challenge",
+        "with": "Laura Fenney",
+        "about": "Connecticut’s 2025 winner of the 48 Hour Film Challenge: best film, audience award and best director, and on to a festival in Lisbon."
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          8,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          8,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-bad-fences",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Bad Fences",
+        "year": 2025,
+        "roles": [
+          "Boom operator",
+          "Sound mixer"
+        ],
+        "form": "Dark comedy",
+        "with": "Luke Howe",
+        "about": "The first of two films recorded with director Luke Howe."
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          8,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          20,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-the-method",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "The Method",
+        "year": 2025,
+        "roles": [
+          "Boom operator",
+          "Sound mixer"
+        ],
+        "form": "Dark comedy",
+        "with": "Luke Howe",
+        "about": "The second of two films with Luke Howe."
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          16,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          32,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-hudsy",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "HUDSY",
+        "year": 2025,
+        "roles": [
+          "Sound recordist",
+          "Producer",
+          "Camera operator"
+        ],
+        "form": "Nonprofit film studio, Kingston NY",
+        "about": "An apprenticeship, then a job: sound and producing on social-justice films made in the Hudson Valley."
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          16,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          44,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-couch-with-personality",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Couch With Personality",
+        "year": 2024,
+        "roles": [
+          "Sound recordist"
+        ],
+        "with": "David Quang Pham"
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          24,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          56,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-robbery-reparations",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Robbery Reparations",
+        "year": 2024,
+        "roles": [
+          "Sound recordist"
+        ],
+        "with": "Mira Bahgat"
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          24,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          68,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-green-bean-casserole",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Green Bean Casserole",
+        "year": 2024,
+        "roles": [
+          "Sound recordist",
+          "Boom operator",
+          "Sound mixer"
+        ],
+        "with": "Sakile Camera"
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          32,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          80,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-behind-the-camara",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Behind The Camara",
+        "year": 2024,
+        "roles": [
+          "Head of sound",
+          "Sound recordist"
+        ],
+        "form": "Sketch comedy shorts",
+        "about": "Recording sound, and advising on it, for sketch comedy shorts in Brooklyn."
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          32,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          92,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-retreat",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Retreat",
+        "year": 2024,
+        "roles": [
+          "Sound mixer",
+          "Boom operator"
+        ],
+        "form": "Feature film",
+        "with": "Love is Love Productions",
+        "about": "Mixed and recorded on location for the last part of the shoot of an LGBTQIA+ feature."
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          40,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          104,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-untitled-dark-comedy",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Untitled Dark Comedy",
+        "year": 2023,
+        "roles": [
+          "Sound recordist",
+          "Boom operator"
+        ],
+        "form": "Feature film",
+        "with": "Gustavo Gonzalez",
+        "about": "A three-day shoot of twelve-hour days, with some live sound as well."
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          40,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          116,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-the-line",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "The Line",
+        "year": 2023,
+        "roles": [
+          "Sound mixer",
+          "Boom operator"
+        ],
+        "form": "Short film",
+        "with": "Sonya LaTorre",
+        "about": "Sound and boom in a five-person crew, over one long day."
+      },
+      "desk": {
+        "col": [
+          3,
+          21
+        ],
+        "row": [
+          48,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          128,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-metronome-heart",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Metronome Heart",
+        "year": 2019,
+        "roles": [
+          "Creator",
+          "Composer"
+        ],
+        "with": "Starry Sidekick"
+      },
+      "desk": {
+        "col": [
+          25,
+          21
+        ],
+        "row": [
+          48,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          140,
+          11
+        ]
+      }
+    },
+    {
+      "id": "film-artless-season-2",
+      "kind": "film",
+      "flow": "stack",
+      "data": {
+        "title": "Artless, Season 2",
+        "year": 2017,
+        "roles": [
+          "Sound mixer",
+          "Boom operator",
+          "Actor"
+        ],
+        "form": "Web series",
+        "with": "Gabe Fowler",
+        "about": "Where I learned how a set works: sound for the whole production, and a supporting part in front of the camera."
+      },
+      "desk": {
+        "col": [
+          14,
+          21
+        ],
+        "row": [
+          56,
+          7
+        ]
+      },
+      "narrow": {
+        "col": [
+          1,
+          16
+        ],
+        "row": [
+          152,
+          11
+        ]
+      }
+    }
+  ]
 }

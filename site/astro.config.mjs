@@ -37,7 +37,7 @@ export default defineConfig({
       app: {
         name: 'Starry Sidekick',
         short: 'Starry',
-        description: 'Timothy Vlangas — film, games, writing, music, art and inventions.',
+        description: 'Timothy Vlangas — films, games, music, inventions, art and writing.',
         background: '#000000',
         theme: '#000000',
         icons: [
@@ -53,7 +53,7 @@ export default defineConfig({
         ],
         precache: ['favicon.png', 'icon-192.png', 'icon-512.png'],
         // Pictures and fonts: kept, and refreshed behind.
-        media: ['images.squarespace-cdn.com', 'static1.squarespace.com', 'fonts.googleapis.com', 'fonts.gstatic.com'],
+        media: ['images.squarespace-cdn.com', 'static1.squarespace.com', 'img.itch.zone', 'fonts.googleapis.com', 'fonts.gstatic.com'],
       },
     }),
   ],
@@ -68,5 +68,10 @@ export default defineConfig({
     // it generates but NOT to the target, so a bare '/contact' would send
     // visitors to the domain root and 404 — the exact bug hard rule 2 is about.
     '/contact-1': `${base}/contact`,
+    // Squarespace's /uiux was a page of pictures, and every one of them now
+    // hangs in the gallery at /art (its UI and Graphics rooms). The old
+    // address keeps working rather than 404ing: hard rule 3 is about exactly
+    // this, an inbound link from anywhere still landing.
+    '/uiux': `${base}/art`,
   },
 });
