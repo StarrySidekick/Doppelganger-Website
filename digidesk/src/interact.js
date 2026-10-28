@@ -4,9 +4,9 @@
  * Some objects have live behaviour that has nothing to do with editing, so it
  * cannot live in editor.js — a visitor never downloads that. A fold opens and
  * shuts; an accordion opens one of its items at a time; a feed of works
- * narrows to a tag when a chip is pressed; a carousel turns; a player drives
- * SoundCloud; a shuffle tints the page; and the look's sparks fly from a
- * click. Nothing here knows which site it is on — every address it uses is
+ * narrows to a tag when a chip is pressed; a carousel turns (its keys, a
+ * swipe, the arrow keys); a player drives SoundCloud; a shuffle tints the
+ * page; and the look's sparks fly from a click. Nothing here knows which site it is on — every address it uses is
  * on the element it was handed.
  *
  * One delegated listener on the document, the way Bureau keeps one set in
@@ -121,6 +121,36 @@ function turnCarousel(holder, by) {
   const frames = [...holder.querySelectorAll('.ob-frame')];
   const now = frames.findIndex((f) => f.hasAttribute('data-current'));
   showFrame(holder, (now < 0 ? 0 : now) + by);
+}
+
+/**
+ * A swipe across a carousel turns it, which is what a thumb expects of
+ * anything that turns; a mouse has the keys. The stage says it takes
+ * sideways drags (`touch-action: pan-y`, faces.css), or the browser would
+ * claim the drag as a scroll and cancel it. A drag that is mostly up or down
+ * is the page scrolling and is left alone.
+ */
+let swipe = null;
+function onSwipeStart(e) {
+  if (e.pointerType === 'mouse' || editing()) return;
+  const holder = e.target.closest?.('[data-carousel]');
+  swipe = holder ? { holder, id: e.pointerId, x: e.clientX, y: e.clientY } : null;
+}
+function onSwipeEnd(e) {
+  const s = swipe;
+  swipe = null;
+  if (!s || e.pointerId !== s.id) return;
+  const dx = e.clientX - s.x, dy = e.clientY - s.y;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) turnCarousel(s.holder, dx < 0 ? 1 : -1);
+}
+
+/** The arrow keys turn a carousel that has the focus somewhere inside it. */
+function onCarouselKey(e) {
+  if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || editing()) return;
+  const holder = document.activeElement?.closest?.('[data-carousel]');
+  if (!holder) return;
+  e.preventDefault();
+  turnCarousel(holder, e.key === 'ArrowRight' ? 1 : -1);
 }
 
 /** Pointing at a hotspot shows the frame it belongs to. */
@@ -333,7 +363,11 @@ export function wireInteractions(root = document) {
     mo.observe(document.body, { childList: true, subtree: true });
   }
   root.addEventListener('submit', onSubmit);
+  root.addEventListener('pointerdown', onSwipeStart);
+  root.addEventListener('pointerup', onSwipeEnd);
+  root.addEventListener('pointercancel', () => { swipe = null; });
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeOthers(null);
+    onCarouselKey(e);
   });
 }

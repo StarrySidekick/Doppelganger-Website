@@ -367,6 +367,10 @@
 .ob:has(> .ob-holds.ar-carousel) { overflow: visible; display: block; }
 .ob-holds.ar-carousel { display: block; height: auto; overflow: visible; position: relative; }
 .ar-carousel .ob-car-stage { position: relative; width: 100%; }
+/* A sideways drag turns the carousel (interact.js), so the browser is told
+   the stage only scrolls up and down. Never while editing: the board decides
+   its own gestures (see the touch notes in LayoutEditor.astro). */
+html:not(.ag-editing) .ar-carousel .ob-car-stage { touch-action: pan-y; }
 .ar-carousel .ob-car-stage > .ob-img,
 .ar-carousel .ob-frame,
 .ar-carousel .ob-frame .ob-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
